@@ -1,12 +1,12 @@
-import { NextApiRequest, NextApiResponse } from "next";
-import * as relayerUtils from "@zk-email/relayer-utils";
+import * as relayerUtils from '@zk-email/relayer-utils';
+import { NextApiRequest, NextApiResponse } from 'next';
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  if (req.method !== "POST") {
-    res.setHeader("Allow", ["POST"]);
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', ['POST']);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 
@@ -14,14 +14,14 @@ export default async function handler(
     const { jwt, pubkey, maxMessageLength } = req.body;
 
     if (!jwt || !pubkey || !maxMessageLength) {
-      return res.status(400).json({ error: "Missing required fields" });
+      return res.status(400).json({ error: 'Missing required fields' });
     }
 
     const accountCode = await relayerUtils.generateAccountCode();
 
     res.status(200).json(accountCode);
   } catch (error) {
-    console.error("Error generating circuit inputs:", error);
-    res.status(500).json({ error: "Failed to generate inputs" });
+    console.error('Error generating circuit inputs:', error);
+    res.status(500).json({ error: 'Failed to generate inputs' });
   }
 }
