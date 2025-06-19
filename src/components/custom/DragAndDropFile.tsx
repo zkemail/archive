@@ -1,9 +1,15 @@
+import Image from 'next/image';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import Image from "next/image";
 
 const DragAndDropFile = ({
   accept,
@@ -23,10 +29,10 @@ const DragAndDropFile = ({
   tooltipComponent?: React.ReactNode;
 }) => {
   return (
-    (<div className="flex w-full flex-col gap-4">
+    <div className='flex w-full flex-col gap-4'>
       {title ? (
-        <div className="flex flex-row gap-2">
-          <Label className="text-base text-grey-900" htmlFor={title}>
+        <div className='flex flex-row gap-2'>
+          <Label className='text-grey-900 text-base' htmlFor={title}>
             {title}
           </Label>
 
@@ -34,7 +40,12 @@ const DragAndDropFile = ({
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger>
-                  <Image src="/assets/Info.svg" alt="info" width={16} height={16} />
+                  <Image
+                    src='/assets/Info.svg'
+                    alt='info'
+                    width={16}
+                    height={16}
+                  />
                 </TooltipTrigger>
                 <TooltipContent>{tooltipComponent}</TooltipContent>
               </Tooltip>
@@ -43,7 +54,7 @@ const DragAndDropFile = ({
         </div>
       ) : null}
       <div
-        className="w-full cursor-pointer rounded-lg p-8"
+        className='w-full cursor-pointer rounded-lg p-8'
         onClick={() => document.getElementById('email-file')?.click()}
         onDragOver={(e) => {
           e.preventDefault();
@@ -61,35 +72,37 @@ const DragAndDropFile = ({
           backgroundImage: `url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%23E2E2E2FF' stroke-width='4' stroke-dasharray='6%2c 14' stroke-dashoffset='2' stroke-linecap='square'/%3e%3c/svg%3e")`,
         }}
       >
-        <div className="flex flex-col items-center justify-center gap-4">
+        <div className='flex flex-col items-center justify-center gap-4'>
           {file ? (
             <>
               <Image
-                src="/assets/CheckCircle.svg"
-                alt="Upload icon"
+                src='/assets/CheckCircle.svg'
+                alt='Upload icon'
                 width={40}
                 height={40}
                 style={{
-                  maxWidth: "100%",
-                  height: "auto"
-                }} />
-              <div className="flex flex-col items-center text-base font-semibold">
-                <p className="text-grey-800">
-                  {file.name} <span className="text-grey-700">(Uploaded)</span>
+                  maxWidth: '100%',
+                  height: 'auto',
+                }}
+              />
+              <div className='flex flex-col items-center text-base font-semibold'>
+                <p className='text-grey-800'>
+                  {file.name} <span className='text-grey-700'>(Uploaded)</span>
                 </p>
                 <Button
-                  variant="link"
-                  className="text-grey-700"
+                  variant='link'
+                  className='text-grey-700'
                   startIcon={
                     <Image
-                      src="/assets/Trash.svg"
-                      alt="Trash icon"
+                      src='/assets/Trash.svg'
+                      alt='Trash icon'
                       width={16}
                       height={16}
                       style={{
-                        maxWidth: "100%",
-                        height: "auto"
-                      }} />
+                        maxWidth: '100%',
+                        height: 'auto',
+                      }}
+                    />
                   }
                   onClick={() => {
                     setFile(null);
@@ -102,27 +115,29 @@ const DragAndDropFile = ({
           ) : (
             <>
               <Image
-                src="/assets/FileArrowUp.svg"
-                alt="Upload icon"
+                src='/assets/FileArrowUp.svg'
+                alt='Upload icon'
                 width={40}
                 height={40}
                 style={{
-                  maxWidth: "100%",
-                  height: "auto"
-                }} />
-              <div className="flex flex-col items-center text-base font-semibold">
-                <p className="text-brand-400">
-                  Click to upload <span className="text-grey-700">or drag and drop</span>
+                  maxWidth: '100%',
+                  height: 'auto',
+                }}
+              />
+              <div className='flex flex-col items-center text-base font-semibold'>
+                <p className='text-brand-400'>
+                  Click to upload{' '}
+                  <span className='text-grey-700'>or drag and drop</span>
                 </p>
-                <p className="text-grey-700">({accept} format)</p>
+                <p className='text-grey-700'>({accept} format)</p>
               </div>
             </>
           )}
           <Input
-            id="email-file"
-            type="file"
+            id='email-file'
+            type='file'
             accept={accept}
-            className="hidden"
+            className='hidden'
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
               // Handle file upload
               const file = e.target.files?.[0];
@@ -134,11 +149,16 @@ const DragAndDropFile = ({
         </div>
       </div>
       {errorMessage || helpText ? (
-        <p className={cn('text-base text-grey-600', errorMessage ? 'text-red-500' : '')}>
+        <p
+          className={cn(
+            'text-grey-600 text-base',
+            errorMessage ? 'text-red-500' : ''
+          )}
+        >
           {errorMessage || helpText}
         </p>
       ) : null}{' '}
-    </div>)
+    </div>
   );
 };
 

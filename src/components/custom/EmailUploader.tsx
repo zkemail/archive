@@ -1,18 +1,20 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-"use client";
+'use client';
 
-import Image from "next/image";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import useGoogleAuth from "@/hooks/useGoogleAuth";
-import { useEffect, useState } from "react";
-import DragAndDropFile from "./DragAndDropFile";
-import { RawEmailResponse } from "@/hooks/useGmailClient";
-import { fetchEmailList, fetchEmailsRaw } from "@/hooks/useGmailClient";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { AnimatePresence, motion } from "framer-motion";
-import Loader from "@/components/ui/loader";
-import { decodeMimeEncodedText, formatDate, getFileContent } from "@/lib/utils";
+import { AnimatePresence, motion } from 'framer-motion';
+import Image from 'next/image';
+import { useEffect, useState } from 'react';
+
+import { Button } from '@/components/ui/button';
+import Loader from '@/components/ui/loader';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Separator } from '@/components/ui/separator';
+import { RawEmailResponse } from '@/hooks/useGmailClient';
+import { fetchEmailList, fetchEmailsRaw } from '@/hooks/useGmailClient';
+import useGoogleAuth from '@/hooks/useGoogleAuth';
+import { decodeMimeEncodedText, formatDate, getFileContent } from '@/lib/utils';
+
+import DragAndDropFile from './DragAndDropFile';
 
 const EmailUploader = ({
   onFileUpload,
@@ -36,19 +38,19 @@ const EmailUploader = ({
       if (!file) return;
       const content = await getFileContent(file);
       if (content) {
-        const subject = content.match(/Subject: (.*)/)?.[1] || "No Subject";
+        const subject = content.match(/Subject: (.*)/)?.[1] || 'No Subject';
 
         const selectedEmail = {
-          emailMessageId: "uploadedFile",
+          emailMessageId: 'uploadedFile',
           subject,
           internalDate: (() => {
             const dateMatches = content.match(/Date: (.*)/g); // Find all "Date:" occurrences
             if (dateMatches && dateMatches.length > 0) {
               const lastDateMatch = dateMatches[dateMatches.length - 1]; // Take the last match
-              const dateValue = lastDateMatch.split("Date: ")[1]; // Extract the actual date string
+              const dateValue = lastDateMatch.split('Date: ')[1]; // Extract the actual date string
               return new Date(dateValue).toISOString(); // Convert to ISO format
             }
-            return "Invalid Date";
+            return 'Invalid Date';
           })(),
           decodedContents: content,
         };
@@ -94,7 +96,7 @@ const EmailUploader = ({
         setFetchedEmails([]);
       }
     } catch (error) {
-      console.error("Error in fetching data:", error);
+      console.error('Error in fetching data:', error);
     } finally {
       setIsFetchEmailLoading(false);
     }
@@ -108,20 +110,20 @@ const EmailUploader = ({
   }, [googleAuthToken]);
 
   const emailUploadOptions = (
-    <div className="flex flex-col items-center justify-center gap-6">
-      <div className="flex w-full flex-col gap-1">
-        <h4 className="text-xl font-bold text-grey-800">Connect emails</h4>
-        <p className="text-base font-medium text-grey-700">
+    <div className='flex flex-col items-center justify-center gap-6'>
+      <div className='flex w-full flex-col gap-1'>
+        <h4 className='text-grey-800 text-xl font-bold'>Connect emails</h4>
+        <p className='text-grey-700 text-base font-medium'>
           Connect your Gmail or upload an .eml file
         </p>
-        <p className="text-base font-medium text-grey-700">
-          <span className="font-bold text-grey-900">Note:</span> All email
+        <p className='text-grey-700 text-base font-medium'>
+          <span className='text-grey-900 font-bold'>Note:</span> All email
           processing occurs locally on your device. We never receive or store
           your email data.
         </p>
       </div>
       <Button
-        className="flex w-max items-center gap-2"
+        className='flex w-max items-center gap-2'
         onClick={googleLogIn(() => {
           setIsFetchEmailLoading(true);
           // setTimeout(() => {
@@ -133,34 +135,34 @@ const EmailUploader = ({
         })}
       >
         <Image
-          src="/assets/GoogleLogo.svg"
-          alt="Google Logo"
+          src='/assets/GoogleLogo.svg'
+          alt='Google Logo'
           width={16}
           height={16}
           style={{
-            maxWidth: "100%",
-            height: "auto",
+            maxWidth: '100%',
+            height: 'auto',
           }}
         />
         Connect Gmail Account
       </Button>
-      <div className="flex w-full items-center">
-        <Separator className="flex-1" />
-        <span className="mx-3 text-base font-semibold text-grey-700">OR</span>
-        <Separator className="flex-1" />
+      <div className='flex w-full items-center'>
+        <Separator className='flex-1' />
+        <span className='text-grey-700 mx-3 text-base font-semibold'>OR</span>
+        <Separator className='flex-1' />
       </div>
       <DragAndDropFile
-        accept=".eml"
+        accept='.eml'
         file={file}
         tooltipComponent={
-          <div className="w-[380px] rounded-2xl border border-grey-500 bg-white p-2">
+          <div className='border-grey-500 w-[380px] rounded-2xl border bg-white p-2'>
             <Image
-              src="/assets/emlInfo.svg"
-              alt="emlInfo"
+              src='/assets/emlInfo.svg'
+              alt='emlInfo'
               width={360}
               height={80}
             />
-            <p className="mt-3 text-base font-medium text-grey-700">
+            <p className='text-grey-700 mt-3 text-base font-medium'>
               The test .eml file is a sample email used to check if all the
               provided patterns (regex) work correctly. This helps confirm
               everything is set up properly before blueprint creation. We always
@@ -180,20 +182,20 @@ const EmailUploader = ({
   const renderEmailsTable = () => {
     if (isFetchEmailLoading) {
       return (
-        <div className="mt-6 flex w-full justify-center">
+        <div className='mt-6 flex w-full justify-center'>
           <Loader />
         </div>
       );
     }
 
     return (
-      <div className="mt-6 w-[640px] border border-grey-500 rounded-2xl p-6">
+      <div className='border-grey-500 mt-6 w-[640px] rounded-2xl border p-6'>
         <Button
-          variant="ghost"
+          variant='ghost'
           startIcon={
             <Image
-              src="/assets/ArrowLeft.svg"
-              alt="arrow left"
+              src='/assets/ArrowLeft.svg'
+              alt='arrow left'
               width={16}
               height={16}
             />
@@ -207,13 +209,13 @@ const EmailUploader = ({
         >
           Back
         </Button>
-        <div className="grid w-full">
+        <div className='grid w-full'>
           {/* Header */}
           <div
-            className="mb-2 grid gap-6 text-left font-semibold"
-            style={{ gridTemplateColumns: "1fr 2fr 6fr" }}
+            className='mb-2 grid gap-6 text-left font-semibold'
+            style={{ gridTemplateColumns: '1fr 2fr 6fr' }}
           >
-            <div className="text-left">Select</div>
+            <div className='text-left'>Select</div>
             <div>Sent on</div>
             <div>Subject</div>
           </div>
@@ -235,11 +237,11 @@ const EmailUploader = ({
                 <motion.div
                   initial={{ height: 0, opacity: 0 }}
                   key={email.emailMessageId}
-                  animate={{ height: "auto", opacity: 1 }}
+                  animate={{ height: 'auto', opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.3, ease: "easeInOut" }}
-                  className="grid items-center gap-6 border-t-2 border-neutral-100 py-3 text-grey-700"
-                  style={{ gridTemplateColumns: "1fr 2fr 6fr" }}
+                  transition={{ duration: 0.3, ease: 'easeInOut' }}
+                  className='text-grey-700 grid items-center gap-6 border-t-2 border-neutral-100 py-3'
+                  style={{ gridTemplateColumns: '1fr 2fr 6fr' }}
                 >
                   <RadioGroupItem
                     value={email.decodedContents}
@@ -247,10 +249,10 @@ const EmailUploader = ({
                     // disabled={!email.valid}
                   />
                   <div>
-                    <div>{formatDate(email.internalDate).split(",")[0]}</div>
-                    <div>{formatDate(email.internalDate).split(",")[1]}</div>
+                    <div>{formatDate(email.internalDate).split(',')[0]}</div>
+                    <div>{formatDate(email.internalDate).split(',')[1]}</div>
                   </div>
-                  <div className="overflow-hidden text-ellipsis">
+                  <div className='overflow-hidden text-ellipsis'>
                     {decodeMimeEncodedText(email.subject)}
                   </div>
                 </motion.div>
@@ -258,22 +260,22 @@ const EmailUploader = ({
             </AnimatePresence>
           </RadioGroup>
         </div>
-        <div className="mt-6 flex w-full flex-col items-center gap-4">
+        <div className='mt-6 flex w-full flex-col items-center gap-4'>
           <Button
-            variant="ghost"
-            className="gap-2 text-grey-700"
+            variant='ghost'
+            className='text-grey-700 gap-2'
             onClick={handleFetchEmails}
             disabled={isFetchEmailLoading}
           >
             <Image
-              src="/assets/ArrowsClockwise.svg"
-              alt="arrow down"
+              src='/assets/ArrowsClockwise.svg'
+              alt='arrow down'
               width={16}
               height={16}
-              className={isFetchEmailLoading ? "animate-spin" : ""}
+              className={isFetchEmailLoading ? 'animate-spin' : ''}
               style={{
-                maxWidth: "100%",
-                height: "auto",
+                maxWidth: '100%',
+                height: 'auto',
               }}
             />
             Load More Emails

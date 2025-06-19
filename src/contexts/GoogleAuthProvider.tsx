@@ -1,16 +1,16 @@
 /* eslint-disable @typescript-eslint/no-unused-expressions */
-"use client";
+'use client';
 
-import React, { useEffect, useState, ReactNode } from "react";
 import {
+  googleLogout,
   hasGrantedAllScopesGoogle,
   useGoogleLogin,
-  googleLogout,
   UseGoogleLoginOptionsImplicitFlow,
-} from "@react-oauth/google";
+} from '@react-oauth/google';
+import React, { ReactNode, useEffect, useState } from 'react';
 
-import GoogleAuthContext from "./GoogleAuthContext";
-import { fetchProfile } from "../hooks/useGmailClient";
+import { fetchProfile } from '../hooks/useGmailClient';
+import GoogleAuthContext from './GoogleAuthContext';
 
 interface ProvidersProps {
   children: ReactNode;
@@ -46,16 +46,16 @@ const GoogleAuthProvider = ({ children }: ProvidersProps) => {
   const [loggedInGmail, setLoggedInGmail] = useState<string | null>(null);
 
   useEffect(() => {
-    esl && console.log("googleAuthScopes_1");
-    esl && console.log("checking googleAuthToken", googleAuthToken);
+    esl && console.log('googleAuthScopes_1');
+    esl && console.log('checking googleAuthToken', googleAuthToken);
 
     if (googleAuthToken) {
-      esl && console.log("googleAuthScopes_2");
+      esl && console.log('googleAuthScopes_2');
       const allScope = hasGrantedAllScopesGoogle(
-        { ...googleAuthToken, prompt: "none" },
-        "email",
-        "profile",
-        "https://www.googleapis.com/auth/gmail.readonly"
+        { ...googleAuthToken, prompt: 'none' },
+        'email',
+        'profile',
+        'https://www.googleapis.com/auth/gmail.readonly'
       );
 
       setIsScopesApproved(allScope);
@@ -63,11 +63,11 @@ const GoogleAuthProvider = ({ children }: ProvidersProps) => {
   }, [googleAuthToken]);
 
   useEffect(() => {
-    esl && console.log("googleProfile_1");
-    esl && console.log("checking googleAuthToken", googleAuthToken);
+    esl && console.log('googleProfile_1');
+    esl && console.log('checking googleAuthToken', googleAuthToken);
 
     if (googleAuthToken) {
-      esl && console.log("googleProfile_2");
+      esl && console.log('googleProfile_2');
 
       const fetchData = async () => {
         try {
@@ -76,10 +76,10 @@ const GoogleAuthProvider = ({ children }: ProvidersProps) => {
           if (email) {
             setLoggedInGmail(email);
 
-            localStorage.setItem("loggedInEmail", email);
+            localStorage.setItem('loggedInEmail', email);
           }
         } catch (error) {
-          console.error("Error in fetching profile data:", error);
+          console.error('Error in fetching profile data:', error);
         }
       };
 
@@ -104,9 +104,9 @@ const GoogleAuthProvider = ({ children }: ProvidersProps) => {
         //   JSON.stringify(tokenResponse)
         // );
       },
-      scope: "email profile https://www.googleapis.com/auth/gmail.readonly",
-      flow: "implicit",
-      ux_mode: "redirect",
+      scope: 'email profile https://www.googleapis.com/auth/gmail.readonly',
+      flow: 'implicit',
+      ux_mode: 'redirect',
     } as UseGoogleLoginOptionsImplicitFlow);
 
   const googleLogOut = () => {
@@ -116,10 +116,10 @@ const GoogleAuthProvider = ({ children }: ProvidersProps) => {
     // localStorage.removeItem(getGoogleAuthTokenKey());
 
     setIsGoogleAuthed(false);
-    localStorage.removeItem("isGoogleAuthed");
+    localStorage.removeItem('isGoogleAuthed');
 
     setLoggedInGmail(null);
-    localStorage.removeItem("loggedInGmail");
+    localStorage.removeItem('loggedInGmail');
 
     googleLogout();
   };

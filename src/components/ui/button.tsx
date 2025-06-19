@@ -1,9 +1,9 @@
-import * as React from 'react';
 import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
+import { Loader2 } from 'lucide-react';
+import * as React from 'react';
 
 import { cn } from '../../lib/utils';
-import { Loader2 } from 'lucide-react';
 
 const buttonVariants = cva(
   'inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
@@ -14,7 +14,8 @@ const buttonVariants = cva(
           'bg-[#1C1C1C] border-box text-primary-foreground border border-2 border-grey-800 shadow hover:bg-primary/90 font-semibold',
         destructive:
           'flex flex-row gap-0.5 rounded-lg border border-red-300 bg-red-100 px-2 py-1 text-red-500 hover:bg-destructive/10',
-        outline: 'border border-input border-grey-500 rounded-lg hover:bg-accent hover:text-accent-foreground',
+        outline:
+          'border border-input border-grey-500 rounded-lg hover:bg-accent hover:text-accent-foreground',
         tag: 'bg-white',
         secondary:
           'bg-neutral-200 rounded border text-grey-800 rounded-lg border-grey-500 font-medium shadow-sm hover:bg-secondary/100',
@@ -72,14 +73,14 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         {...props}
       >
         {loading ? (
-          <span className="mr-2 w-max">
-            <Loader2 className="h-4 w-4 animate-spin" />
+          <span className='mr-2 w-max'>
+            <Loader2 className='h-4 w-4 animate-spin' />
           </span>
         ) : startIcon ? (
-          <span className="mr-2 w-max">{startIcon}</span>
+          <span className='mr-2 w-max'>{startIcon}</span>
         ) : null}
         {children}
-        {endIcon && <span className="ml-2 w-max">{endIcon}</span>}
+        {endIcon && <span className='ml-2 w-max'>{endIcon}</span>}
       </Comp>
     );
   }

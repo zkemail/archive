@@ -1,6 +1,6 @@
 import { useContext } from 'react';
-import GoogleAuthContext from '../contexts/GoogleAuthContext';
 
+import GoogleAuthContext from '../contexts/GoogleAuthContext';
 
 const useGoogleAuth = () => {
   return { ...useContext(GoogleAuthContext) };
