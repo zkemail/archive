@@ -54,13 +54,13 @@ export default function RootLayout({
 
   return (
     <html lang='en' suppressHydrationWarning>
-      <body
-        className={`${fustat.className} transition-theme flex h-screen flex-col justify-evenly antialiased`}
-      >
+      <body className={`${fustat.className} transition-theme antialiased`}>
         <ThemeProvider attribute='class' enableSystem defaultTheme='default'>
-          <Navbar />
-          <ToastProvider>{children}</ToastProvider>
-          <Footer />
+          <div className='transition-theme flex h-screen flex-col justify-between'>
+            <Navbar />
+            <ToastProvider>{children}</ToastProvider>
+            <Footer />
+          </div>
         </ThemeProvider>
       </body>
     </html>
