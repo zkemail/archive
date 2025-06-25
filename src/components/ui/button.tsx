@@ -6,12 +6,12 @@ import * as React from 'react';
 import { cn } from '../../lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none lg:focus-visible:ring-1 lg:focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
         default:
-          'bg-[#1C1C1C] border-box text-primary-foreground border border-2 border-grey-800 shadow hover:bg-primary/90 font-semibold',
+          'bg-primary text-background border-2 rounded-xl border-ring shadow hover:bg-primary/90',
         destructive:
           'flex flex-row gap-0.5 rounded-lg border border-red-300 bg-red-100 px-2 py-1 text-red-500 hover:bg-destructive/10',
         outline:
@@ -23,7 +23,7 @@ const buttonVariants = cva(
         link: 'text-primary underline-offset-4 hover:underline',
       },
       size: {
-        default: 'px-4 py-3 h-10 text-base leading-[0.875rem]',
+        default: 'px-7 py-3 h-10 text-base font-bold leading-[0.875rem]',
         sm: 'h-8 rounded-lg px-3 text-sm leading-[0.875rem]',
         lg: 'h-10 rounded-lg px-8',
         icon: 'h-9 w-9',
