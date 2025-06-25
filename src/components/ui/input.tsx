@@ -18,20 +18,21 @@ export interface InputProps
   error?: boolean;
   errorMessage?: string | React.ReactNode;
   helpText?: string;
-  size?: 'default' | 'sm' | 'lg';
+  size?: 'default' | 'sm' | 'lg' | 'search';
   startIcon?: React.ReactNode;
   tooltipComponent?: React.ReactNode;
   loading?: boolean;
 }
 
 const inputVariants = cva(
-  'inline-flex items-center w-full border border-grey-500 disabled:border-grey-500 disabled:bg-neutral-100 justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:text-grey-700 .placeholder-text-grey-700::placeholder',
+  'flex items-center w-full border border-grey-500 disabled:border-grey-500 disabled:bg-neutral-100 justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors disabled:pointer-events-none disabled:text-grey-700 .placeholder-input::placeholder',
   {
     variants: {
       size: {
         default: 'px-4 h-9 px-3 py-1 leading-[0.875rem]',
         sm: 'h-8 rounded-md px-3 text-sm leading-[0.875rem]',
         lg: 'h-10 rounded-md px-8',
+        search: 'h-4 w-full rounded-none',
       },
     },
     defaultVariants: {
