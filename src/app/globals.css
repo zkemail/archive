@@ -20,12 +20,6 @@
   --color-accent-background-purple: var(--accent-background-purple);
   --color-accent-foreground-blue: var(--accent-foreground-blue);
   --color-destructive: var(--destructive);
-  --font-mono: var(--font-geist-mono);
-  --font-sans: var(--font-geist-sans);
-  --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-xl: calc(var(--radius) + 4px);
 }
 
 :root {
@@ -72,6 +66,14 @@
 
 @layer utilities {
   .transition-theme {
-    @apply transition-colors duration-300 ease-out;
+    @apply transition-colors duration-150 ease-out;
+  }
+
+  .transition-opacity {
+    @apply transition-opacity duration-200 ease-in-out;
+  }
+
+  .transition-transform {
+    @apply transition-transform duration-200 ease-in-out;
   }
 }
