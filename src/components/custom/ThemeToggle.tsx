@@ -35,7 +35,7 @@ const ThemeToggle = ({ theme, setTheme, mounted }: any) => {
       >
         <SunDimIcon
           size={24}
-          color='#3B3B3B'
+          color={theme === 'light' ? '#3B3B3B' : '#3B3B3B'}
           weight={theme === 'light' ? 'fill' : 'regular'}
           className='transition-all'
         />
@@ -50,7 +50,7 @@ const ThemeToggle = ({ theme, setTheme, mounted }: any) => {
       >
         <MoonIcon
           size={24}
-          color='#3B3B3B'
+          color={theme === 'dark' ? '#D4D4D4' : '#A8A8A8'}
           weight={theme === 'dark' ? 'fill' : 'regular'}
           className='transition-all'
         />
