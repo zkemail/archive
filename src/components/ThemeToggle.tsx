@@ -7,8 +7,8 @@ import React, { useCallback } from 'react';
 import { Button } from './ui/button';
 
 interface ThemeToggleProps {
-  theme: 'light' | 'dark';
-  setTheme: (theme: 'light' | 'dark') => void;
+  theme: string | undefined;
+  setTheme: React.Dispatch<React.SetStateAction<string>>;
   mounted: boolean;
 }
 
