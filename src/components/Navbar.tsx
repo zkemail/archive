@@ -26,7 +26,7 @@ const Navbar = () => {
     <nav
       role='navigation'
       aria-label='Main navigation'
-      className='bg-foreground transition-theme border-border flex flex-row items-center justify-between border-b px-4 md:px-6'
+      className='bg-foreground transition-theme border-border z-150 flex flex-row items-center justify-between border-b px-4 md:px-6'
     >
       <div className='my-3.5 md:my-4 lg:my-[22px]'>
         <Image

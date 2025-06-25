@@ -18,7 +18,7 @@ export type MenuItem = {
 
 interface HamburgerMenuProps {
   theme: string | undefined;
-  setTheme: (theme: string) => void;
+  setTheme: React.Dispatch<React.SetStateAction<string>>;
   mounted: boolean;
   items: MenuItem[];
 }

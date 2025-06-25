@@ -65,7 +65,7 @@ const DropdownMenuContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        '-z-50 flex min-w-[8rem] flex-col gap-4 overflow-hidden rounded-b-2xl px-6 py-3.5',
+        'z-100 flex min-w-[8rem] flex-col gap-4 overflow-hidden rounded-b-2xl px-6 py-3.5',
         'data-[state=open]:animate-in data-[state=open]:slide-in-from-top-48 data-[state=closed]:animate-out data-[state=closed]:slide-out-to-top-48 !duration-300',
         className
       )}
