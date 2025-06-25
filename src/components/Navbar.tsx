@@ -4,9 +4,9 @@ import Image from 'next/image';
 import { useTheme } from 'next-themes';
 import React, { useEffect, useState } from 'react';
 
-import { Button } from '../ui/button';
 import { HamburgerMenu, MenuItem } from './HamburgerMenu';
 import ThemeToggle from './ThemeToggle';
+import { Button } from './ui/button';
 
 const MENU_ITEMS: MenuItem[] = [
   { name: 'JWT Directory', to: '/jwt' },

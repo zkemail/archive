@@ -4,7 +4,7 @@ import { MoonIcon, SunDimIcon } from '@phosphor-icons/react';
 import { motion } from 'motion/react';
 import React, { useCallback } from 'react';
 
-import { Button } from '../ui/button';
+import { Button } from './ui/button';
 
 const ThemeToggle = ({ theme, setTheme, mounted }: any) => {
   const handleLightTheme = useCallback(() => setTheme('light'), [setTheme]);

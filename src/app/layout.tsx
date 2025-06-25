@@ -5,8 +5,8 @@ import type { Metadata } from 'next';
 import { Fustat } from 'next/font/google';
 import { ThemeProvider } from 'next-themes';
 
-import Footer from '@/components/custom/Footer';
-import Navbar from '@/components/custom/Navbar';
+import Footer from '@/components/Footer';
+import Navbar from '@/components/Navbar';
 import GoogleAuthProvider from '@/contexts/GoogleAuthProvider';
 import ToastProvider from '@/contexts/ToastProvider';
 
