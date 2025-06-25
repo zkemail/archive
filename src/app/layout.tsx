@@ -2,20 +2,15 @@ import './globals.css';
 
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Fustat } from 'next/font/google';
+import { ThemeProvider } from 'next-themes';
 
+import Footer from '@/components/custom/Footer';
+import Navbar from '@/components/custom/Navbar';
 import GoogleAuthProvider from '@/contexts/GoogleAuthProvider';
 import ToastProvider from '@/contexts/ToastProvider';
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-});
-
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
-});
+const fustat = Fustat({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'ZK Email',
@@ -41,28 +36,32 @@ export default function RootLayout({
 }>) {
   if (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
     return (
-      <html lang='en'>
-        <body
-          className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-        >
-          <GoogleOAuthProvider
-            clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''}
-          >
-            <GoogleAuthProvider>
-              <ToastProvider>{children}</ToastProvider>
-            </GoogleAuthProvider>
-          </GoogleOAuthProvider>
+      <html lang='en' suppressHydrationWarning>
+        <body className={`${fustat.className} antialiased`}>
+          <ThemeProvider attribute='class' enableSystem defaultTheme='system'>
+            <GoogleOAuthProvider
+              clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''}
+            >
+              <GoogleAuthProvider>
+                <ToastProvider>{children}</ToastProvider>
+              </GoogleAuthProvider>
+            </GoogleOAuthProvider>
+          </ThemeProvider>
         </body>
       </html>
     );
   }
 
   return (
-    <html lang='en'>
+    <html lang='en' suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${fustat.className} transition-theme flex h-screen flex-col justify-evenly antialiased`}
       >
-        <ToastProvider>{children}</ToastProvider>
+        <ThemeProvider attribute='class' enableSystem defaultTheme='default'>
+          <Navbar />
+          <ToastProvider>{children}</ToastProvider>
+          <Footer />
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -1,5 +1,5 @@
 import { ParsedEmail } from '@zk-email/sdk';
-import { parseEmail as parseEmailUtils } from '@zk-email/sdk';
+// import { parseEmail as parseEmailUtils } from '@zk-email/sdk';
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -98,107 +98,107 @@ const relayerUtilsInit: Promise<void> = new Promise((resolve) => {
 
 const emlPubKeyCache = new Map();
 
-export async function parseEmail(
-  eml: string,
-  ignoreBodyHashCheck = false
-): Promise<ParsedEmail> {
-  try {
-    await relayerUtilsInit;
+// export async function parseEmail(
+//   eml: string,
+//   ignoreBodyHashCheck = false
+// ): Promise<ParsedEmail> {
+//   try {
+//     await relayerUtilsInit;
 
-    const publicKey = emlPubKeyCache.get(eml);
+//     const publicKey = emlPubKeyCache.get(eml);
 
-    let parsedEmail;
-    if (publicKey) {
-      // ignoreBodyHashCheck is not needed here, since parseEmail
-      // will internally not verify the pubkey if it is provided
-      parsedEmail = await parseEmailUtils(eml, publicKey);
-    } else {
-      console.log('parsing email no pub key');
-      parsedEmail = await parseEmailUtils(eml, ignoreBodyHashCheck);
-      console.log('parsed email');
-      emlPubKeyCache.set(eml, parsedEmail.publicKey);
+//     let parsedEmail;
+//     if (publicKey) {
+//       // ignoreBodyHashCheck is not needed here, since parseEmail
+//       // will internally not verify the pubkey if it is provided
+//       parsedEmail = await parseEmailUtils(eml, publicKey);
+//     } else {
+//       console.log('parsing email no pub key');
+//       parsedEmail = await parseEmailUtils(eml, ignoreBodyHashCheck);
+//       console.log('parsed email');
+//       emlPubKeyCache.set(eml, parsedEmail.publicKey);
 
-      try {
-        const { senderDomain, selector } = await extractEMLDetails(
-          eml,
-          parsedEmail
-        );
+//       try {
+//         const { senderDomain, selector } = await extractEMLDetails(
+//           eml,
+//           parsedEmail
+//         );
 
-        await fetch('https://archive.zk.email/api/dsp', {
-          method: 'POST',
-          body: JSON.stringify({
-            domain: senderDomain,
-            selector: selector,
-          }),
-        });
+//         await fetch('https://archive.zk.email/api/dsp', {
+//           method: 'POST',
+//           body: JSON.stringify({
+//             domain: senderDomain,
+//             selector: selector,
+//           }),
+//         });
 
-        // Do not stop function flow if this fails - warn only
-      } catch (err) {
-        console.warn('Failed to findOrCreateDSP: ', err);
-      }
-    }
+//         // Do not stop function flow if this fails - warn only
+//       } catch (err) {
+//         console.warn('Failed to findOrCreateDSP: ', err);
+//       }
+//     }
 
-    return parsedEmail as ParsedEmail;
-  } catch (err) {
-    console.error('Failed to parse email: ', err);
-    throw err;
-  }
-}
+//     return parsedEmail as ParsedEmail;
+//   } catch (err) {
+//     console.error('Failed to parse email: ', err);
+//     throw err;
+//   }
+// }
 
-export async function extractEMLDetails(
-  emlContent: string,
-  parsedEmail?: ParsedEmail,
-  ignoreBodyHashCheck = false
-) {
-  const headers: Record<string, string> = {};
-  const lines = emlContent.split('\n');
+// export async function extractEMLDetails(
+//   emlContent: string,
+//   parsedEmail?: ParsedEmail,
+//   ignoreBodyHashCheck = false
+// ) {
+//   const headers: Record<string, string> = {};
+//   const lines = emlContent.split('\n');
 
-  let headerPart = true;
-  const headerLines = [];
+//   let headerPart = true;
+//   const headerLines = [];
 
-  // Parse headers
-  for (const line of lines) {
-    if (headerPart) {
-      if (line.trim() === '') {
-        headerPart = false; // End of headers
-      } else {
-        headerLines.push(line);
-      }
-    }
-  }
+//   // Parse headers
+//   for (const line of lines) {
+//     if (headerPart) {
+//       if (line.trim() === '') {
+//         headerPart = false; // End of headers
+//       } else {
+//         headerLines.push(line);
+//       }
+//     }
+//   }
 
-  // Join multi-line headers and split into key-value pairs
-  const joinedHeaders = headerLines
-    .map((line) =>
-      line.startsWith(' ') || line.startsWith('\t')
-        ? line.trim()
-        : `\n${line.trim()}`
-    )
-    .join('')
-    .split('\n');
+//   // Join multi-line headers and split into key-value pairs
+//   const joinedHeaders = headerLines
+//     .map((line) =>
+//       line.startsWith(' ') || line.startsWith('\t')
+//         ? line.trim()
+//         : `\n${line.trim()}`
+//     )
+//     .join('')
+//     .split('\n');
 
-  joinedHeaders.forEach((line) => {
-    const [key, ...value] = line.split(':');
-    if (key) headers[key.trim()] = value.join(':').trim();
-  });
+//   joinedHeaders.forEach((line) => {
+//     const [key, ...value] = line.split(':');
+//     if (key) headers[key.trim()] = value.join(':').trim();
+//   });
 
-  if (!parsedEmail) {
-    parsedEmail = await parseEmail(emlContent, ignoreBodyHashCheck);
-  }
-  const emailBodyMaxLength = parsedEmail.cleanedBody.length;
-  const headerLength = parsedEmail.canonicalizedHeader.length;
+//   if (!parsedEmail) {
+//     parsedEmail = await parseEmail(emlContent, ignoreBodyHashCheck);
+//   }
+//   const emailBodyMaxLength = parsedEmail.cleanedBody.length;
+//   const headerLength = parsedEmail.canonicalizedHeader.length;
 
-  const dkimHeader = parsedEmail.headers.get('DKIM-Signature')?.[0] || '';
-  const selector = dkimHeader.match(/s=([^;]+)/)?.[1] || '';
+//   const dkimHeader = parsedEmail.headers.get('DKIM-Signature')?.[0] || '';
+//   const selector = dkimHeader.match(/s=([^;]+)/)?.[1] || '';
 
-  const senderDomain = getSenderDomain(parsedEmail);
-  const emailQuery = `from:${senderDomain}`;
+//   const senderDomain = getSenderDomain(parsedEmail);
+//   const emailQuery = `from:${senderDomain}`;
 
-  return {
-    senderDomain,
-    headerLength,
-    emailQuery,
-    emailBodyMaxLength,
-    selector,
-  };
-}
+//   return {
+//     senderDomain,
+//     headerLength,
+//     emailQuery,
+//     emailBodyMaxLength,
+//     selector,
+//   };
+// }
