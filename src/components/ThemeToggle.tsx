@@ -6,7 +6,13 @@ import React, { useCallback } from 'react';
 
 import { Button } from './ui/button';
 
-const ThemeToggle = ({ theme, setTheme, mounted }: any) => {
+interface ThemeToggleProps {
+  theme: 'light' | 'dark';
+  setTheme: (theme: 'light' | 'dark') => void;
+  mounted: boolean;
+}
+
+const ThemeToggle = ({ theme, setTheme, mounted }: ThemeToggleProps) => {
   const handleLightTheme = useCallback(() => setTheme('light'), [setTheme]);
   const handleDarkTheme = useCallback(() => setTheme('dark'), [setTheme]);
 
@@ -21,7 +27,7 @@ const ThemeToggle = ({ theme, setTheme, mounted }: any) => {
         animate={{ x: theme === 'dark' ? 40 : 0 }}
         transition={{
           type: 'spring',
-          visualDuration: 0.25,
+          duration: 0.25,
           bounce: 0.3,
         }}
       />
@@ -35,7 +41,7 @@ const ThemeToggle = ({ theme, setTheme, mounted }: any) => {
       >
         <SunDimIcon
           size={24}
-          color={theme === 'light' ? '#3B3B3B' : '#3B3B3B'}
+          color='#3B3B3B'
           weight={theme === 'light' ? 'fill' : 'regular'}
           className='transition-all'
         />

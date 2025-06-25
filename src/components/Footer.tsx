@@ -9,12 +9,6 @@ import {
 } from '@phosphor-icons/react';
 import Link from 'next/link';
 
-function FooterLink(props: React.ComponentPropsWithoutRef<typeof Link>) {
-  return (
-    <Link {...props} className='text-ring text-base data-hover:text-gray-700' />
-  );
-}
-
 interface HoverSwapIconProps {
   href: string;
   ariaLabel: string;
