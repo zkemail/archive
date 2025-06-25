@@ -58,7 +58,7 @@ export default function RootLayout({
         <ThemeProvider attribute='class' enableSystem defaultTheme='default'>
           <div className='transition-theme flex h-screen flex-col justify-between'>
             <Navbar />
-            <ToastProvider>{children}</ToastProvider>
+            {children}
             <Footer />
           </div>
         </ThemeProvider>
