@@ -12,6 +12,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 
+import ActivityChart from './ActivityChart';
 import { Badge } from './ui/badge';
 
 const SelectorDetails = () => {
@@ -65,8 +66,13 @@ const SelectorDetails = () => {
 
       <Accordion type='single' collapsible className='w-full px-4 py-3'>
         <AccordionItem value='item-1'>
-          <AccordionTrigger>More details</AccordionTrigger>
+          <AccordionTrigger className='text-secondary leading-tight font-normal tracking-tight'>
+            More details
+          </AccordionTrigger>
           <AccordionContent className='flex flex-col gap-4 pt-2'>
+            <div className='max-w-4xl'>
+              <ActivityChart />
+            </div>
             <DetailRow label='First seen'>1/31/2024, 11:46:33 PM</DetailRow>
 
             <DetailRow label='Last seen'>1/31/2024, 11:46:33 PM</DetailRow>
