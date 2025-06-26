@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 
-import Calendar from './ui/Calender';
+import Calendar from './Calender';
 
 export function SearchAndFilterSection() {
   const [isOpen, setIsOpen] = useState(false);
