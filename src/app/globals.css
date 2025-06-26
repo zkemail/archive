@@ -12,6 +12,7 @@
   --color-foreground: var(--foreground);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-selected: var(--selected);
   --color-accent-foreground-red: var(--accent-foreground-red);
   --color-accent-background-red: var(--accent-background-red);
   --color-accent-foreground-green: var(--accent-foreground-green);
@@ -20,6 +21,33 @@
   --color-accent-background-purple: var(--accent-background-purple);
   --color-accent-foreground-blue: var(--accent-foreground-blue);
   --color-destructive: var(--destructive);
+
+  --animate-collapsible-down: collapsible-down 0.2s ease-out;
+  --animate-collapsible-up: collapsible-up 0.2s ease-out;
+
+  @keyframes collapsible-down {
+    from {
+      height: 0;
+      opacity: 0;
+    }
+
+    to {
+      height: var(--radix-collapsible-content-height);
+      opacity: 1;
+    }
+  }
+
+  @keyframes collapsible-up {
+    from {
+      height: var(--radix-collapsible-content-height);
+      opacity: 1;
+    }
+
+    to {
+      height: 0;
+      opacity: 0;
+    }
+  }
 }
 
 :root {
@@ -30,6 +58,7 @@
   --secondary: #606060;
   --ring: #3b3b3b;
   --input: #a8a8a8;
+  --selected: #272727;
   --accent-foreground-red: #c71b16;
   --accent-background-red: #fff6f7;
   --accent-foreground-green: #3aa345;
@@ -48,6 +77,7 @@
   --secondary: #a8a8a8;
   --ring: #d4d4d4;
   --input: #3b3b3b;
+  --selected: #f5f3ef;
   --accent-foreground-red: #c71b16;
   --accent-background-red: #31191b;
   --accent-foreground-green: #3aa345;
