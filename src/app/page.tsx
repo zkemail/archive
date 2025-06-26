@@ -27,7 +27,7 @@ export default function Home() {
     ) => {
       setTimeout(() => {
         let current = 0;
-        const increment = targetValue / 12;
+        const increment = targetValue / 5;
 
         const timer = setInterval(() => {
           current += increment;
@@ -42,9 +42,9 @@ export default function Home() {
     };
 
     animateValue(setUniqueDomains, 408807, 0);
-    animateValue(setUniqueSelectors, 5229, 100);
-    animateValue(setDSP, 1020408, 200);
-    animateValue(setDKIMkey, 1195387, 300);
+    animateValue(setUniqueSelectors, 5229, 50);
+    animateValue(setDSP, 1020408, 100);
+    animateValue(setDKIMkey, 1195387, 150);
   }, []);
   return (
     <main className='my-8 flex flex-col items-center justify-center'>
