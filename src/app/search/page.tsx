@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useState } from 'react';
 
 import { SearchAndFilterSection } from '@/components/SearchAndFilterSection';
+import SelectorDetails from '@/components/SelectorDetails';
 
 export default function Home() {
   const [searchValue, setSearchValue] = useState('');
@@ -39,6 +40,9 @@ export default function Home() {
       <div className='bg-foreground border-border flex w-14/15 max-w-[720px] flex-col items-start justify-start gap-6 rounded-br-3xl rounded-bl-3xl border-r border-b border-l p-6'>
         <div className='flex flex-col items-start justify-start gap-2 self-stretch'>
           <SearchAndFilterSection />
+        </div>
+        <div className='flex flex-col items-start justify-start gap-2 self-stretch'>
+          <SelectorDetails />
         </div>
       </div>
     </main>
