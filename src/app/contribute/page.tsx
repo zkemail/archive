@@ -1,16 +1,9 @@
 'use client';
-
-import { ArrowRightIcon } from '@phosphor-icons/react';
 import Image from 'next/image';
-import { useState } from 'react';
 
-import { SearchAndFilterSection } from './SearchAndFilterSection';
-import SelectorDetails from './SelectorDetails';
+import EmailUploader from './EmailUploader';
 
 export default function Home() {
-  const [searchValue, setSearchValue] = useState('');
-  const [isFilterOn, setIsFilterOn] = useState(false);
-
   return (
     <div className='my-8 flex flex-col items-center justify-center'>
       <div className='border-border relative mx-auto aspect-12/5 w-14/15 max-w-[720px] overflow-clip rounded-t-3xl border md:aspect-9/2'>
@@ -34,12 +27,7 @@ export default function Home() {
         />
       </div>
       <div className='bg-foreground border-border flex w-14/15 max-w-[720px] flex-col items-start justify-start gap-6 rounded-br-3xl rounded-bl-3xl border-r border-b border-l p-6'>
-        <div className='flex flex-col items-start justify-start gap-2 self-stretch'>
-          <SearchAndFilterSection />
-        </div>
-        <div className='flex flex-col items-start justify-start gap-2 self-stretch'>
-          <SelectorDetails />
-        </div>
+        <EmailUploader onFileUpload={() => {}} />
       </div>
     </div>
   );

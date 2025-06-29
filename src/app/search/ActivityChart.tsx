@@ -78,10 +78,10 @@ const ActivityChart = () => {
           <AreaChart
             data={data}
             margin={{
-              top: 10,
+              top: 0,
               right: 0,
               left: 0,
-              bottom: 20,
+              bottom: 0,
             }}
           >
             <defs>
@@ -111,7 +111,7 @@ const ActivityChart = () => {
                 id='activityGradient'
                 patternUnits='userSpaceOnUse'
                 width='10'
-                height='10'
+                height='8'
               >
                 <path
                   d='M0,0 l20,20 M-10,10 l20,20 M10,-10 l20,20'
@@ -136,7 +136,7 @@ const ActivityChart = () => {
             />
             <YAxis
               hide
-              domain={[0, 25]} // Set domain so that value 20 appears at 80% height (20/25 = 0.8)
+              domain={[0, 20]} // Set domain so that value 20 appears at 80% height (20/25 = 0.8)
             />
             <Area
               type='monotone'

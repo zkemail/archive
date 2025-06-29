@@ -138,9 +138,8 @@ export default function Home() {
           <div data-name='ArrowRight' className='relative h-4 w-4'>
             <ArrowRightIcon
               size={16}
-              color='#111314'
               weight='bold'
-              className='bg-Grey-900 absolute'
+              className='bg-Grey-900 absolute text-[#111314] dark:text-[#E8E8E8]'
             />
           </div>
         </div>
