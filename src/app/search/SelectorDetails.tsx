@@ -3,7 +3,7 @@ import {
   CaretDownIcon,
   FlagIcon,
 } from '@phosphor-icons/react';
-import React from 'react';
+import React, { useState } from 'react';
 
 import {
   Accordion,
@@ -12,8 +12,8 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 
+import { Badge } from '../../components/ui/badge';
 import ActivityChart from './ActivityChart';
-import { Badge } from './ui/badge';
 
 const SelectorDetails = () => {
   type DetailRowProps = {
@@ -21,6 +21,7 @@ const SelectorDetails = () => {
     children: React.ReactNode;
     className?: string;
   };
+  const [openItem, setOpenItem] = useState('');
 
   const DetailRow: React.FC<DetailRowProps> = ({
     label,
@@ -40,7 +41,7 @@ const SelectorDetails = () => {
   );
 
   return (
-    <div className='flex w-full flex-col items-center gap-2'>
+    <div className='border-secondary flex w-full flex-col items-center gap-2 rounded-lg border'>
       <div className='flex w-full flex-col gap-4 px-4 py-3'>
         <DetailRow label='Selector'>
           <div className='truncate font-mono text-sm overflow-ellipsis'>
@@ -54,7 +55,7 @@ const SelectorDetails = () => {
             <Badge variant='source' className='text-xs sm:text-sm'>
               <ArrowsCounterClockwiseIcon className='h-3 w-3 sm:h-4 sm:w-4' />
               <span className='sm:hidden'>Rev Eng</span>
-              <span className='hidden sm:inline'>Reverse Engineering</span>
+              <span className='hidden'>Reverse Engineering</span>
             </Badge>
             <FlagIcon
               weight='fill'
@@ -64,12 +65,18 @@ const SelectorDetails = () => {
         </DetailRow>
       </div>
 
-      <Accordion type='single' collapsible className='w-full px-4 py-3'>
-        <AccordionItem value='item-1'>
-          <AccordionTrigger className='text-secondary leading-tight font-normal tracking-tight'>
-            More details
+      <Accordion
+        type='single'
+        collapsible
+        className='w-full'
+        value={openItem}
+        onValueChange={setOpenItem}
+      >
+        <AccordionItem value='selector-detail'>
+          <AccordionTrigger className='text-secondary p-4 leading-5 font-normal tracking-tight hover:no-underline'>
+            {openItem === 'selector-detail' ? 'Hide details' : 'More details'}
           </AccordionTrigger>
-          <AccordionContent className='flex flex-col gap-4 pt-2'>
+          <AccordionContent className='flex flex-col gap-4 px-4 pt-2'>
             <div className='max-w-4xl'>
               <ActivityChart />
             </div>
