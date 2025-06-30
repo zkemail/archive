@@ -125,11 +125,13 @@ const DragAndDropFile = ({
                 }}
               />
               <div className='flex flex-col items-center text-base font-semibold'>
-                <p className='text-brand-400'>
+                <p className='text-accent-foreground-blue'>
                   Click to upload{' '}
-                  <span className='text-grey-700'>or drag and drop</span>
+                  <span className='text-secondary'>or drop here</span>
                 </p>
-                <p className='text-grey-700'>({accept} format)</p>
+                <p className='text-accent-foreground-blue underline'>
+                  How to get the PST/MBOX file?
+                </p>
               </div>
             </>
           )}

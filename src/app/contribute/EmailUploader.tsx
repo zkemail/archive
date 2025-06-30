@@ -1,10 +1,17 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 'use client';
 
+import { QuestionIcon } from '@phosphor-icons/react';
 import { AnimatePresence, motion } from 'motion/react';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import Loader from '@/components/ui/loader';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -30,6 +37,7 @@ const EmailUploader = ({
     null
   );
   const [emailContent, setEmailContent] = useState<string | null>(null);
+  const [openItem, setOpenItem] = useState('');
 
   const { googleLogIn, googleAuthToken } = useGoogleAuth();
 
@@ -110,191 +118,207 @@ const EmailUploader = ({
   }, [googleAuthToken]);
 
   const emailUploadOptions = (
-    <div className='flex flex-col items-center justify-center gap-6'>
-      <div className='flex w-full flex-col gap-1'>
-        <h4 className='text-grey-800 text-xl font-bold'>Connect emails</h4>
-        <p className='text-grey-700 text-base font-medium'>
-          Connect your Gmail or upload an .eml file
-        </p>
-        <p className='text-grey-700 text-base font-medium'>
-          <span className='text-grey-900 font-bold'>Note:</span> All email
-          processing occurs locally on your device. We never receive or store
-          your email data.
-        </p>
-      </div>
-      <Button
-        className='flex w-max items-center gap-2'
-        onClick={googleLogIn(() => {
-          setIsFetchEmailLoading(true);
-          // setTimeout(() => {
-          //   handleFetchEmails();
-          // }, 2000);
-
-          // handleFetchEmails();
-          setFile(null);
-        })}
-      >
-        <Image
-          src='/assets/GoogleLogo.svg'
-          alt='Google Logo'
-          width={16}
-          height={16}
-          style={{
-            maxWidth: '100%',
-            height: 'auto',
+    <div className='flex w-full flex-col items-center justify-center gap-6'>
+      <div className='flex w-full flex-col items-center justify-center gap-3'>
+        <Button
+          className='flex w-max items-center gap-2 px-6 text-base leading-none font-semibold'
+          onClick={() => {
+            // TODO: it is temporary setup just to navigate
+            const exampleRawEmail: RawEmailResponse = {
+              emailMessageId: '1234567890',
+              subject: 'Hello World',
+              internalDate: '1680000000000',
+              decodedContents: 'This is the decoded email content.',
+            };
+            setFetchedEmails([exampleRawEmail]);
+            googleLogIn(() => {
+              setIsFetchEmailLoading(true);
+              setFile(null);
+            });
+          }}
+        >
+          <Image
+            src='/assets/gmailIcon.png'
+            alt='Google Logo'
+            width={16}
+            height={16}
+          />
+          Connect Gmail Account
+        </Button>
+        <div className='flex w-full items-center gap-3'>
+          <Separator className='flex-1' />
+          <span className='text-secondary text-base font-semibold'>OR</span>
+          <Separator className='flex-1' />
+        </div>
+        <div className='text-primary inline-flex gap-2 self-start text-base leading-tight font-medium'>
+          <div>Upload PST/MBOX file</div>
+          <QuestionIcon size={16} color='#606060' />
+        </div>
+        <DragAndDropFile
+          accept='.eml'
+          file={file}
+          tooltipComponent={
+            <div className='border-grey-500 w-[380px] rounded-2xl border bg-white p-2'>
+              <Image
+                src='/assets/emlInfo.svg'
+                alt='emlInfo'
+                width={360}
+                height={80}
+              />
+              <p className='text-grey-700 mt-3 text-base font-medium'>
+                The test .eml file is a sample email used to check if all the
+                provided patterns (regex) work correctly. This helps confirm
+                everything is set up properly before blueprint creation. We
+                always store this file locally and never send it to our server.
+              </p>
+            </div>
+          }
+          setFile={async (e) => {
+            if (!e) return;
+            setFile(e);
+            onFileUpload(e);
           }}
         />
-        Connect Gmail Account
-      </Button>
-      <div className='flex w-full items-center'>
-        <Separator className='flex-1' />
-        <span className='text-grey-700 mx-3 text-base font-semibold'>OR</span>
-        <Separator className='flex-1' />
       </div>
-      <DragAndDropFile
-        accept='.eml'
-        file={file}
-        tooltipComponent={
-          <div className='border-grey-500 w-[380px] rounded-2xl border bg-white p-2'>
-            <Image
-              src='/assets/emlInfo.svg'
-              alt='emlInfo'
-              width={360}
-              height={80}
-            />
-            <p className='text-grey-700 mt-3 text-base font-medium'>
-              The test .eml file is a sample email used to check if all the
-              provided patterns (regex) work correctly. This helps confirm
-              everything is set up properly before blueprint creation. We always
-              store this file locally and never send it to our server.
-            </p>
-          </div>
-        }
-        setFile={async (e) => {
-          if (!e) return;
-          setFile(e);
-          onFileUpload(e);
-        }}
-      />
+      <Accordion
+        type='single'
+        collapsible
+        className='border-border w-full rounded-lg border'
+        value={openItem}
+        onValueChange={setOpenItem}
+      >
+        <AccordionItem value={`contribute-info`}>
+          <AccordionTrigger className='text-secondary p-4 font-normal tracking-tight hover:no-underline'>
+            What exactly do we extract?
+          </AccordionTrigger>
+          <AccordionContent className='flex flex-col gap-4 px-4 pt-2'>
+            <div className='text-secondary text-base leading-tight font-medium'>
+              When you sign in with your Gmail account and press Start, the site
+              will extract the DKIM-Signature field from each email message in
+              your Gmail account. A signature can look something like this:
+            </div>
+            <div className='border-border rounded-lg border bg-[#FCFCFC] p-4 text-xs leading-none font-light'>
+              DKIM-Signature: v=1; a=rsa-sha256; d=australia.net; s=brisbane;
+              c=relaxed/simple; q=dns/txt; i=foo@eng.example.net; t=1117574938;
+              x=1118006938; l=200; h=from:to:subject:date:keywords:keywords;
+              z=From:foo@eng.example.net|To:joe@example.com|
+              Subject:demo=20run|Date:July=205,=202005=203:44:08=20PM=20-0700;
+              bh=MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=;
+              b=dzdVyOfAKCdLXdJOc9G2q8LoXSlEniSbav+yuU4zGeeruD00lszZ
+              VoG4ZHRNiYzR
+            </div>
+            <div className='text-secondary text-base leading-tight font-medium'>
+              In the example above, the domain is australianet and the selector
+              is brisbane. These are the values that will be extracted and
+              uploaded to the archive.
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </div>
   );
 
-  const renderEmailsTable = () => {
-    if (isFetchEmailLoading) {
-      return (
-        <div className='mt-6 flex w-full justify-center'>
-          <Loader />
+  const emailFetchFilter = (
+    <div className='flex w-full flex-col items-center justify-center gap-6'>
+      <div className='inline-flex items-center justify-between self-stretch'>
+        <div className='flex-1 justify-start'>
+          <span className='text-Grey-900 text-base leading-tight font-normal tracking-tight'>
+            Signed in
+          </span>
+          <span className='text-Grey-500 text-base leading-tight font-normal tracking-tight'>
+            {' '}
+            as prakharsingh0908@gmail.com
+          </span>
         </div>
-      );
-    }
-
-    return (
-      <div className='border-grey-500 mt-6 w-[640px] rounded-2xl border p-6'>
-        <Button
-          variant='ghost'
-          startIcon={
-            <Image
-              src='/assets/ArrowLeft.svg'
-              alt='arrow left'
-              width={16}
-              height={16}
-            />
-          }
-          onClick={() => {
-            setFile(null);
-            setFetchedEmails([]);
-            setSelectedEmail(null);
-            setEmailContent(null);
-          }}
+        <div
+          data-component='button'
+          data-size='medium'
+          data-state='terminate'
+          className='bg-Red-400 flex items-center justify-start gap-1 rounded-md px-2 py-1.5 outline outline-offset-[-1px]'
         >
-          Back
-        </Button>
-        <div className='grid w-full'>
-          {/* Header */}
-          <div
-            className='mb-2 grid gap-6 text-left font-semibold'
-            style={{ gridTemplateColumns: '1fr 2fr 6fr' }}
-          >
-            <div className='text-left'>Select</div>
-            <div>Sent on</div>
-            <div>Subject</div>
+          <div data-name='SignOut' className='relative h-4 w-4 overflow-hidden'>
+            <div className='absolute top-[1.75px] left-[2.25px] h-3 w-3 bg-white'></div>
           </div>
-
-          {/* Rows */}
-          <RadioGroup
-            onValueChange={(value) => {
-              setSelectedEmail(
-                fetchedEmails.find(
-                  (email) => email.decodedContents === value
-                ) || null
-              );
-
-              setEmailContent(value);
-            }}
-          >
-            <AnimatePresence initial={false}>
-              {fetchedEmails.map((email) => (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  key={email.emailMessageId}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.3, ease: 'easeInOut' }}
-                  className='text-grey-700 grid items-center gap-6 border-t-2 border-neutral-100 py-3'
-                  style={{ gridTemplateColumns: '1fr 2fr 6fr' }}
-                >
-                  <RadioGroupItem
-                    value={email.decodedContents}
-                    id={email.emailMessageId}
-                    // disabled={!email.valid}
-                  />
-                  <div>
-                    <div>{formatDate(email.internalDate).split(',')[0]}</div>
-                    <div>{formatDate(email.internalDate).split(',')[1]}</div>
-                  </div>
-                  <div className='overflow-hidden text-ellipsis'>
-                    {decodeMimeEncodedText(email.subject)}
-                  </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </RadioGroup>
-        </div>
-        <div className='mt-6 flex w-full flex-col items-center gap-4'>
-          <Button
-            variant='ghost'
-            className='text-grey-700 gap-2'
-            onClick={handleFetchEmails}
-            disabled={isFetchEmailLoading}
-          >
-            <Image
-              src='/assets/ArrowsClockwise.svg'
-              alt='arrow down'
-              width={16}
-              height={16}
-              className={isFetchEmailLoading ? 'animate-spin' : ''}
-              style={{
-                maxWidth: '100%',
-                height: 'auto',
-              }}
-            />
-            Load More Emails
-          </Button>
+          <div className='justify-start text-sm leading-none font-medium text-white'>
+            Sign Out
+          </div>
         </div>
       </div>
-    );
-  };
+      <div
+        data-property-1='OnlyOption'
+        className='flex h-44 flex-col items-start justify-start gap-4 self-stretch overflow-hidden'
+      >
+        <div className='inline-flex items-center justify-start gap-3 self-stretch'>
+          <div className='text-Grey-900 justify-start text-base leading-tight font-normal tracking-tight'>
+            Optional customization
+          </div>
+        </div>
+        <div className='flex flex-col items-start justify-start gap-3 self-stretch'>
+          <div className='flex flex-col items-start justify-start gap-2 self-stretch'>
+            <div className='text-Grey-900 justify-start self-stretch text-base leading-tight font-normal tracking-tight'>
+              Only upload emails from a particular domain
+            </div>
+            <div className='outline-Grey-300 inline-flex items-center justify-center gap-2 self-stretch overflow-hidden rounded-lg px-3 py-2 outline-1 outline-offset-[-1px]'>
+              <div className='text-Grey-400 flex-1 justify-start text-base leading-tight font-normal tracking-tight'>
+                zkemail.com
+              </div>
+            </div>
+          </div>
+          <div className='inline-flex items-start justify-start gap-3 self-stretch'>
+            <div className='inline-flex flex-1 flex-col items-start justify-start gap-2'>
+              <div className='text-Grey-900 justify-start self-stretch text-base leading-tight font-normal tracking-tight'>
+                Start Date
+              </div>
+              <div className='otline outline-Grey-300 inline-flex items-center justify-center gap-2 self-stretch overflow-hidden rounded-lg px-3 py-2 outline-1 outline-offset-[-1px]'>
+                <div className='text-Grey-400 flex-1 justify-start text-base leading-tight font-normal tracking-tight'>
+                  dd/mm/yyyy
+                </div>
+              </div>
+            </div>
+            <div className='inline-flex flex-1 flex-col items-start justify-start gap-2'>
+              <div className='text-Grey-900 justify-start self-stretch text-base leading-tight font-normal tracking-tight'>
+                End Date
+              </div>
+              <div className='outline-Grey-300 inline-flex items-center justify-center gap-2 self-stretch overflow-hidden rounded-lg px-3 py-2 outline outline-1 outline-offset-[-1px]'>
+                <div className='text-Grey-400 flex-1 justify-start text-base leading-tight font-normal tracking-tight'>
+                  dd/mm/yyyy
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className='flex flex-col items-center justify-center gap-2 self-stretch'>
+        <div
+          data-component='button'
+          data-size='large'
+          data-state='secondary'
+          className='bg-Grey-900 outline-Grey-800 inline-flex items-center justify-center gap-2 overflow-hidden rounded-lg px-6 py-3 shadow-[inset_0px_-4px_0px_0px_rgba(0,0,0,0.25)] outline outline-2 outline-offset-[-2px]'
+        >
+          <div
+            data-name='Envelope'
+            className='relative h-4 w-4 overflow-hidden'
+          >
+            <div className='bg-Neutral-100 absolute top-[2.75px] left-[1.25px] h-2.5 w-3.5'></div>
+          </div>
+          <div className='text-Neutral-100 justify-start text-base leading-none font-semibold'>
+            Upload Emails
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
-    <div>
+    <div className='w-full'>
       {isFetchEmailLoading && !fetchedEmails.length ? (
         <div>
           <Loader />
         </div>
-      ) : fetchedEmails.length > 0 ? (
-        renderEmailsTable()
-      ) : (
+      ) : fetchedEmails.length == 0 ? (
         emailUploadOptions
+      ) : (
+        emailFetchFilter
       )}
     </div>
   );
