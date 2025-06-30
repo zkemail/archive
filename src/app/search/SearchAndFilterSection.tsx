@@ -86,13 +86,13 @@ export function SearchAndFilterSection() {
             </Button>
           </div>
           <div className='flex flex-row gap-4'>
-            <div className='gap1 flex w-full flex-col self-stretch'>
+            <div className='flex w-full flex-col gap-1 self-stretch'>
               <div className='text-primary self-stretch leading-tight tracking-tight'>
                 Only show from date
               </div>
               <Calendar />
             </div>
-            <div className='gap1 flex w-full flex-col self-stretch'>
+            <div className='flex w-full flex-col gap-1 self-stretch'>
               <div className='text-primary self-stretch leading-tight tracking-tight'>
                 To date
               </div>

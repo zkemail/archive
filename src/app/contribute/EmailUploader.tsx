@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 'use client';
 
-import { QuestionIcon } from '@phosphor-icons/react';
+import { EnvelopeIcon, QuestionIcon, SignOutIcon } from '@phosphor-icons/react';
 import { AnimatePresence, motion } from 'motion/react';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
@@ -13,6 +13,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import Loader from '@/components/ui/loader';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
@@ -21,6 +22,7 @@ import { fetchEmailList, fetchEmailsRaw } from '@/hooks/useGmailClient';
 import useGoogleAuth from '@/hooks/useGoogleAuth';
 import { decodeMimeEncodedText, formatDate, getFileContent } from '@/lib/utils';
 
+import Calendar from '../search/Calender';
 import DragAndDropFile from './DragAndDropFile';
 
 const EmailUploader = ({
@@ -197,7 +199,7 @@ const EmailUploader = ({
               will extract the DKIM-Signature field from each email message in
               your Gmail account. A signature can look something like this:
             </div>
-            <div className='border-border rounded-lg border bg-[#FCFCFC] p-4 text-xs leading-none font-light'>
+            <div className='border-border rounded-lg border p-4 text-xs leading-none font-light'>
               DKIM-Signature: v=1; a=rsa-sha256; d=australia.net; s=brisbane;
               c=relaxed/simple; q=dns/txt; i=foo@eng.example.net; t=1117574938;
               x=1118006938; l=200; h=from:to:subject:date:keywords:keywords;
@@ -222,89 +224,70 @@ const EmailUploader = ({
     <div className='flex w-full flex-col items-center justify-center gap-6'>
       <div className='inline-flex items-center justify-between self-stretch'>
         <div className='flex-1 justify-start'>
-          <span className='text-Grey-900 text-base leading-tight font-normal tracking-tight'>
+          <span className='text-primary text-base leading-tight font-normal tracking-tight'>
             Signed in
           </span>
-          <span className='text-Grey-500 text-base leading-tight font-normal tracking-tight'>
+          <span className='text-secondary text-base leading-tight font-normal tracking-tight'>
             {' '}
             as prakharsingh0908@gmail.com
           </span>
         </div>
-        <div
-          data-component='button'
-          data-size='medium'
-          data-state='terminate'
-          className='bg-Red-400 flex items-center justify-start gap-1 rounded-md px-2 py-1.5 outline outline-offset-[-1px]'
-        >
-          <div data-name='SignOut' className='relative h-4 w-4 overflow-hidden'>
-            <div className='absolute top-[1.75px] left-[2.25px] h-3 w-3 bg-white'></div>
-          </div>
-          <div className='justify-start text-sm leading-none font-medium text-white'>
+        <Button className='sm:bg-destructive bg-accent-background-red flex h-auto items-center justify-between gap-1 rounded-md border-0 px-2 py-1.5 leading-2'>
+          <SignOutIcon size={16} className='text-destructive sm:text-white' />
+          <div className='hidden justify-start text-sm leading-2 font-medium text-white sm:flex'>
             Sign Out
           </div>
-        </div>
+        </Button>
       </div>
-      <div
-        data-property-1='OnlyOption'
-        className='flex h-44 flex-col items-start justify-start gap-4 self-stretch overflow-hidden'
-      >
+      <div className='flex h-auto flex-col items-start justify-start gap-4 self-stretch overflow-hidden'>
         <div className='inline-flex items-center justify-start gap-3 self-stretch'>
-          <div className='text-Grey-900 justify-start text-base leading-tight font-normal tracking-tight'>
+          <div className='text-primary justify-start text-base leading-tight font-normal tracking-tight'>
             Optional customization
           </div>
         </div>
-        <div className='flex flex-col items-start justify-start gap-3 self-stretch'>
-          <div className='flex flex-col items-start justify-start gap-2 self-stretch'>
-            <div className='text-Grey-900 justify-start self-stretch text-base leading-tight font-normal tracking-tight'>
-              Only upload emails from a particular domain
-            </div>
-            <div className='outline-Grey-300 inline-flex items-center justify-center gap-2 self-stretch overflow-hidden rounded-lg px-3 py-2 outline-1 outline-offset-[-1px]'>
-              <div className='text-Grey-400 flex-1 justify-start text-base leading-tight font-normal tracking-tight'>
-                zkemail.com
-              </div>
-            </div>
+        <div className='flex w-full flex-col items-start justify-start gap-3 self-stretch'>
+          <div className='text-primary justify-start self-stretch text-base leading-tight font-normal tracking-tight'>
+            Only upload emails from a particular domain
           </div>
-          <div className='inline-flex items-start justify-start gap-3 self-stretch'>
-            <div className='inline-flex flex-1 flex-col items-start justify-start gap-2'>
-              <div className='text-Grey-900 justify-start self-stretch text-base leading-tight font-normal tracking-tight'>
-                Start Date
-              </div>
-              <div className='otline outline-Grey-300 inline-flex items-center justify-center gap-2 self-stretch overflow-hidden rounded-lg px-3 py-2 outline-1 outline-offset-[-1px]'>
-                <div className='text-Grey-400 flex-1 justify-start text-base leading-tight font-normal tracking-tight'>
-                  dd/mm/yyyy
-                </div>
-              </div>
+          <Input
+            placeholder='zkemail.com'
+            className='border-border flex w-full items-center justify-center gap-2 self-stretch rounded-lg px-3 py-2'
+          />
+        </div>
+        <div className='flex w-full flex-row gap-4'>
+          <div className='flex w-full flex-col self-stretch'>
+            <div className='text-primary self-stretch leading-tight tracking-tight'>
+              Start Date
             </div>
-            <div className='inline-flex flex-1 flex-col items-start justify-start gap-2'>
-              <div className='text-Grey-900 justify-start self-stretch text-base leading-tight font-normal tracking-tight'>
-                End Date
-              </div>
-              <div className='outline-Grey-300 inline-flex items-center justify-center gap-2 self-stretch overflow-hidden rounded-lg px-3 py-2 outline outline-1 outline-offset-[-1px]'>
-                <div className='text-Grey-400 flex-1 justify-start text-base leading-tight font-normal tracking-tight'>
-                  dd/mm/yyyy
-                </div>
-              </div>
+            <Calendar />
+          </div>
+          <div className='flex w-full flex-col self-stretch'>
+            <div className='text-primary self-stretch leading-tight tracking-tight'>
+              End Date
             </div>
+            <Calendar />
           </div>
         </div>
       </div>
       <div className='flex flex-col items-center justify-center gap-2 self-stretch'>
-        <div
-          data-component='button'
-          data-size='large'
-          data-state='secondary'
-          className='bg-Grey-900 outline-Grey-800 inline-flex items-center justify-center gap-2 overflow-hidden rounded-lg px-6 py-3 shadow-[inset_0px_-4px_0px_0px_rgba(0,0,0,0.25)] outline outline-2 outline-offset-[-2px]'
+        <Button
+          onClick={() => {
+            // TODO: it is temporary setup just to navigate
+            const exampleRawEmail: RawEmailResponse = {
+              emailMessageId: '1234567890',
+              subject: 'Hello World',
+              internalDate: '1680000000000',
+              decodedContents: 'This is the decoded email content.',
+            };
+            setFetchedEmails([exampleRawEmail, exampleRawEmail]);
+          }}
+          className='inline-flex items-center justify-center gap-2 overflow-hidden rounded-lg px-6 py-3'
         >
-          <div
-            data-name='Envelope'
-            className='relative h-4 w-4 overflow-hidden'
-          >
-            <div className='bg-Neutral-100 absolute top-[2.75px] left-[1.25px] h-2.5 w-3.5'></div>
-          </div>
-          <div className='text-Neutral-100 justify-start text-base leading-none font-semibold'>
+          <div className='flex items-center justify-center gap-2'>
+            <EnvelopeIcon size={16} weight='bold' />
             Upload Emails
           </div>
-        </div>
+        </Button>
       </div>
     </div>
   );
@@ -317,8 +300,11 @@ const EmailUploader = ({
         </div>
       ) : fetchedEmails.length == 0 ? (
         emailUploadOptions
-      ) : (
+      ) : fetchedEmails.length == 1 ? (
         emailFetchFilter
+      ) : (
+        <></>
+        // emailUploadOptions
       )}
     </div>
   );
