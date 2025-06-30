@@ -1,0 +1,84 @@
+{
+  "searchResults": [
+    {
+      "id": 1,
+      "domain": "coinbase.com",
+      "selector": "7czdtvwxhuu3gaqucql53xrmpf777voz",
+      "isAdded": true,
+      "isUpdated": false,
+      "timestamp": "2023-10-05T12:00:00Z"
+    },
+    {
+      "id": 2,
+      "domain": "example.com",
+      "selector": "example-selector",
+      "isAdded": false,
+      "isUpdated": true,
+      "timestamp": "2023-10-06T12:00:00Z"
+    },
+    {
+      "id": 3,
+      "domain": "example.org",
+      "selector": "example-selector-2",
+      "isAdded": true,
+      "isUpdated": false,
+      "timestamp": "2023-10-07T12:00:00Z"
+    },
+    {
+      "id": 4,
+      "domain": "example.net",
+      "selector": "example-selector-3",
+      "isAdded": false,
+      "isUpdated": true,
+      "timestamp": "2023-10-08T12:00:00Z"
+    },
+    {
+      "id": 5,
+      "domain": "example.edu",
+      "selector": "example-selector-4",
+      "isAdded": true,
+      "isUpdated": false,
+      "timestamp": "2023-10-09T12:00:00Z"
+    },
+    {
+      "id": 6,
+      "domain": "example.gov",
+      "selector": "example-selector-5",
+      "isAdded": false,
+      "isUpdated": true,
+      "timestamp": "2023-10-10T12:00:00Z"
+    },
+    {
+      "id": 7,
+      "domain": "example.io",
+      "selector": "example-selector-6",
+      "isAdded": true,
+      "isUpdated": false,
+      "timestamp": "2023-10-11T12:00:00Z"
+    },
+    {
+      "id": 8,
+      "domain": "example.co.uk",
+      "selector": "example-selector-7",
+      "isAdded": false,
+      "isUpdated": true,
+      "timestamp": "2023-10-12T12:00:00Z"
+    },
+    {
+      "id": 9,
+      "domain": "example.info",
+      "selector": "example-selector-8",
+      "isAdded": true,
+      "isUpdated": false,
+      "timestamp": "2023-10-13T12:00:00Z"
+    },
+    {
+      "id": 10,
+      "domain": "example.biz",
+      "selector": "example-selector-9",
+      "isAdded": false,
+      "isUpdated": true,
+      "timestamp": "2023-10-14T12:00:00Z"
+    }
+  ]
+}
