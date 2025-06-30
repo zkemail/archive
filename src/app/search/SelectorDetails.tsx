@@ -85,23 +85,6 @@ const SelectorDetails = ({ data }: any) => {
     }
   };
 
-  const ActivityChartPlaceholder = ({
-    firstActive,
-    lastActive,
-  }: {
-    firstActive: string;
-    lastActive: string;
-  }) => (
-    <div className='rounded-lg bg-gray-50 p-4 dark:bg-gray-800'>
-      <h4 className='mb-2 text-sm font-medium'>Activity Timeline</h4>
-      <div className='text-xs text-gray-600 dark:text-gray-400'>
-        <p>First Active: {formatDate(firstActive)}</p>
-        <p>Last Active: {formatDate(lastActive)}</p>
-      </div>
-      <div className='mt-2 h-8 rounded bg-gradient-to-r from-blue-200 to-blue-400 opacity-50'></div>
-    </div>
-  );
-
   if (!data?.searchResults || !Array.isArray(data.searchResults)) {
     return <div className='text-red-500'>No data available</div>;
   }
