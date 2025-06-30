@@ -1,16 +1,14 @@
 'use client';
 
-import { ArrowRightIcon } from '@phosphor-icons/react';
 import Image from 'next/image';
-import { useState } from 'react';
+
+import searchResults from '@/app/search/searchData.json';
 
 import { SearchAndFilterSection } from './SearchAndFilterSection';
 import SelectorDetails from './SelectorDetails';
 
 export default function Home() {
-  const [searchValue, setSearchValue] = useState('');
-  const [isFilterOn, setIsFilterOn] = useState(false);
-
+  const data = searchResults;
   return (
     <div className='my-8 flex flex-col items-center justify-center'>
       <div className='border-border relative mx-auto aspect-12/5 w-14/15 max-w-[720px] overflow-clip rounded-t-3xl border md:aspect-9/2'>
@@ -38,7 +36,7 @@ export default function Home() {
           <SearchAndFilterSection />
         </div>
         <div className='flex flex-col items-start justify-start gap-2 self-stretch'>
-          <SelectorDetails />
+          <SelectorDetails data={data} />
         </div>
       </div>
     </div>
