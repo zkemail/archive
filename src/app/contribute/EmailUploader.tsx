@@ -23,7 +23,9 @@ import useGoogleAuth from '@/hooks/useGoogleAuth';
 import { decodeMimeEncodedText, formatDate, getFileContent } from '@/lib/utils';
 
 import Calendar from '../search/Calender';
+import logResults from './contributeData.json';
 import DragAndDropFile from './DragAndDropFile';
+import ProcessedLogs from './ProcessedLogs';
 
 const EmailUploader = ({
   onFileUpload,
@@ -283,11 +285,62 @@ const EmailUploader = ({
           }}
           className='inline-flex items-center justify-center gap-2 overflow-hidden rounded-lg px-6 py-3'
         >
-          <div className='flex items-center justify-center gap-2'>
+          <div className='flex w-auto items-center justify-center gap-2'>
             <EnvelopeIcon size={16} weight='bold' />
-            Upload Emails
+            <div>Upload Emails</div>
           </div>
         </Button>
+      </div>
+    </div>
+  );
+
+  const emailFetchData = (
+    <div className='flex w-full flex-col items-center justify-center gap-6'>
+      <div className='text-secondary flex w-full flex-col items-start justify-start gap-3'>
+        <div className='flex w-full items-center justify-between'>
+          <div className='text-base leading-tight font-normal tracking-tight'>
+            Domain/selector-pairs added
+          </div>
+          <div className='text-base leading-tight font-normal tracking-tight'>
+            5
+          </div>
+        </div>
+        <div className='flex w-full items-center justify-between'>
+          <div className='justify-start text-base leading-tight font-normal tracking-tight'>
+            Domain/selector pairs uploaded
+          </div>
+          <div className='justify-start text-right text-base leading-tight font-normal tracking-tight'>
+            138
+          </div>
+        </div>
+        <div className='flex w-full items-center justify-between'>
+          <div className='justify-start text-base leading-tight font-normal tracking-tight'>
+            Emails Processed
+          </div>
+          <div className='justify-start text-right text-base leading-tight font-normal tracking-tight'>
+            580 of 13405
+          </div>
+        </div>
+      </div>
+      <div className='flex items-center justify-between self-stretch'>
+        <div className='flex-1 justify-start'>
+          <span className='text-primary text-base leading-tight font-normal tracking-tight'>
+            Signed in
+          </span>
+          <span className='text-secondary text-base leading-tight font-normal tracking-tight'>
+            {' '}
+            as prakharsingh0908@gmail.com
+          </span>
+        </div>
+        <Button className='sm:bg-destructive bg-accent-background-red flex h-auto items-center justify-between gap-1 rounded-md border-0 px-2 py-1.5 leading-2'>
+          <SignOutIcon size={16} className='text-destructive sm:text-white' />
+          <div className='hidden justify-start text-sm leading-2 font-medium text-white sm:flex'>
+            Sign Out
+          </div>
+        </Button>
+      </div>
+      <div className='flex h-auto flex-col items-start justify-start gap-4 self-stretch overflow-hidden'>
+        <ProcessedLogs logResults={logResults} />
       </div>
     </div>
   );
@@ -303,8 +356,7 @@ const EmailUploader = ({
       ) : fetchedEmails.length == 1 ? (
         emailFetchFilter
       ) : (
-        <></>
-        // emailUploadOptions
+        emailFetchData
       )}
     </div>
   );
