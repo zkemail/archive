@@ -1,0 +1,104 @@
+{
+  "searchResults": [
+    {
+      "id": 1,
+      "domain": "coinbase.com",
+      "selector": "7czdtvwxhuu3gaqucql53xrmpf777voz",
+      "firstActive": "2021-10-01T12:00:00Z",
+      "lastActive": "2023-10-01T12:00:00Z",
+      "value": "p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCL6EpTHy5EI9BFwvMJXDZ5aMHys9QxjhIV0gdZfrMBu189vJIOsYjLw12hRFX47vjVA9gCDR1zThwlxbMJHB6ANRSygByuVY/BnkUvlh5tMUJHHvsr8PhKqsZlx59P+JzVTOc4Q86xdBBGsTDTIIXJazXe1abIMmoW5s75xAVLEQIDAQAB",
+      "origin": "Inbox Upload",
+      "provenanceVerified": true
+    },
+    {
+      "id": 2,
+      "domain": "coinbase.com",
+      "selector": "8d3f4g5h6i7j8k9l0m1n2o3p4q5r6s7t",
+      "firstActive": "2024-05-03T12:00:00Z",
+      "lastActive": "2025-06-03T12:00:00Z",
+      "value": "p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCL6EpTHy5EI9BFwvMJXDZ5aMHys9QxjhIV0gdZfrMBu189vJIOsYjLw12hRFX47vjVA9gCDR1zThwlxbMJHB6ANRSygByuVY/BnkUvlh5tMUJHHvsr8PhKqsZlx59P+JzVTOc4Q86xdBBGsTDTIIXJazXe1abIMmoW5s75xAVLEQIDAQAB",
+      "origin": "Reverse Engineering",
+      "provenanceVerified": false
+    },
+    {
+      "id": 3,
+      "domain": "coinbase.com",
+      "selector": "9u8v7w6x5y4z3a2b1c0d9e8f7g6h5i4j3k2l1m",
+      "firstActive": "2023-10-05T12:00:00Z",
+      "lastActive": "2024-04-06T12:00:00Z",
+      "value": "p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCL6EpTHy5EI9BFwvMJXDZ5aMHys9QxjhIV0gdZfrMBu189vJIOsYjLw12hRFX47vjVA9gCDR1zThwlxbMJHB6ANRSygByuVY/BnkUvlh5tMUJHHvsr8PhKqsZlx59P+JzVTOc4Q86xdBBGsTDTIIXJazXe1abIMmoW5s75xAVLEQIDAQAB",
+      "origin": "Inbox Upload",
+      "provenanceVerified": true
+    },
+    {
+      "id": 4,
+      "domain": "coinbase.com",
+      "selector": "0a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p",
+      "firstActive": "2023-10-07T12:00:00Z",
+      "lastActive": "2024-10-08T12:00:00Z",
+      "value": "p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCL6EpTHy5EI9BFwvMJXDZ5aMHys9QxjhIV0gdZfrMBu189vJIOsYjLw12hRFX47vjVA9gCDR1zThwlxbMJHB6ANRSygByuVY/BnkUvlh5tMUJHHvsr8PhKqsZlx59P+JzVTOc4Q86xdBBGsTDTIIXJazXe1abIMmoW5s75xAVLEQIDAQAB",
+      "origin": "Inbox Upload",
+      "provenanceVerified": false
+    },
+    {
+      "id": 5,
+      "domain": "coinbase.com",
+      "selector": "1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p",
+      "firstActive": "2023-10-09T12:00:00Z",
+      "lastActive": "2025-05-10T12:00:00Z",
+      "value": "p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCL6EpTHy5EI9BFwvMJXDZ5aMHys9QxjhIV0gdZfrMBu189vJIOsYjLw12hRFX47vjVA9gCDR1zThwlxbMJHB6ANRSygByuVY/BnkUvlh5tMUJHHvsr8PhKqsZlx59P+JzVTOc4Q86xdBBGsTDTIIXJazXe1abIMmoW5s75xAVLEQIDAQAB",
+      "origin": "Inbox Upload",
+      "provenanceVerified": true
+    },
+    {
+      "id": 6,
+      "domain": "help-coinbase.com",
+      "selector": "2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q",
+      "firstActive": "2023-10-11T12:00:00Z",
+      "lastActive": "2024-02-12T12:00:00Z",
+      "value": "p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCL6EpTHy5EI9BFwvMJXDZ5aMHys9QxjhIV0gdZfrMBu189vJIOsYjLw12hRFX47vjVA9gCDR1zThwlxbMJHB6ANRSygByuVY/BnkUvlh5tMUJHHvsr8PhKqsZlx59P+JzVTOc4Q86xdBBGsTDTIIXJazXe1abIMmoW5s75xAVLEQIDAQAB",
+      "origin": "Inbox Upload",
+      "provenanceVerified": false
+    },
+    {
+      "id": 7,
+      "domain": "help-coinbase.com",
+      "selector": "3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r",
+      "firstActive": "2023-10-13T12:00:00Z",
+      "lastActive": "2024-10-19T12:00:00Z",
+      "value": "p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCL6EpTHy5EI9BFwvMJXDZ5aMHys9QxjhIV0gdZfrMBu189vJIOsYjLw12hRFX47vjVA9gCDR1zThwlxbMJHB6ANRSygByuVY/BnkUvlh5tMUJHHvsr8PhKqsZlx59P+JzVTOc4Q86xdBBGsTDTIIXJazXe1abIMmoW5s75xAVLEQIDAQAB",
+      "origin": "Inbox Upload",
+      "provenanceVerified": true
+    },
+    {
+      "id": 8,
+      "domain": "help-coinbase.com",
+      "selector": "4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s",
+      "firstActive": "2023-1-15T12:00:00Z",
+      "lastActive": "2023-10-19T12:00:00Z",
+      "value": "p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCL6EpTHy5EI9BFwvMJXDZ5aMHys9QxjhIV0gdZfrMBu189vJIOsYjLw12hRFX47vjVA9gCDR1zThwlxbMJHB6ANRSygByuVY/BnkUvlh5tMUJHHvsr8PhKqsZlx59P+JzVTOc4Q86xdBBGsTDTIIXJazXe1abIMmoW5s75xAVLEQIDAQAB",
+      "origin": "Inbox Upload",
+      "provenanceVerified": false
+    },
+    {
+      "id": 9,
+      "domain": "help-coinbase.com",
+      "selector": "5d6e7f8g9h0i1j2k3l4m5n6o7p8q9r0s",
+      "firstActive": "2023-1-17T12:00:00Z",
+      "lastActive": "2023-10-18T12:00:00Z",
+      "value": "p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCL6EpTHy5EI9BFwvMJXDZ5aMHys9QxjhIV0gdZfrMBu189vJIOsYjLw12hRFX47vjVA9gCDR1zThwlxbMJHB6ANRSygByuVY/BnkUvlh5tMUJHHvsr8PhKqsZlx59P+JzVTOc4Q86xdBBGsTDTIIXJazXe1abIMmoW5s75xAVLEQIDAQAB",
+      "origin": "Inbox Upload",
+      "provenanceVerified": true
+    },
+    {
+      "id": 10,
+      "domain": "help-coinbase.com",
+      "selector": "6e7f8g9h0i1j2k3l4m5n6o7p8q9r0s1t",
+      "firstActive": "2023-10-19T12:00:00Z",
+      "lastActive": "2025-10-20T12:00:00Z",
+      "value": "p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCL6EpTHy5EI9BFwvMJXDZ5aMHys9QxjhIV0gdZfrMBu189vJIOsYjLw12hRFX47vjVA9gCDR1zThwlxbMJHB6ANRSygByuVY/BnkUvlh5tMUJHHvsr8PhKqsZlx59P+JzVTOc4Q86xdBBGsTDTIIXJazXe1abIMmoW5s75xAVLEQIDAQAB",
+      "origin": "Inbox Upload",
+      "provenanceVerified": false
+    }
+  ]
+}

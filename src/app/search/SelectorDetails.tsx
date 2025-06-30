@@ -1,9 +1,10 @@
 import {
   ArrowsCounterClockwiseIcon,
-  CaretDownIcon,
+  EnvelopeSimpleIcon,
   FlagIcon,
+  SealCheckIcon,
 } from '@phosphor-icons/react';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 
 import {
   Accordion,
@@ -11,17 +12,38 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
+import { Button } from '@/components/ui/button';
 
 import { Badge } from '../../components/ui/badge';
 import ActivityChart from './ActivityChart';
 
-const SelectorDetails = () => {
+const formatDate = (dateString: string) => {
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleString();
+  } catch {
+    return 'Invalid date';
+  }
+};
+
+const isExpired = (lastActive: string) => {
+  const lastActiveDate = new Date(lastActive);
+  const now = new Date();
+  const daysDiff =
+    (now.getTime() - lastActiveDate.getTime()) / (1000 * 3600 * 24);
+  return daysDiff > 365;
+};
+
+const SelectorDetails = ({ data }: any) => {
   type DetailRowProps = {
     label: React.ReactNode;
     children: React.ReactNode;
     className?: string;
   };
-  const [openItem, setOpenItem] = useState('');
+
+  const [openItems, setOpenItems] = useState<{ [key: string]: boolean }>({});
+  const [activeDomain, setActiveDomain] = useState<string>('all');
+  const domainRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   const DetailRow: React.FC<DetailRowProps> = ({
     label,
@@ -31,7 +53,7 @@ const SelectorDetails = () => {
     <div
       className={`grid grid-cols-3 items-start gap-2 sm:gap-4 md:gap-6 ${className}`}
     >
-      <div className='min-w-0 pr-2 text-base leading-tight font-normal tracking-tight text-gray-600 dark:text-gray-400'>
+      <div className='text-ring min-w-0 pr-2 text-base leading-tight font-normal tracking-tight'>
         {label}
       </div>
       <div className='col-span-2 min-w-0 text-base leading-tight font-normal tracking-tight break-words'>
@@ -40,60 +62,223 @@ const SelectorDetails = () => {
     </div>
   );
 
-  return (
-    <div className='border-secondary flex w-full flex-col items-center gap-2 rounded-lg border'>
-      <div className='flex w-full flex-col gap-4 px-4 py-3'>
-        <DetailRow label='Selector'>
-          <div className='truncate font-mono text-sm overflow-ellipsis'>
-            7czdtvwxhuu3gaqucql53xrmpf777voz
-          </div>
-        </DetailRow>
+  const toggleAccordion = (itemId: string) => {
+    setOpenItems((prev) => ({
+      ...prev,
+      [itemId]: !prev[itemId],
+    }));
+  };
 
-        <DetailRow label='Status'>
-          <div className='flex flex-wrap items-center gap-1 sm:gap-2'>
-            <Badge variant='expired'>Expired</Badge>
-            <Badge variant='source' className='text-xs sm:text-sm'>
-              <ArrowsCounterClockwiseIcon className='h-3 w-3 sm:h-4 sm:w-4' />
-              <span className='sm:hidden'>Rev Eng</span>
-              <span className='hidden'>Reverse Engineering</span>
-            </Badge>
-            <FlagIcon
-              weight='fill'
-              className='h-3 w-3 text-[#E8E8E8] sm:h-4 sm:w-4 dark:text-[#A8A8A8]'
-            />
-          </div>
-        </DetailRow>
+  const scrollToDomain = (domain: string) => {
+    setActiveDomain(domain);
+    if (domain === 'all') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    const element = domainRefs.current[domain];
+    if (element) {
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+        inline: 'nearest',
+      });
+    }
+  };
+
+  const ActivityChartPlaceholder = ({
+    firstActive,
+    lastActive,
+  }: {
+    firstActive: string;
+    lastActive: string;
+  }) => (
+    <div className='rounded-lg bg-gray-50 p-4 dark:bg-gray-800'>
+      <h4 className='mb-2 text-sm font-medium'>Activity Timeline</h4>
+      <div className='text-xs text-gray-600 dark:text-gray-400'>
+        <p>First Active: {formatDate(firstActive)}</p>
+        <p>Last Active: {formatDate(lastActive)}</p>
       </div>
+      <div className='mt-2 h-8 rounded bg-gradient-to-r from-blue-200 to-blue-400 opacity-50'></div>
+    </div>
+  );
 
-      <Accordion
-        type='single'
-        collapsible
-        className='w-full'
-        value={openItem}
-        onValueChange={setOpenItem}
-      >
-        <AccordionItem value='selector-detail'>
-          <AccordionTrigger className='text-secondary p-4 leading-5 font-normal tracking-tight hover:no-underline'>
-            {openItem === 'selector-detail' ? 'Hide details' : 'More details'}
-          </AccordionTrigger>
-          <AccordionContent className='flex flex-col gap-4 px-4 pt-2'>
-            <div className='max-w-4xl'>
-              <ActivityChart />
+  if (!data?.searchResults || !Array.isArray(data.searchResults)) {
+    return <div className='text-red-500'>No data available</div>;
+  }
+
+  const groupedByDomain = data.searchResults.reduce((acc: any, item: any) => {
+    if (!acc[item.domain]) {
+      acc[item.domain] = [];
+    }
+    acc[item.domain].push(item);
+    return acc;
+  }, {});
+
+  const domains = Object.keys(groupedByDomain).sort();
+
+  return (
+    <div className='flex w-full flex-col gap-6'>
+      <div className='bg-foreground sticky top-0 z-10'>
+        <div className='flex flex-col flex-wrap gap-2'>
+          <div className='flex flex-wrap gap-2'>
+            <Button
+              variant='ghost'
+              key='all'
+              onClick={() => scrollToDomain('all')}
+              className={`flex h-auto items-center gap-1 rounded-md border px-2 py-1.5 text-sm leading-4.5 font-normal transition-colors ${
+                activeDomain === 'all'
+                  ? 'text-primary border-ring'
+                  : 'text-secondary border-border'
+              }`}
+            >
+              All
+            </Button>
+            {domains.map((domain) => (
+              <Button
+                key={domain}
+                variant='ghost'
+                onClick={() => scrollToDomain(domain)}
+                className={`flex h-auto items-center gap-1 rounded-md border px-2 py-1.5 text-sm leading-4.5 font-normal transition-colors ${
+                  activeDomain === domain
+                    ? 'text-primary border-ring'
+                    : 'text-secondary border-border'
+                }`}
+              >
+                {domain}
+              </Button>
+            ))}
+          </div>
+          <div>
+            <div className='text-secondary text-base leading-tight tracking-tight'>
+              <span className='text-primary'>2 domains</span> found for
+              coinbase.com
             </div>
-            <DetailRow label='First seen'>1/31/2024, 11:46:33 PM</DetailRow>
+          </div>
+        </div>
+      </div>
+      {domains.map((domain) => (
+        <div
+          key={domain}
+          ref={(el) => {
+            domainRefs.current[domain] = el;
+          }}
+          className='border-border scroll-mt-24 rounded-lg border'
+        >
+          <div className='border-border flex flex-col gap-1 p-4'>
+            <h3 className='text-xl leading-7 font-medium tracking-tight'>
+              {domain}
+            </h3>
+            <p className='text-primary text-base leading-tight font-normal tracking-tight'>
+              {groupedByDomain[domain].length} selector
+              {groupedByDomain[domain].length !== 1 ? 's' : ''}{' '}
+              <span className='text-secondary'>found</span>
+            </p>
+          </div>
+          <div>
+            {groupedByDomain[domain].map((item: any, index: number) => (
+              <div key={item.id} className='border-border border-t'>
+                <div className='flex flex-col gap-4 px-4 py-3'>
+                  <DetailRow label='Selector'>
+                    <div className='truncate font-mono text-sm overflow-ellipsis'>
+                      {item.selector}
+                    </div>
+                  </DetailRow>
+                  <DetailRow label='Status'>
+                    <div className='flex flex-wrap items-center gap-1 sm:gap-2'>
+                      <div className='flex flex-wrap items-center gap-1 sm:gap-2'>
+                        <Badge
+                          variant={
+                            isExpired(item.lastActive) ? 'expired' : 'active'
+                          }
+                        >
+                          {isExpired(item.lastActive) ? 'Expired' : 'Active'}
+                        </Badge>
+                        <Badge
+                          variant='source'
+                          className='text-secondary text-xs sm:text-sm'
+                        >
+                          {item.origin == 'Inbox Upload' ? (
+                            <>
+                              <EnvelopeSimpleIcon className='h-3 w-3 sm:h-4 sm:w-4' />
+                              <span className='text-xs leading-none font-normal tracking-tight'>
+                                Inbox Upload
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <ArrowsCounterClockwiseIcon className='text-secondary h-3 w-3 sm:h-4 sm:w-4' />
+                              <span className='text-xs leading-none font-normal tracking-tight sm:hidden'>
+                                Rev Eng
+                              </span>
+                              <span className='hidden text-xs leading-none font-normal tracking-tight sm:inline'>
+                                Reverse Engineering
+                              </span>
+                            </>
+                          )}
+                        </Badge>
+                        {item.provenanceVerified && (
+                          <Badge
+                            variant='source'
+                            className='text-secondary text-xs sm:text-sm'
+                          >
+                            <SealCheckIcon
+                              weight='bold'
+                              className='h-3 w-3 sm:h-4 sm:w-4'
+                            />
+                            <span className='text-xs leading-none font-normal tracking-tight'>
+                              Witness
+                            </span>
+                          </Badge>
+                        )}
+                        <FlagIcon
+                          weight='fill'
+                          className='h-3 w-3 text-[#E8E8E8] sm:h-4 sm:w-4 dark:text-[#A8A8A8]'
+                        />
+                      </div>
+                    </div>
+                  </DetailRow>
+                </div>
 
-            <DetailRow label='Last seen'>1/31/2024, 11:46:33 PM</DetailRow>
+                <Accordion
+                  type='single'
+                  collapsible
+                  className='w-full'
+                  value={openItems[item.id] ? `selector-detail-${item.id}` : ''}
+                  onValueChange={() => toggleAccordion(item.id)}
+                >
+                  <AccordionItem value={`selector-detail-${item.id}`}>
+                    <AccordionTrigger className='text-secondary p-4 font-normal tracking-tight hover:no-underline'>
+                      {openItems[item.id] ? 'Hide details' : 'More Details'}
+                    </AccordionTrigger>
+                    <AccordionContent className='flex flex-col gap-4 px-4 pt-2'>
+                      <div className='max-w-4xl'>
+                        <ActivityChart
+                          firstActive={new Date(item.firstActive)}
+                          lastActive={new Date(item.lastActive)}
+                        />
+                      </div>
 
-            <DetailRow label='Origin'>Inbox upload</DetailRow>
+                      <DetailRow label='First seen'>
+                        {formatDate(item.firstActive)}
+                      </DetailRow>
+                      <DetailRow label='Last seen'>
+                        {formatDate(item.lastActive)}
+                      </DetailRow>
+                      <DetailRow label='Origin'>{item.origin}</DetailRow>
 
-            <DetailRow label='Value'>
-              <div className='font-mono text-xs leading-relaxed break-all'>
-                p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCL6EpTHy5EI9BFwvMJXDZ5aMHys9QxjhIV0gdZfrMBu189vJIOsYjLw12hRFX47vjVA9gCDR1zThwlxbMJHB6ANRSygByuVY/BnkUvlh5tMUJHHvsr8PhKqsZlx59P+JzVTOc4Q86xdBBGsTDTIIXJazXe1abIMmoW5s75xAVLEQIDAQAB
+                      <DetailRow label='Value'>
+                        <div className='font-mono text-xs leading-relaxed break-all'>
+                          {item.value}
+                        </div>
+                      </DetailRow>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
               </div>
-            </DetailRow>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 };
