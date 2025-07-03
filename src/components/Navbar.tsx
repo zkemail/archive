@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import React, { useEffect, useState } from 'react';
 
@@ -28,24 +29,26 @@ const Navbar = () => {
       aria-label='Main navigation'
       className='bg-foreground transition-theme border-border z-150 flex flex-row items-center justify-between border-b px-4 md:px-6'
     >
-      <div className='my-3.5 md:my-4 lg:my-[22px]'>
-        <Image
-          src='/archive-logo-light.svg'
-          alt='Archive'
-          width={107}
-          height={24}
-          className='object-contain dark:hidden'
-          priority
-        />
-        <Image
-          src='/archive-logo-dark.svg'
-          alt='Archive'
-          width={107}
-          height={24}
-          className='hidden object-contain dark:block'
-          priority
-        />
-      </div>
+      <Link href='/'>
+        <div className='my-3.5 md:my-4 lg:my-[22px]'>
+          <Image
+            src='/archive-logo-light.svg'
+            alt='Archive'
+            width={107}
+            height={24}
+            className='object-contain dark:hidden'
+            priority
+          />
+          <Image
+            src='/archive-logo-dark.svg'
+            alt='Archive'
+            width={107}
+            height={24}
+            className='hidden object-contain dark:block'
+            priority
+          />
+        </div>
+      </Link>
 
       {/* Desktop Navigation */}
       <div className='hidden flex-row items-center justify-between gap-4 md:flex'>
