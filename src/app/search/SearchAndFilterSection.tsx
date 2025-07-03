@@ -40,7 +40,7 @@ export function SearchAndFilterSection() {
               />
               {searchValue && (
                 <button
-                  onClick={handleClear}
+                  onClick={() => handleClear}
                   className='hover:text-secondary absolute top-1/2 right-0 -translate-y-1/2 focus:outline-none'
                   aria-label='Clear search'
                 >
