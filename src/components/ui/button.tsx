@@ -19,7 +19,7 @@ const buttonVariants = cva(
         tag: 'bg-white',
         secondary:
           'bg-neutral-200 rounded border text-grey-800 rounded-lg border-grey-500 font-medium shadow-sm hover:bg-secondary/100',
-        ghost: 'hover:bg-foreground',
+        ghost: '',
         link: 'text-primary underline-offset-4 hover:underline',
       },
       size: {

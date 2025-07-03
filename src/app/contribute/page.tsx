@@ -1,12 +1,18 @@
 'use client';
 import Image from 'next/image';
+import { useState } from 'react';
 
 import EmailUploader from './EmailUploader';
 
 export default function Home() {
+  const [isDataFetching, setIsDataFetching] = useState<boolean>(false);
   return (
-    <div className='my-8 flex flex-col items-center justify-center'>
-      <div className='border-border relative mx-auto aspect-12/5 w-14/15 max-w-[720px] overflow-clip rounded-t-3xl border'>
+    <div
+      className={`mt-8 mb-8 flex flex-col items-center justify-center ${isDataFetching && 'mt-32 sm:mt-8'}`}
+    >
+      <div
+        className={`border-border relative mx-auto aspect-12/5 ${isDataFetching && 'sm:aspect-9/2'} w-14/15 max-w-[720px] overflow-clip rounded-t-3xl border`}
+      >
         <div className='absolute bottom-0 z-40 inline-flex flex-col items-start justify-start p-6'>
           <div className='flex justify-start text-[clamp(2rem,3.34vw,3rem)] font-bold text-white capitalize'>
             Contribute
@@ -27,7 +33,10 @@ export default function Home() {
         />
       </div>
       <div className='bg-foreground border-border flex w-14/15 max-w-[720px] flex-col items-start justify-start gap-6 rounded-br-3xl rounded-bl-3xl border-r border-b border-l p-6'>
-        <EmailUploader onFileUpload={() => {}} />
+        <EmailUploader
+          setIsDataFetching={setIsDataFetching}
+          onFileUpload={() => {}}
+        />
       </div>
     </div>
   );

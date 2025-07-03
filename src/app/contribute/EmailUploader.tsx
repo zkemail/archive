@@ -2,9 +2,8 @@
 'use client';
 
 import { EnvelopeIcon, QuestionIcon, SignOutIcon } from '@phosphor-icons/react';
-import { AnimatePresence, motion } from 'motion/react';
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
+import { Dispatch, SetStateAction, useEffect, useState } from 'react';
 
 import {
   Accordion,
@@ -29,8 +28,10 @@ import ProcessedLogs from './ProcessedLogs';
 
 const EmailUploader = ({
   onFileUpload,
+  setIsDataFetching,
 }: {
   onFileUpload: (file: File) => void;
+  setIsDataFetching: Dispatch<SetStateAction<boolean>>;
 }) => {
   const [file, setFile] = useState<File | null>(null);
   const [fetchedEmails, setFetchedEmails] = useState<RawEmailResponse[]>([]);
@@ -152,7 +153,7 @@ const EmailUploader = ({
         <div className='flex w-full items-center gap-3'>
           <Separator className='flex-1' />
           <span className='text-secondary text-base font-semibold'>OR</span>
-          <Separator className='flex-1' />
+          <Separator className='flex-1 rotate-180' />
         </div>
         <div className='text-primary inline-flex gap-2 self-start text-base leading-tight font-medium'>
           <div>Upload PST/MBOX file</div>
@@ -282,6 +283,7 @@ const EmailUploader = ({
               decodedContents: 'This is the decoded email content.',
             };
             setFetchedEmails([exampleRawEmail, exampleRawEmail]);
+            setIsDataFetching(true);
           }}
           className='inline-flex items-center justify-center gap-2 overflow-hidden rounded-lg px-6 py-3'
         >
@@ -307,7 +309,7 @@ const EmailUploader = ({
         </div>
         <div className='flex w-full items-center justify-between'>
           <div className='justify-start text-base leading-tight font-normal tracking-tight'>
-            Domain/selector pairs uploaded
+            Pairs uploaded
           </div>
           <div className='justify-start text-right text-base leading-tight font-normal tracking-tight'>
             138
