@@ -17,7 +17,7 @@ const compat = new FlatCompat({
     allConfig: js.configs.all
 });
 
-export default defineConfig([globalIgnores(["**/.next", "**/node_modules"]), {
+export default defineConfig([globalIgnores(["**/.next", "**/node_modules", "./src/generated/prisma"]), {
     extends: fixupConfigRules(compat.extends(
         "prettier",
         "eslint:recommended",

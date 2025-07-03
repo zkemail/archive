@@ -5,5 +5,6 @@
     ],
     "**/*.{html,css,json,gql,md}": [
         "prettier --write"
-    ]
+    ],
+    "**/*.prisma": "prisma format"
 }

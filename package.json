@@ -4,12 +4,24 @@
   "private": true,
   "scripts": {
     "dev": "pnpm run lint --fix && pnpm run prettier && next dev --turbopack",
-    "build": "next build",
+    "build": "pnpm run db:generate && pnpm  db:migrate:deploy && next build",
     "start": "next start",
     "lint": "next lint",
     "prettier:check": "prettier --check '**/**/*.{js,jsx,ts,tsx}'",
     "prettier": "prettier --write --cache '**/**/*.{js,jsx,ts,tsx}'",
-    "prepare": "husky"
+    "prepare": "husky",
+    "db:generate": "npx prisma generate",
+    "db:push": "npx prisma db push",
+    "db:migrate": "npx prisma migrate dev",
+    "db:migrate:deploy": "npx prisma migrate deploy",
+    "db:migrate:reset": "npx prisma migrate reset",
+    "db:seed": "npx prisma db seed",
+    "db:studio": "npx prisma studio",
+    "db:format": "npx prisma format",
+    "postinstall": "npm run prisma:generate"
+  },
+  "prisma": {
+    "seed": "ts-node --transpile-only prisma/seed.ts"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
@@ -54,6 +66,7 @@
     "@eslint/compat": "^1.3.0",
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.29.0",
+    "@prisma/client": "^6.11.1",
     "@tailwindcss/postcss": "^4.1.10",
     "@types/node": "^20.19.1",
     "@types/react": "^19.1.8",
@@ -71,6 +84,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^16.1.2",
     "prettier-plugin-tailwindcss": "^0.6.13",
+    "prisma": "^6.11.1",
     "tailwindcss": "^4.1.10",
     "typescript": "^5.8.3"
   }
