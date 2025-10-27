@@ -3,7 +3,7 @@ import {
   SlidersHorizontalIcon,
   XIcon,
 } from '@phosphor-icons/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -15,10 +15,20 @@ import { Input } from '@/components/ui/input';
 
 import Calendar from './Calender';
 
-export function SearchAndFilterSection() {
+type SearchAndFilterSectionProps = {
+  initialQuery?: string;
+};
+
+export function SearchAndFilterSection({
+  initialQuery = '',
+}: SearchAndFilterSectionProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [searchValue, setSearchValue] = useState('');
+  const [searchValue, setSearchValue] = useState(initialQuery);
   const [filterValue, setFilterValue] = useState('all');
+
+  useEffect(() => {
+    setSearchValue(initialQuery);
+  }, [initialQuery]);
 
   const handleClear = () => setSearchValue('');
 
