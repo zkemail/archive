@@ -62,7 +62,10 @@ export function HamburgerMenu({
             <span className='sr-only'>Toggle navigation menu</span>
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align='center' className='bg-foreground w-screen'>
+        <DropdownMenuContent
+          align='center'
+          className='bg-foreground data-[state=open]:animate-in data-[state=open]:slide-in-from-top-48 data-[state=closed]:animate-out data-[state=closed]:slide-out-to-top-48 w-screen !duration-300'
+        >
           {items.map((item) => (
             <DropdownMenuItem key={item.to} asChild>
               <Link

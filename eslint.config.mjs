@@ -1,12 +1,13 @@
-import { defineConfig, globalIgnores } from "eslint/config";
-import { fixupConfigRules } from "@eslint/compat";
-import simpleImportSort from "eslint-plugin-simple-import-sort";
-import globals from "globals";
-import tsParser from "@typescript-eslint/parser";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import js from "@eslint/js";
+
+import { fixupConfigRules } from "@eslint/compat";
 import { FlatCompat } from "@eslint/eslintrc";
+import js from "@eslint/js";
+import tsParser from "@typescript-eslint/parser";
+import { defineConfig, globalIgnores } from "eslint/config";
+import simpleImportSort from "eslint-plugin-simple-import-sort";
+import globals from "globals";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -60,7 +61,7 @@ export default defineConfig([globalIgnores(["**/.next", "**/node_modules"]), {
         "@typescript-eslint/no-explicit-any": "warn",
 
         "react/prop-types": [2, {
-            ignore: ["className", "variant", "size", "sideOffset", "checked", "value"],
+            ignore: ["className", "variant", "size", "sideOffset", "checked", "value", "orientation", "rootRef"],
         }],
     },
 }]);

@@ -9,12 +9,22 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default:
-          'border-transparent bg-primary text-primary-foreground shadow hover:bg-primary/80',
+          'border-transparent bg-primary text-primary-foreground  hover:bg-primary/80',
         secondary:
           'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80',
         destructive:
-          'border-transparent bg-destructive text-destructive-foreground shadow hover:bg-destructive/80',
+          'border-transparent bg-destructive text-destructive-foreground  hover:bg-destructive/80',
         outline: 'text-foreground',
+        active:
+          'rounded border-0 px-2 py-0.5 gap-2  overflow-hidden text-xs font-normal leading-none tracking-tight bg-accent-background-green text-accent-foreground-green',
+        expired:
+          'rounded border-0 px-2 py-0.5 gap-2  overflow-hidden text-xs font-normal leading-none tracking-tight bg-accent-background-red text-accent-foreground-red',
+        updated:
+          'bg-accent-background-purple  text-accent-foreground-purple gap-2 overflow-hidden rounded border-0 px-2 py-0.5 text-xs leading-none font-normal tracking-tight',
+        present:
+          'bg-background text-secondary  gap-2 overflow-hidden rounded border-0 px-2 py-0.5 text-xs leading-none font-normal tracking-tight',
+        source:
+          'bg-[#FCFCFC] dark:bg-[#272727] text-secondary gap-1 overflow-hidden rounded border-0 px-1.5 text-xs leading-none font-normal tracking-tight inline-flex flex-row justify-around items-center ',
       },
     },
     defaultVariants: {
