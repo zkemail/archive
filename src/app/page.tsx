@@ -80,7 +80,7 @@ export default function Home() {
             >
               <MagnifyingGlassIcon
                 size={16}
-                color='#606060'
+                color='var(--secondary)'
                 weight='bold'
                 className='absolute'
               />
@@ -139,7 +139,7 @@ export default function Home() {
             <ArrowRightIcon
               size={16}
               weight='bold'
-              className='bg-Grey-900 absolute text-[#111314] dark:text-[#E8E8E8]'
+              className='bg-Grey-900 text-primary absolute'
             />
           </div>
         </div>
