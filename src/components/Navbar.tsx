@@ -53,12 +53,14 @@ const Navbar = () => {
       {/* Desktop Navigation */}
       <div className='hidden flex-row items-center justify-between gap-4 md:flex'>
         <ThemeToggle theme={theme} setTheme={setTheme} mounted={mounted} />
-        <Button
-          className='transition-theme hover:scale-102 active:scale-98'
-          aria-label='Contribute to the archive'
-        >
-          Contribute
-        </Button>
+        <Link href={'/contribute'}>
+          <Button
+            className='transition-theme hover:scale-102 active:scale-98'
+            aria-label='Contribute to the archive'
+          >
+            Contribute
+          </Button>
+        </Link>
       </div>
 
       {/* Mobile Navigation */}
