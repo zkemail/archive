@@ -215,7 +215,7 @@ const SelectorDetails = ({ data }: any) => {
                         )}
                         <FlagIcon
                           weight='fill'
-                          className='h-3 w-3 text-[#E8E8E8] sm:h-4 sm:w-4 dark:text-[#A8A8A8]'
+                          className='text-icon-muted h-3 w-3 sm:h-4 sm:w-4'
                         />
                       </div>
                     </div>
