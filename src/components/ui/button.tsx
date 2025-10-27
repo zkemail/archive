@@ -43,7 +43,6 @@ export interface ButtonProps
   asChild?: boolean;
   startIcon?: React.ReactNode;
   endIcon?: React.ReactNode;
-  onClick?: () => void;
   loading?: boolean;
 }
 
