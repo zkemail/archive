@@ -122,9 +122,9 @@ const ActivityChart = ({
     };
   }, [firstActive, lastActive, selectedTimeframe]);
   return (
-    <div className='bg-foreground w-full rounded-lg'>
+    <div className='w-full rounded-lg bg-foreground'>
       <div className='mb-4 flex items-center justify-start gap-4 sm:gap-16'>
-        <h2 className='text-primary text-base font-normal'>Activity</h2>
+        <h2 className='text-base font-normal text-primary'>Activity</h2>
 
         <div className='flex flex-row gap-3'>
           {['12M', '3Y', '5Y', '10Y'].map((timeframe) => (

@@ -11,7 +11,7 @@ export default function Home() {
       className={`mt-8 mb-8 flex flex-col items-center justify-center ${isDataFetching && 'mt-32 sm:mt-8'}`}
     >
       <div
-        className={`border-border relative mx-auto aspect-12/5 ${isDataFetching && 'sm:aspect-9/2'} w-14/15 max-w-[720px] overflow-clip rounded-t-3xl border`}
+        className={`relative mx-auto aspect-12/5 border-border ${isDataFetching && 'sm:aspect-9/2'} w-14/15 max-w-[720px] overflow-clip rounded-t-3xl border`}
       >
         <div className='absolute bottom-0 z-40 inline-flex flex-col items-start justify-start p-6'>
           <div className='flex justify-start text-[clamp(2rem,3.34vw,3rem)] font-bold text-white capitalize'>
@@ -32,7 +32,7 @@ export default function Home() {
           className='object-cover'
         />
       </div>
-      <div className='bg-foreground border-border flex w-14/15 max-w-[720px] flex-col items-start justify-start gap-6 rounded-br-3xl rounded-bl-3xl border-r border-b border-l p-6'>
+      <div className='flex w-14/15 max-w-[720px] flex-col items-start justify-start gap-6 rounded-br-3xl rounded-bl-3xl border-r border-b border-l border-border bg-foreground p-6'>
         <EmailUploader
           setIsDataFetching={setIsDataFetching}
           onFileUpload={() => {}}

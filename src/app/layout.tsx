@@ -36,7 +36,7 @@ export default function RootLayout({
   return (
     <html lang='en' suppressHydrationWarning>
       <body className={`${fustat.className} transition-theme antialiased`}>
-        <ThemeProvider attribute='class' enableSystem defaultTheme='default'>
+        <ThemeProvider attribute='class' enableSystem defaultTheme='system'>
           <div className='transition-theme flex h-screen flex-col justify-between'>
             <Navbar />
             {children}

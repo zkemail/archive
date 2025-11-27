@@ -3,7 +3,7 @@
 
 import { EnvelopeIcon, QuestionIcon, SignOutIcon } from '@phosphor-icons/react';
 import Image from 'next/image';
-import { Dispatch, SetStateAction, useEffect, useState } from 'react';
+import { Dispatch, SetStateAction, useEffect, useRef, useState } from 'react';
 
 import {
   Accordion,
@@ -21,10 +21,12 @@ import { fetchEmailList, fetchEmailsRaw } from '@/hooks/useGmailClient';
 import useGoogleAuth from '@/hooks/useGoogleAuth';
 import { decodeMimeEncodedText, formatDate, getFileContent } from '@/lib/utils';
 
-import Calendar from '../search/Calender';
+import Calendar from '../search/Calendar';
 import logResults from './contributeData.json';
 import DragAndDropFile from './DragAndDropFile';
 import ProcessedLogs from './ProcessedLogs';
+
+const MAX_EMPTY_PAGE_RETRIES = 5;
 
 const EmailUploader = ({
   onFileUpload,
@@ -36,13 +38,14 @@ const EmailUploader = ({
   const [file, setFile] = useState<File | null>(null);
   const [fetchedEmails, setFetchedEmails] = useState<RawEmailResponse[]>([]);
   const [isFetchEmailLoading, setIsFetchEmailLoading] = useState(false);
-  const [pageToken, setPageToken] = useState<number | null>(null);
+  const [pageToken, setPageToken] = useState<string | null>(null);
   const [emailQuery, setEmailQuery] = useState<string | null>(null);
   const [selectedEmail, setSelectedEmail] = useState<RawEmailResponse | null>(
     null
   );
   const [emailContent, setEmailContent] = useState<string | null>(null);
   const [openItem, setOpenItem] = useState('');
+  const emptyPageRetriesRef = useRef(0);
 
   const { googleLogIn, googleAuthToken } = useGoogleAuth();
 
@@ -61,7 +64,10 @@ const EmailUploader = ({
             if (dateMatches && dateMatches.length > 0) {
               const lastDateMatch = dateMatches[dateMatches.length - 1]; // Take the last match
               const dateValue = lastDateMatch.split('Date: ')[1]; // Extract the actual date string
-              return new Date(dateValue).toISOString(); // Convert to ISO format
+              const date = new Date(dateValue);
+              if (!isNaN(date.getTime())) {
+                return date.toISOString();
+              }
             }
             return 'Invalid Date';
           })(),
@@ -97,14 +103,26 @@ const EmailUploader = ({
         );
 
         if (emails.length === 0 && emailListResponse.nextPageToken) {
-          setPageToken(Number(emailListResponse.nextPageToken) || null);
+          emptyPageRetriesRef.current += 1;
+
+          if (emptyPageRetriesRef.current >= MAX_EMPTY_PAGE_RETRIES) {
+            console.warn(
+              `Stopped fetching after ${MAX_EMPTY_PAGE_RETRIES} consecutive empty pages`
+            );
+            setPageToken(null);
+            return;
+          }
+
+          setPageToken(emailListResponse.nextPageToken || null);
           handleFetchEmails();
           return;
         }
 
+        // Reset counter on successful fetch
+        emptyPageRetriesRef.current = 0;
         setFetchedEmails([...fetchedEmails, ...emails]);
 
-        setPageToken(Number(emailListResponse.nextPageToken) || null);
+        setPageToken(emailListResponse.nextPageToken || null);
       } else {
         setFetchedEmails([]);
       }
@@ -152,10 +170,10 @@ const EmailUploader = ({
         </Button>
         <div className='flex w-full items-center gap-3'>
           <Separator className='flex-1' />
-          <span className='text-secondary text-base font-semibold'>OR</span>
+          <span className='text-base font-semibold text-secondary'>OR</span>
           <Separator className='flex-1 rotate-180' />
         </div>
-        <div className='text-primary inline-flex gap-2 self-start text-base leading-tight font-medium'>
+        <div className='inline-flex gap-2 self-start text-base leading-tight font-medium text-primary'>
           <div>Upload PST/MBOX file</div>
           <QuestionIcon size={16} color='#606060' />
         </div>
@@ -188,21 +206,21 @@ const EmailUploader = ({
       <Accordion
         type='single'
         collapsible
-        className='border-border w-full rounded-lg border'
+        className='w-full rounded-lg border border-border'
         value={openItem}
         onValueChange={setOpenItem}
       >
         <AccordionItem value={`contribute-info`}>
-          <AccordionTrigger className='text-secondary p-4 font-normal tracking-tight hover:no-underline'>
+          <AccordionTrigger className='p-4 font-normal tracking-tight text-secondary hover:no-underline'>
             What exactly do we extract?
           </AccordionTrigger>
           <AccordionContent className='flex flex-col gap-4 px-4 pt-2'>
-            <div className='text-secondary text-base leading-tight font-medium'>
+            <div className='text-base leading-tight font-medium text-secondary'>
               When you sign in with your Gmail account and press Start, the site
               will extract the DKIM-Signature field from each email message in
               your Gmail account. A signature can look something like this:
             </div>
-            <div className='border-border rounded-lg border p-4 text-xs leading-none font-light'>
+            <div className='rounded-lg border border-border p-4 text-xs leading-none font-light'>
               DKIM-Signature: v=1; a=rsa-sha256; d=australia.net; s=brisbane;
               c=relaxed/simple; q=dns/txt; i=foo@eng.example.net; t=1117574938;
               x=1118006938; l=200; h=from:to:subject:date:keywords:keywords;
@@ -212,7 +230,7 @@ const EmailUploader = ({
               b=dzdVyOfAKCdLXdJOc9G2q8LoXSlEniSbav+yuU4zGeeruD00lszZ
               VoG4ZHRNiYzR
             </div>
-            <div className='text-secondary text-base leading-tight font-medium'>
+            <div className='text-base leading-tight font-medium text-secondary'>
               In the example above, the domain is australianet and the selector
               is brisbane. These are the values that will be extracted and
               uploaded to the archive.
@@ -227,15 +245,15 @@ const EmailUploader = ({
     <div className='flex w-full flex-col items-center justify-center gap-6'>
       <div className='inline-flex items-center justify-between self-stretch'>
         <div className='flex-1 justify-start'>
-          <span className='text-primary text-base leading-tight font-normal tracking-tight'>
+          <span className='text-base leading-tight font-normal tracking-tight text-primary'>
             Signed in
           </span>
-          <span className='text-secondary text-base leading-tight font-normal tracking-tight'>
+          <span className='text-base leading-tight font-normal tracking-tight text-secondary'>
             {' '}
             as prakharsingh0908@gmail.com
           </span>
         </div>
-        <Button className='sm:bg-destructive bg-accent-background-red flex h-auto items-center justify-between gap-1 rounded-md border-0 px-2 py-1.5 leading-2'>
+        <Button className='flex h-auto items-center justify-between gap-1 rounded-md border-0 bg-accent-background-red px-2 py-1.5 leading-2 sm:bg-destructive'>
           <SignOutIcon size={16} className='text-destructive sm:text-white' />
           <div className='hidden justify-start text-sm leading-2 font-medium text-white sm:flex'>
             Sign Out
@@ -244,28 +262,28 @@ const EmailUploader = ({
       </div>
       <div className='flex h-auto flex-col items-start justify-start gap-4 self-stretch overflow-hidden'>
         <div className='inline-flex items-center justify-start gap-3 self-stretch'>
-          <div className='text-primary justify-start text-base leading-tight font-normal tracking-tight'>
+          <div className='justify-start text-base leading-tight font-normal tracking-tight text-primary'>
             Optional customization
           </div>
         </div>
         <div className='flex w-full flex-col items-start justify-start gap-3 self-stretch'>
-          <div className='text-primary justify-start self-stretch text-base leading-tight font-normal tracking-tight'>
+          <div className='justify-start self-stretch text-base leading-tight font-normal tracking-tight text-primary'>
             Only upload emails from a particular domain
           </div>
           <Input
             placeholder='zkemail.com'
-            className='border-border flex w-full items-center justify-center gap-2 self-stretch rounded-lg px-3 py-2'
+            className='flex w-full items-center justify-center gap-2 self-stretch rounded-lg border-border px-3 py-2'
           />
         </div>
         <div className='flex w-full flex-row gap-4'>
           <div className='flex w-full flex-col self-stretch'>
-            <div className='text-primary self-stretch leading-tight tracking-tight'>
+            <div className='self-stretch leading-tight tracking-tight text-primary'>
               Start Date
             </div>
             <Calendar />
           </div>
           <div className='flex w-full flex-col self-stretch'>
-            <div className='text-primary self-stretch leading-tight tracking-tight'>
+            <div className='self-stretch leading-tight tracking-tight text-primary'>
               End Date
             </div>
             <Calendar />
@@ -298,7 +316,7 @@ const EmailUploader = ({
 
   const emailFetchData = (
     <div className='flex w-full flex-col items-center justify-center gap-6'>
-      <div className='text-secondary flex w-full flex-col items-start justify-start gap-3'>
+      <div className='flex w-full flex-col items-start justify-start gap-3 text-secondary'>
         <div className='flex w-full items-center justify-between'>
           <div className='text-base leading-tight font-normal tracking-tight'>
             Domain/selector-pairs added
@@ -326,15 +344,15 @@ const EmailUploader = ({
       </div>
       <div className='flex items-center justify-between self-stretch'>
         <div className='flex-1 justify-start'>
-          <span className='text-primary text-base leading-tight font-normal tracking-tight'>
+          <span className='text-base leading-tight font-normal tracking-tight text-primary'>
             Signed in
           </span>
-          <span className='text-secondary text-base leading-tight font-normal tracking-tight'>
+          <span className='text-base leading-tight font-normal tracking-tight text-secondary'>
             {' '}
             as prakharsingh0908@gmail.com
           </span>
         </div>
-        <Button className='sm:bg-destructive bg-accent-background-red flex h-auto items-center justify-between gap-1 rounded-md border-0 px-2 py-1.5 leading-2'>
+        <Button className='flex h-auto items-center justify-between gap-1 rounded-md border-0 bg-accent-background-red px-2 py-1.5 leading-2 sm:bg-destructive'>
           <SignOutIcon size={16} className='text-destructive sm:text-white' />
           <div className='hidden justify-start text-sm leading-2 font-medium text-white sm:flex'>
             Sign Out

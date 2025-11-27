@@ -6,24 +6,24 @@ import * as React from 'react';
 import { cn } from '../../lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none lg:focus-visible:ring-1 lg:focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex items-center justify-center rounded-lg text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 lg:focus-visible:ring-1 lg:focus-visible:ring-ring',
   {
     variants: {
       variant: {
         default:
-          'bg-primary text-background border-2 rounded-xl border-ring shadow',
+          'rounded-xl border-2 border-ring bg-primary text-background shadow',
         destructive:
           'flex flex-row gap-0.5 rounded-lg border border-red-300 bg-red-100 px-2 py-1 text-red-500 hover:bg-destructive/10',
         outline:
-          'border border-input rounded-lg hover:bg-accent hover:text-accent-foreground',
+          'hover:bg-accent hover:text-accent-foreground rounded-lg border border-input',
         tag: 'bg-white',
         secondary:
-          'bg-neutral-200 rounded border text-grey-800 rounded-lg border-grey-500 font-medium shadow-sm hover:bg-secondary/100',
+          'text-grey-800 border-grey-500 rounded rounded-lg border bg-neutral-200 font-medium shadow-sm hover:bg-secondary/100',
         ghost: '',
         link: 'text-primary underline-offset-4 hover:underline',
       },
       size: {
-        default: 'px-7 py-3 h-10 text-base font-bold leading-[0.875rem]',
+        default: 'h-10 px-7 py-3 text-base leading-[0.875rem] font-bold',
         sm: 'h-8 rounded-lg px-3 text-sm leading-[0.875rem]',
         lg: 'h-10 rounded-lg px-8',
         icon: 'h-9 w-9',

@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { Label } from './label';
 
 interface InputTagsProps {
+  id?: string;
   title?: string;
   value: string[];
   onChange: (value: string[]) => void;
@@ -18,8 +19,10 @@ interface InputTagsProps {
 }
 
 const InputTags = React.forwardRef<HTMLInputElement, InputTagsProps>(
-  ({ className, value, onChange, ...props }, ref) => {
+  ({ className, value, onChange, id, ...props }, ref) => {
     const [pendingDataPoint, setPendingDataPoint] = React.useState('');
+    const generatedId = React.useId();
+    const inputId = id ?? generatedId;
 
     React.useEffect(() => {
       if (pendingDataPoint.includes(',')) {
@@ -43,7 +46,7 @@ const InputTags = React.forwardRef<HTMLInputElement, InputTagsProps>(
     return (
       <div className='flex flex-col gap-2'>
         {props.title ? (
-          <Label className='text-grey-900 text-base' htmlFor={props.title}>
+          <Label className='text-grey-900 text-base' htmlFor={inputId}>
             {props.title}
           </Label>
         ) : null}
@@ -58,18 +61,21 @@ const InputTags = React.forwardRef<HTMLInputElement, InputTagsProps>(
             <Badge key={item} variant='secondary'>
               {item}
               <Button
+                type='button'
                 variant='ghost'
                 size='icon'
                 className='ml-2 h-3 w-3'
+                aria-label={`Remove ${item}`}
                 onClick={() => {
                   onChange(value.filter((i) => i !== item));
                 }}
               >
-                <XIcon className='w-3' />
+                <XIcon className='w-3' aria-hidden='true' />
               </Button>
             </Badge>
           ))}
           <input
+            id={inputId}
             className='flex-1 outline-none placeholder:text-neutral-500 dark:placeholder:text-neutral-400'
             value={pendingDataPoint}
             onChange={(e) => setPendingDataPoint(e.target.value)}

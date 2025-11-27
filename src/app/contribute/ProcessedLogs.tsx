@@ -29,34 +29,34 @@ const LogItem = ({ item }: any) => {
   };
 
   return (
-    <div className='border-border flex w-full flex-col gap-4 rounded-lg border p-4'>
+    <div className='flex w-full flex-col gap-4 rounded-lg border border-border p-4'>
       <div className='grid grid-cols-5 items-start gap-2 sm:gap-4 md:gap-6'>
-        <div className='text-ring dark:text-secondary min-w-0 pr-2 text-base leading-tight font-normal tracking-tight'>
+        <div className='min-w-0 pr-2 text-base leading-tight font-normal tracking-tight text-ring dark:text-secondary'>
           Domain
         </div>
-        <div className='col-span-3 col-start-7 min-w-0 text-base leading-tight font-normal tracking-tight break-words sm:col-start-2'>
+        <div className='col-span-4 col-start-2 min-w-0 text-base leading-tight font-normal tracking-tight break-words sm:col-span-3'>
           {item.domain}
         </div>
-        <div className='text-ring hidden min-w-0 pr-2 text-right text-base leading-tight font-normal tracking-tight sm:flex'>
+        <div className='hidden min-w-0 pr-2 text-right text-base leading-tight font-normal tracking-tight text-ring sm:flex'>
           <Badge variant={getBadgeVariant(item)}>{getBadgeText(item)}</Badge>
         </div>
       </div>
       <div className='grid grid-cols-5 items-start gap-2 sm:gap-4 md:gap-6'>
-        <div className='text-ring dark:text-secondary min-w-0 pr-2 text-base leading-tight font-normal tracking-tight'>
+        <div className='min-w-0 pr-2 text-base leading-tight font-normal tracking-tight text-ring dark:text-secondary'>
           Selector
         </div>
-        <div className='col-start-19 min-w-0 truncate font-mono text-base leading-tight font-normal tracking-tight break-words overflow-ellipsis sm:col-span-3 sm:col-start-2'>
+        <div className='col-span-4 col-start-2 min-w-0 truncate font-mono text-base leading-tight font-normal tracking-tight break-words overflow-ellipsis sm:col-span-3'>
           {item.selector}
         </div>
-        <div className='text-ring dark:text-secondary col-span-1 hidden min-w-0 pr-2 text-right text-xs leading-tight font-normal tracking-tight sm:flex'>
+        <div className='col-span-1 hidden min-w-0 pr-2 text-right text-xs leading-tight font-normal tracking-tight text-ring sm:flex dark:text-secondary'>
           {formatDate(item.timestamp)}
         </div>
       </div>
       <div className='flex flex-row justify-between sm:hidden'>
-        <div className='text-ring min-w-0 pr-2 text-right text-base leading-tight font-normal tracking-tight'>
+        <div className='min-w-0 pr-2 text-right text-base leading-tight font-normal tracking-tight text-ring'>
           <Badge variant={getBadgeVariant(item)}>{getBadgeText(item)}</Badge>
         </div>
-        <div className='text-ring dark:text-secondary min-w-0 pr-2 text-right text-xs leading-tight font-normal tracking-tight'>
+        <div className='min-w-0 pr-2 text-right text-xs leading-tight font-normal tracking-tight text-ring dark:text-secondary'>
           {formatDate(item.timestamp)}
         </div>
       </div>
@@ -66,7 +66,7 @@ const LogItem = ({ item }: any) => {
 
 const ProcessedLogs = ({ logResults }: any) => {
   return (
-    <div className='bg-foreground dark:bg-background border-border w-full rounded-lg border'>
+    <div className='w-full rounded-lg border border-border bg-foreground dark:bg-background'>
       <div className='flex w-full flex-col justify-between gap-2 p-4 pb-4 sm:flex-row sm:items-center'>
         <div className='text-base leading-tight font-normal tracking-tight'>
           Uploading emails
@@ -75,7 +75,7 @@ const ProcessedLogs = ({ logResults }: any) => {
           <Button
             variant='ghost'
             size='sm'
-            className='text-accent-foreground-red bg-foreground flex w-full gap-1 p-2 ring ring-[#C72C22]/40'
+            className='flex w-full gap-1 bg-foreground p-2 text-accent-foreground-red ring ring-[#C72C22]/40'
           >
             <PauseCircleIcon size={16} weight='bold' />
             Pause
@@ -83,7 +83,7 @@ const ProcessedLogs = ({ logResults }: any) => {
           <Button
             variant='ghost'
             size='sm'
-            className='text-ring dark:text-secondary bg-foreground flex w-full gap-1 p-2 ring ring-[#606060]/50'
+            className='flex w-full gap-1 bg-foreground p-2 text-ring ring ring-[#606060]/50 dark:text-secondary'
           >
             <TrashIcon size={16} weight='bold' />
             Clear Log
@@ -91,13 +91,13 @@ const ProcessedLogs = ({ logResults }: any) => {
           <Button
             variant='ghost'
             size='sm'
-            className='text-ring dark:text-secondary bg-foreground hidden p-2 ring ring-[#606060]/50 sm:flex'
+            className='hidden bg-foreground p-2 text-ring ring ring-[#606060]/50 sm:flex dark:text-secondary'
           >
             <MinusIcon size={16} weight='bold' />
           </Button>
         </div>
       </div>
-      <ScrollArea className='bg-foreground text-primary h-[560px] w-full rounded-b-md border-0 p-4 text-base leading-tight font-normal tracking-tight'>
+      <ScrollArea className='h-[560px] w-full rounded-b-md border-0 bg-foreground p-4 text-base leading-tight font-normal tracking-tight text-primary'>
         <div className='space-y-3'>
           {logResults.logResults.map((item: { id: any }) => (
             <LogItem key={item.id} item={item} />

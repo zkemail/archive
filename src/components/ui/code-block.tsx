@@ -12,15 +12,15 @@ export function CodeBlock({ code, title, className }: CodeBlockProps) {
   return (
     <div className={className}>
       {title && (
-        <div className='text-secondary mb-2 text-xs font-semibold tracking-wide uppercase'>
+        <div className='mb-2 text-xs font-semibold tracking-wide text-secondary uppercase'>
           {title}
         </div>
       )}
-      <div className='bg-background border-border relative rounded-lg border p-4'>
+      <div className='relative rounded-lg border border-border bg-background p-4'>
         <div className='absolute top-3 right-3'>
           <CopyButton text={code} />
         </div>
-        <pre className='text-secondary overflow-x-auto pr-8 text-sm'>
+        <pre className='overflow-x-auto pr-8 text-sm text-secondary'>
           <code>{code}</code>
         </pre>
       </div>

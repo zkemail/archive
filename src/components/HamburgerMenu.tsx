@@ -18,7 +18,7 @@ export type MenuItem = {
 
 interface HamburgerMenuProps {
   theme: string | undefined;
-  setTheme: React.Dispatch<React.SetStateAction<string>>;
+  setTheme: (theme: string) => void;
   mounted: boolean;
   items: MenuItem[];
 }
@@ -41,19 +41,19 @@ export function HamburgerMenu({
             className='group flex flex-col items-center justify-center'
           >
             <div
-              className={`bg-primary my-0.75 h-0.5 w-6 rounded transition-transform ${
+              className={`my-0.75 h-0.5 w-6 rounded bg-primary transition-transform ${
                 isOpen
                   ? 'translate-y-2 rotate-45 group-hover:opacity-100'
                   : 'group-hover:opacity-100'
               }`}
             />
             <div
-              className={`bg-primary my-0.75 h-0.5 w-6 rounded transition-transform ${
+              className={`my-0.75 h-0.5 w-6 rounded bg-primary transition-transform ${
                 isOpen ? 'opacity-0' : 'group-hover:opacity-100'
               }`}
             />
             <div
-              className={`bg-primary my-0.75 h-0.5 w-6 rounded transition-transform ${
+              className={`my-0.75 h-0.5 w-6 rounded bg-primary transition-transform ${
                 isOpen
                   ? '-translate-y-2 -rotate-45 group-hover:opacity-100'
                   : 'group-hover:opacity-100'
@@ -64,21 +64,27 @@ export function HamburgerMenu({
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align='center'
-          className='bg-foreground data-[state=open]:animate-in data-[state=open]:slide-in-from-top-48 data-[state=closed]:animate-out data-[state=closed]:slide-out-to-top-48 w-screen !duration-300'
+          className='w-screen bg-foreground !duration-300 data-[state=closed]:animate-out data-[state=closed]:slide-out-to-top-48 data-[state=open]:animate-in data-[state=open]:slide-in-from-top-48'
         >
           {items.map((item) => (
             <DropdownMenuItem key={item.to} asChild>
               <Link
                 href={item.to}
-                className='text-ring [&.active]:text-input w-full cursor-pointer'
+                className='w-full cursor-pointer text-ring [&.active]:text-input'
               >
                 {item.name}
               </Link>
             </DropdownMenuItem>
           ))}
-          <DropdownMenuItem asChild onSelect={(e) => e.preventDefault()}>
-            <div className='flex flex-row items-center justify-between'>
-              <Button>Contribute</Button>
+          <DropdownMenuItem
+            asChild
+            onSelect={(e) => e.preventDefault()}
+            className='flex flex-row items-center justify-between'
+          >
+            <div>
+              <Link href='/contribute'>
+                <Button>Contribute</Button>
+              </Link>
               <ThemeToggle
                 theme={theme}
                 setTheme={setTheme}

@@ -8,7 +8,7 @@ import { Button } from './ui/button';
 
 interface ThemeToggleProps {
   theme: string | undefined;
-  setTheme: React.Dispatch<React.SetStateAction<string>>;
+  setTheme: (theme: string) => void;
   mounted: boolean;
 }
 
@@ -19,9 +19,9 @@ const ThemeToggle = ({ theme, setTheme, mounted }: ThemeToggleProps) => {
   if (!mounted) return null;
 
   return (
-    <div className='border-input relative flex gap-2 rounded-xl border p-1'>
+    <div className='relative flex gap-2 rounded-xl border border-input p-1'>
       <motion.div
-        className='bg-background border-input absolute size-8 rounded-lg border shadow-sm'
+        className='absolute size-8 rounded-lg border border-input bg-background shadow-sm'
         layout
         initial={false}
         animate={{ x: theme === 'dark' ? 40 : 0 }}
@@ -41,9 +41,9 @@ const ThemeToggle = ({ theme, setTheme, mounted }: ThemeToggleProps) => {
       >
         <SunDimIcon
           size={24}
-          color='#3B3B3B'
+          color='currentColor'
           weight={theme === 'light' ? 'fill' : 'regular'}
-          className='transition-all'
+          className='text-icon-sun transition-all'
         />
       </Button>
       <Button
@@ -56,9 +56,9 @@ const ThemeToggle = ({ theme, setTheme, mounted }: ThemeToggleProps) => {
       >
         <MoonIcon
           size={24}
-          color={theme === 'dark' ? '#D4D4D4' : '#A8A8A8'}
+          color='currentColor'
           weight={theme === 'dark' ? 'fill' : 'regular'}
-          className='transition-all'
+          className='text-icon-moon transition-all'
         />
       </Button>
     </div>

@@ -32,8 +32,12 @@ export function AnimatedNumber({
   useEffect(() => {
     spring.set(value);
     if (onAnimationStart) onAnimationStart();
+    let hasCompleted = false;
     const unsubscribe = spring.on('change', () => {
-      if (spring.get() === value && onAnimationComplete) onAnimationComplete();
+      if (!hasCompleted && Math.abs(spring.get() - value) < 1e-3) {
+        hasCompleted = true;
+        if (onAnimationComplete) onAnimationComplete();
+      }
     });
     return () => unsubscribe();
   }, [spring, value, onAnimationStart, onAnimationComplete]);

@@ -51,7 +51,6 @@ export default defineConfig([globalIgnores(["**/.next", "**/node_modules"]), {
     },
 
     rules: {
-        "import/prefer-default-export": "warn",
         "react/function-component-definition": "off",
         "simple-import-sort/imports": "warn",
         "simple-import-sort/exports": "warn",
