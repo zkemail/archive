@@ -79,12 +79,9 @@ export function HamburgerMenu({
           <DropdownMenuItem
             asChild
             onSelect={(e) => e.preventDefault()}
-            className='flex flex-row items-center justify-between'
+            className='flex justify-end'
           >
             <div>
-              <Link href='/contribute'>
-                <Button>Contribute</Button>
-              </Link>
               <ThemeToggle
                 theme={theme}
                 setTheme={setTheme}

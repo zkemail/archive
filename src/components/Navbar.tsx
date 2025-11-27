@@ -13,6 +13,7 @@ const MENU_ITEMS: MenuItem[] = [
   { name: 'JWT Directory', to: '/jwt' },
   { name: 'Explore API', to: '/api-docs' },
   { name: 'About Us', to: 'https://archive.zk.email/about' },
+  { name: 'Contribute', to: '/contribute' },
 ];
 
 const Navbar = () => {
