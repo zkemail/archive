@@ -12,10 +12,34 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 
-export default function Calendar() {
+interface CalendarProps {
+  date?: Date;
+  onChange?: (date: Date | undefined) => void;
+}
+
+export default function Calendar({
+  date: controlledDate,
+  onChange,
+}: CalendarProps) {
   const [open, setOpen] = React.useState(false);
-  const [date, setDate] = React.useState<Date | undefined>(undefined);
-  const handleClear = () => setDate(undefined);
+  const [internalDate, setInternalDate] = React.useState<Date | undefined>(
+    undefined
+  );
+
+  // Use controlled date if provided, otherwise fall back to internal state
+  const isControlled = controlledDate !== undefined || onChange !== undefined;
+  const date = isControlled ? controlledDate : internalDate;
+
+  const handleDateChange = (newDate: Date | undefined) => {
+    if (onChange) {
+      onChange(newDate);
+    }
+    if (!isControlled) {
+      setInternalDate(newDate);
+    }
+  };
+
+  const handleClear = () => handleDateChange(undefined);
   const currentDate: Date = new Date();
 
   return (
@@ -53,8 +77,8 @@ export default function Calendar() {
           mode='single'
           selected={date}
           captionLayout='dropdown'
-          onSelect={(date) => {
-            setDate(date);
+          onSelect={(newDate) => {
+            handleDateChange(newDate);
             setOpen(false);
           }}
           className='w-auto shadow-sm sm:[--cell-size:--spacing(10.5)] [[data-slot=card-content]_&]:bg-background [[data-slot=popover-content]_&]:bg-foreground'

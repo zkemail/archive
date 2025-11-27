@@ -14,37 +14,52 @@ export default function Home() {
   const [DKIMkey, setDKIMkey] = useState(0);
 
   useEffect(() => {
+    const timeoutIds: ReturnType<typeof setTimeout>[] = [];
+    const intervalIds: ReturnType<typeof setInterval>[] = [];
+    let isMounted = true;
+
     const animateValue = (
-      setValue: {
-        (value: SetStateAction<number>): void;
-        (value: SetStateAction<number>): void;
-        (value: SetStateAction<number>): void;
-        (value: SetStateAction<number>): void;
-        (arg0: number): void;
-      },
+      setValue: (value: SetStateAction<number>) => void,
       targetValue: number,
       delay = 0
     ) => {
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
+        if (!isMounted) return;
+
         let current = 0;
         const increment = targetValue / 5;
 
-        const timer = setInterval(() => {
+        const intervalId = setInterval(() => {
+          if (!isMounted) {
+            clearInterval(intervalId);
+            return;
+          }
+
           current += increment;
           if (current >= targetValue) {
             setValue(targetValue);
-            clearInterval(timer);
+            clearInterval(intervalId);
           } else {
             setValue(Math.floor(current));
           }
         }, 25);
+
+        intervalIds.push(intervalId);
       }, delay);
+
+      timeoutIds.push(timeoutId);
     };
 
     animateValue(setUniqueDomains, 408807, 0);
     animateValue(setUniqueSelectors, 5229, 50);
     animateValue(setDSP, 1020408, 100);
     animateValue(setDKIMkey, 1195387, 150);
+
+    return () => {
+      isMounted = false;
+      timeoutIds.forEach((id) => clearTimeout(id));
+      intervalIds.forEach((id) => clearInterval(id));
+    };
   }, []);
   return (
     <main className='my-8 flex flex-col items-center justify-center'>

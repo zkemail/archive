@@ -18,7 +18,7 @@ export type MenuItem = {
 
 interface HamburgerMenuProps {
   theme: string | undefined;
-  setTheme: React.Dispatch<React.SetStateAction<string>>;
+  setTheme: (theme: string) => void;
   mounted: boolean;
   items: MenuItem[];
 }
@@ -76,9 +76,15 @@ export function HamburgerMenu({
               </Link>
             </DropdownMenuItem>
           ))}
-          <DropdownMenuItem asChild onSelect={(e) => e.preventDefault()}>
-            <div className='flex flex-row items-center justify-between'>
-              <Button>Contribute</Button>
+          <DropdownMenuItem
+            asChild
+            onSelect={(e) => e.preventDefault()}
+            className='flex flex-row items-center justify-between'
+          >
+            <div>
+              <Link href='/contribute'>
+                <Button>Contribute</Button>
+              </Link>
               <ThemeToggle
                 theme={theme}
                 setTheme={setTheme}

@@ -3,7 +3,7 @@
 
 import { EnvelopeIcon, QuestionIcon, SignOutIcon } from '@phosphor-icons/react';
 import Image from 'next/image';
-import { Dispatch, SetStateAction, useEffect, useState } from 'react';
+import { Dispatch, SetStateAction, useEffect, useRef, useState } from 'react';
 
 import {
   Accordion,
@@ -26,6 +26,8 @@ import logResults from './contributeData.json';
 import DragAndDropFile from './DragAndDropFile';
 import ProcessedLogs from './ProcessedLogs';
 
+const MAX_EMPTY_PAGE_RETRIES = 5;
+
 const EmailUploader = ({
   onFileUpload,
   setIsDataFetching,
@@ -36,13 +38,14 @@ const EmailUploader = ({
   const [file, setFile] = useState<File | null>(null);
   const [fetchedEmails, setFetchedEmails] = useState<RawEmailResponse[]>([]);
   const [isFetchEmailLoading, setIsFetchEmailLoading] = useState(false);
-  const [pageToken, setPageToken] = useState<number | null>(null);
+  const [pageToken, setPageToken] = useState<string | null>(null);
   const [emailQuery, setEmailQuery] = useState<string | null>(null);
   const [selectedEmail, setSelectedEmail] = useState<RawEmailResponse | null>(
     null
   );
   const [emailContent, setEmailContent] = useState<string | null>(null);
   const [openItem, setOpenItem] = useState('');
+  const emptyPageRetriesRef = useRef(0);
 
   const { googleLogIn, googleAuthToken } = useGoogleAuth();
 
@@ -100,14 +103,26 @@ const EmailUploader = ({
         );
 
         if (emails.length === 0 && emailListResponse.nextPageToken) {
-          setPageToken(Number(emailListResponse.nextPageToken) || null);
+          emptyPageRetriesRef.current += 1;
+
+          if (emptyPageRetriesRef.current >= MAX_EMPTY_PAGE_RETRIES) {
+            console.warn(
+              `Stopped fetching after ${MAX_EMPTY_PAGE_RETRIES} consecutive empty pages`
+            );
+            setPageToken(null);
+            return;
+          }
+
+          setPageToken(emailListResponse.nextPageToken || null);
           handleFetchEmails();
           return;
         }
 
+        // Reset counter on successful fetch
+        emptyPageRetriesRef.current = 0;
         setFetchedEmails([...fetchedEmails, ...emails]);
 
-        setPageToken(Number(emailListResponse.nextPageToken) || null);
+        setPageToken(emailListResponse.nextPageToken || null);
       } else {
         setFetchedEmails([]);
       }

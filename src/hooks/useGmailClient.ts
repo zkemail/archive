@@ -39,13 +39,12 @@ export async function fetchEmailList(
   accessToken: string,
   queryParams: {
     maxResults?: number;
-    pageToken?: number;
+    pageToken?: string;
     q?: string;
   }
 ): Promise<GmailMessagesListResponse> {
   const defaultParams = {
     maxResults: 5,
-    pageToken: 0,
   };
 
   const finalQueryParams = { ...defaultParams, ...queryParams };

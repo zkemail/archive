@@ -61,14 +61,16 @@ const InputTags = React.forwardRef<HTMLInputElement, InputTagsProps>(
             <Badge key={item} variant='secondary'>
               {item}
               <Button
+                type='button'
                 variant='ghost'
                 size='icon'
                 className='ml-2 h-3 w-3'
+                aria-label={`Remove ${item}`}
                 onClick={() => {
                   onChange(value.filter((i) => i !== item));
                 }}
               >
-                <XIcon className='w-3' />
+                <XIcon className='w-3' aria-hidden='true' />
               </Button>
             </Badge>
           ))}

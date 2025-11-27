@@ -8,7 +8,7 @@ import { Button } from './ui/button';
 
 interface ThemeToggleProps {
   theme: string | undefined;
-  setTheme: React.Dispatch<React.SetStateAction<string>>;
+  setTheme: (theme: string) => void;
   mounted: boolean;
 }
 

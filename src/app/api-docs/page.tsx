@@ -335,7 +335,7 @@ export default function ApiDocsPage() {
                 </span>
               </div>
               <div className='flex items-center gap-2'>
-                <Badge variant='api'>408</Badge>
+                <Badge variant='api'>429</Badge>
                 <span className='text-sm text-secondary'>
                   Rate limit exceeded
                 </span>
@@ -356,9 +356,7 @@ export default function ApiDocsPage() {
               variant='default'
               size='sm'
               className='flex items-center gap-2 bg-primary text-background'
-              onClick={() =>
-                window.open('https://t.me/your-telegram', '_blank')
-              }
+              onClick={() => window.open('https://t.me/zkemail', '_blank')}
             >
               <svg
                 width='16'

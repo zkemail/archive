@@ -17,20 +17,51 @@ import Calendar from './Calendar';
 
 type SearchAndFilterSectionProps = {
   initialQuery?: string;
+  onSearchChange?: (value: string) => void;
+  onFilterChange?: (value: string) => void;
+  onDateRangeChange?: (
+    fromDate: Date | undefined,
+    toDate: Date | undefined
+  ) => void;
 };
 
 export function SearchAndFilterSection({
   initialQuery = '',
+  onSearchChange,
+  onFilterChange,
+  onDateRangeChange,
 }: SearchAndFilterSectionProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchValue, setSearchValue] = useState(initialQuery);
   const [filterValue, setFilterValue] = useState('all');
+  const [fromDate, setFromDate] = useState<Date | undefined>(undefined);
+  const [toDate, setToDate] = useState<Date | undefined>(undefined);
 
   useEffect(() => {
     setSearchValue(initialQuery);
   }, [initialQuery]);
 
-  const handleClear = () => setSearchValue('');
+  const handleSearchChange = (value: string) => {
+    setSearchValue(value);
+    onSearchChange?.(value);
+  };
+
+  const handleFilterChange = (value: string) => {
+    setFilterValue(value);
+    onFilterChange?.(value);
+  };
+
+  const handleFromDateChange = (date: Date | undefined) => {
+    setFromDate(date);
+    onDateRangeChange?.(date, toDate);
+  };
+
+  const handleToDateChange = (date: Date | undefined) => {
+    setToDate(date);
+    onDateRangeChange?.(fromDate, date);
+  };
+
+  const handleClear = () => handleSearchChange('');
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen} className='w-full'>
@@ -45,7 +76,7 @@ export function SearchAndFilterSection({
               <Input
                 placeholder='Domain name'
                 value={searchValue}
-                onChange={(e) => setSearchValue(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 className='h-auto w-full border-0 bg-transparent p-0 text-base leading-tight tracking-tight ring-0 outline-0 focus-visible:ring-0 focus-visible:ring-offset-0'
               />
               {searchValue && (
@@ -77,19 +108,19 @@ export function SearchAndFilterSection({
         <div className='flex flex-col gap-4 self-stretch'>
           <div className='flex flex-row gap-2'>
             <Button
-              onClick={() => setFilterValue('all')}
+              onClick={() => handleFilterChange('all')}
               className={`h-auto cursor-pointer rounded-lg border-0 px-6 py-2 leading-tight font-normal tracking-tight ${filterValue === 'all' ? 'bg-selected text-background hover:opacity-90' : 'bg-background text-primary hover:opacity-90'}`}
             >
               All
             </Button>
             <Button
-              onClick={() => setFilterValue('active')}
+              onClick={() => handleFilterChange('active')}
               className={`h-auto cursor-pointer rounded-lg border-0 px-6 py-2 leading-tight font-normal tracking-tight ${filterValue === 'active' ? 'bg-selected text-background hover:opacity-90' : 'bg-background text-primary hover:opacity-90'}`}
             >
               Active
             </Button>
             <Button
-              onClick={() => setFilterValue('expired')}
+              onClick={() => handleFilterChange('expired')}
               className={`h-auto cursor-pointer rounded-lg border-0 px-6 py-2 leading-tight font-normal tracking-tight ${filterValue === 'expired' ? 'bg-selected text-background hover:opacity-90' : 'bg-background text-primary hover:opacity-90'}`}
             >
               Expired
@@ -100,13 +131,13 @@ export function SearchAndFilterSection({
               <div className='self-stretch leading-tight tracking-tight text-primary'>
                 Only show from date
               </div>
-              <Calendar />
+              <Calendar date={fromDate} onChange={handleFromDateChange} />
             </div>
             <div className='flex w-full flex-col gap-1 self-stretch'>
               <div className='self-stretch leading-tight tracking-tight text-primary'>
                 To date
               </div>
-              <Calendar />
+              <Calendar date={toDate} onChange={handleToDateChange} />
             </div>
           </div>
         </div>

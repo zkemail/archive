@@ -24,6 +24,7 @@ export const HoverSwapIcon = ({
     href={href}
     aria-label={ariaLabel}
     target='_blank'
+    rel='noreferrer noopener'
     className='group relative inline-block size-5 text-secondary dark:text-ring'
   >
     {/* Outline (Regular) Icon */}

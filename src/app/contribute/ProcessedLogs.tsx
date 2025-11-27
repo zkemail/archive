@@ -34,7 +34,7 @@ const LogItem = ({ item }: any) => {
         <div className='min-w-0 pr-2 text-base leading-tight font-normal tracking-tight text-ring dark:text-secondary'>
           Domain
         </div>
-        <div className='col-span-3 col-start-7 min-w-0 text-base leading-tight font-normal tracking-tight break-words sm:col-start-2'>
+        <div className='col-span-4 col-start-2 min-w-0 text-base leading-tight font-normal tracking-tight break-words sm:col-span-3'>
           {item.domain}
         </div>
         <div className='hidden min-w-0 pr-2 text-right text-base leading-tight font-normal tracking-tight text-ring sm:flex'>
@@ -45,7 +45,7 @@ const LogItem = ({ item }: any) => {
         <div className='min-w-0 pr-2 text-base leading-tight font-normal tracking-tight text-ring dark:text-secondary'>
           Selector
         </div>
-        <div className='col-start-19 min-w-0 truncate font-mono text-base leading-tight font-normal tracking-tight break-words overflow-ellipsis sm:col-span-3 sm:col-start-2'>
+        <div className='col-span-4 col-start-2 min-w-0 truncate font-mono text-base leading-tight font-normal tracking-tight break-words overflow-ellipsis sm:col-span-3'>
           {item.selector}
         </div>
         <div className='col-span-1 hidden min-w-0 pr-2 text-right text-xs leading-tight font-normal tracking-tight text-ring sm:flex dark:text-secondary'>
