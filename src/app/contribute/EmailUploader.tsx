@@ -61,7 +61,10 @@ const EmailUploader = ({
             if (dateMatches && dateMatches.length > 0) {
               const lastDateMatch = dateMatches[dateMatches.length - 1]; // Take the last match
               const dateValue = lastDateMatch.split('Date: ')[1]; // Extract the actual date string
-              return new Date(dateValue).toISOString(); // Convert to ISO format
+              const date = new Date(dateValue);
+              if (!isNaN(date.getTime())) {
+                return date.toISOString();
+              }
             }
             return 'Invalid Date';
           })(),
