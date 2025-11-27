@@ -21,7 +21,7 @@ import { fetchEmailList, fetchEmailsRaw } from '@/hooks/useGmailClient';
 import useGoogleAuth from '@/hooks/useGoogleAuth';
 import { decodeMimeEncodedText, formatDate, getFileContent } from '@/lib/utils';
 
-import Calendar from '../search/Calender';
+import Calendar from '../search/Calendar';
 import logResults from './contributeData.json';
 import DragAndDropFile from './DragAndDropFile';
 import ProcessedLogs from './ProcessedLogs';
