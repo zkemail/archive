@@ -19,9 +19,9 @@ const ThemeToggle = ({ theme, setTheme, mounted }: ThemeToggleProps) => {
   if (!mounted) return null;
 
   return (
-    <div className='border-input relative flex gap-2 rounded-xl border p-1'>
+    <div className='relative flex gap-2 rounded-xl border border-input p-1'>
       <motion.div
-        className='bg-background border-input absolute size-8 rounded-lg border shadow-sm'
+        className='absolute size-8 rounded-lg border border-input bg-background shadow-sm'
         layout
         initial={false}
         animate={{ x: theme === 'dark' ? 40 : 0 }}

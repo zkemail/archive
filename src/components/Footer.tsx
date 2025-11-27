@@ -24,7 +24,7 @@ export const HoverSwapIcon = ({
     href={href}
     aria-label={ariaLabel}
     target='_blank'
-    className='group text-secondary dark:text-ring relative inline-block size-5'
+    className='group relative inline-block size-5 text-secondary dark:text-ring'
   >
     {/* Outline (Regular) Icon */}
     <Icon
@@ -42,7 +42,7 @@ export const HoverSwapIcon = ({
 
 function FooterLinks() {
   return (
-    <div className='text-ring flex flex-row items-center justify-between gap-4 text-base leading-tight'>
+    <div className='flex flex-row items-center justify-between gap-4 text-base leading-tight text-ring'>
       <Link href='/about' className='hidden sm:flex'>
         About
       </Link>
@@ -52,11 +52,11 @@ function FooterLinks() {
         size={8}
         weight='fill'
       />
-      <Link href='/api-docs' className='hover:text-secondary hidden sm:flex'>
+      <Link href='/api-docs' className='hidden hover:text-secondary sm:flex'>
         Explore API
       </Link>
       <DiamondIcon
-        className='hover:text-secondary hidden sm:flex'
+        className='hidden hover:text-secondary sm:flex'
         color='#606060'
         size={8}
         weight='fill'
@@ -100,7 +100,7 @@ function SocialLinks() {
 
 export default function Footer() {
   return (
-    <footer className='bg-foreground border-border flex w-full items-center justify-between border-t px-4 py-5 sm:justify-evenly'>
+    <footer className='flex w-full items-center justify-between border-t border-border bg-foreground px-4 py-5 sm:justify-evenly'>
       <FooterLinks />
       <SocialLinks />
     </footer>

@@ -48,7 +48,7 @@ export default function Home() {
   }, []);
   return (
     <main className='my-8 flex flex-col items-center justify-center'>
-      <div className='border-border relative mx-auto aspect-12/5 w-14/15 max-w-[720px] overflow-clip rounded-t-3xl border'>
+      <div className='relative mx-auto aspect-12/5 w-14/15 max-w-[720px] overflow-clip rounded-t-3xl border border-border'>
         <div className='absolute bottom-0 z-40 inline-flex flex-col items-start justify-start p-6'>
           <div className='flex justify-start text-[clamp(2rem,3.34vw,3rem)] font-bold text-white capitalize'>
             DKIM Archive
@@ -68,12 +68,12 @@ export default function Home() {
           className='object-cover'
         />
       </div>
-      <div className='bg-foreground border-border flex w-14/15 max-w-[720px] flex-col items-start justify-start gap-6 rounded-br-3xl rounded-bl-3xl border-r border-b border-l p-6'>
+      <div className='flex w-14/15 max-w-[720px] flex-col items-start justify-start gap-6 rounded-br-3xl rounded-bl-3xl border-r border-b border-l border-border bg-foreground p-6'>
         <div className='flex flex-col items-start justify-start gap-2 self-stretch'>
-          <div className='text-primary justify-start self-stretch text-base leading-tight tracking-tight'>
+          <div className='justify-start self-stretch text-base leading-tight tracking-tight text-primary'>
             Search Domain
           </div>
-          <div className='border-border my-0.25 flex w-full items-center gap-2 rounded-lg border px-3 py-2'>
+          <div className='my-0.25 flex w-full items-center gap-2 rounded-lg border border-border px-3 py-2'>
             <div
               data-name='MagnifyingGlass'
               className='relative my-0.5 h-4 w-4 overflow-hidden'
@@ -89,7 +89,7 @@ export default function Home() {
               <Input
                 placeholder='Domain name'
                 size='search'
-                className='text-secondary flex-1 border-0 text-base leading-tight tracking-tight outline-0'
+                className='flex-1 border-0 text-base leading-tight tracking-tight text-secondary outline-0'
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     const value = e.currentTarget.value.trim();
@@ -103,51 +103,51 @@ export default function Home() {
           </div>
         </div>
         <div className='flex w-full flex-col items-start justify-start gap-3'>
-          <div className='text-primary justify-start self-stretch leading-tight tracking-tight'>
+          <div className='justify-start self-stretch leading-tight tracking-tight text-primary'>
             Statistics
           </div>
           <div className='flex w-full items-center justify-between'>
-            <div className='text-secondary justify-start leading-tight tracking-tight'>
+            <div className='justify-start leading-tight tracking-tight text-secondary'>
               Unique domains
             </div>
-            <div className='text-secondary justify-end text-right leading-tight'>
+            <div className='justify-end text-right leading-tight text-secondary'>
               <AnimatedNumber value={uniqueDomains} />
             </div>
           </div>
           <div className='flex w-full items-center justify-between'>
-            <div className='text-secondary justify-start leading-tight tracking-tight'>
+            <div className='justify-start leading-tight tracking-tight text-secondary'>
               Unique selectors
             </div>
-            <div className='text-secondary justify-end text-right leading-tight'>
+            <div className='justify-end text-right leading-tight text-secondary'>
               <AnimatedNumber value={uniqueSelectors} />
             </div>
           </div>
           <div className='flex w-full items-center justify-between'>
-            <div className='text-secondary justify-start leading-tight tracking-tight'>
+            <div className='justify-start leading-tight tracking-tight text-secondary'>
               Domain/selector-pairs
             </div>
-            <div className='text-secondary justify-end text-right leading-tight'>
+            <div className='justify-end text-right leading-tight text-secondary'>
               <AnimatedNumber value={DSP} />
             </div>
           </div>
           <div className='flex w-full items-center justify-between'>
-            <div className='text-secondary justify-start leading-tight tracking-tight'>
+            <div className='justify-start leading-tight tracking-tight text-secondary'>
               DKIM keys
             </div>
-            <div className='text-secondary justify-end text-right leading-tight'>
+            <div className='justify-end text-right leading-tight text-secondary'>
               <AnimatedNumber value={DKIMkey} />
             </div>
           </div>
         </div>
-        <div className='bg-background flex items-center justify-around self-stretch overflow-hidden rounded-lg px-3 py-2'>
-          <div className='text-primary flex-1 justify-start leading-tight tracking-tight'>
+        <div className='flex items-center justify-around self-stretch overflow-hidden rounded-lg bg-background px-3 py-2'>
+          <div className='flex-1 justify-start leading-tight tracking-tight text-primary'>
             Browse our JWT key directory
           </div>
           <div data-name='ArrowRight' className='relative h-4 w-4'>
             <ArrowRightIcon
               size={16}
               weight='bold'
-              className='bg-Grey-900 text-primary absolute'
+              className='bg-Grey-900 absolute text-primary'
             />
           </div>
         </div>

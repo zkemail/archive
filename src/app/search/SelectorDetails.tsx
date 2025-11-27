@@ -53,7 +53,7 @@ const SelectorDetails = ({ data }: any) => {
     <div
       className={`grid grid-cols-3 items-start gap-2 sm:gap-4 md:gap-6 ${className}`}
     >
-      <div className='text-ring min-w-0 pr-2 text-base leading-tight font-normal tracking-tight'>
+      <div className='min-w-0 pr-2 text-base leading-tight font-normal tracking-tight text-ring'>
         {label}
       </div>
       <div className='col-span-2 min-w-0 text-base leading-tight font-normal tracking-tight break-words'>
@@ -101,7 +101,7 @@ const SelectorDetails = ({ data }: any) => {
 
   return (
     <div className='flex w-full flex-col gap-6'>
-      <div className='bg-foreground sticky top-0 z-10'>
+      <div className='sticky top-0 z-10 bg-foreground'>
         <div className='flex flex-col flex-wrap gap-2'>
           <div className='flex flex-wrap gap-2'>
             <Button
@@ -110,8 +110,8 @@ const SelectorDetails = ({ data }: any) => {
               onClick={() => scrollToDomain('all')}
               className={`flex h-auto items-center gap-1 rounded-md border px-2 py-1.5 text-sm leading-4.5 font-normal transition-colors ${
                 activeDomain === 'all'
-                  ? 'text-primary border-ring'
-                  : 'text-secondary border-border'
+                  ? 'border-ring text-primary'
+                  : 'border-border text-secondary'
               }`}
             >
               All
@@ -123,8 +123,8 @@ const SelectorDetails = ({ data }: any) => {
                 onClick={() => scrollToDomain(domain)}
                 className={`flex h-auto items-center gap-1 rounded-md border px-2 py-1.5 text-sm leading-4.5 font-normal transition-colors ${
                   activeDomain === domain
-                    ? 'text-primary border-ring'
-                    : 'text-secondary border-border'
+                    ? 'border-ring text-primary'
+                    : 'border-border text-secondary'
                 }`}
               >
                 {domain}
@@ -132,7 +132,7 @@ const SelectorDetails = ({ data }: any) => {
             ))}
           </div>
           <div>
-            <div className='text-secondary text-base leading-tight tracking-tight'>
+            <div className='text-base leading-tight tracking-tight text-secondary'>
               <span className='text-primary'>2 domains</span> found for
               coinbase.com
             </div>
@@ -145,13 +145,13 @@ const SelectorDetails = ({ data }: any) => {
           ref={(el) => {
             domainRefs.current[domain] = el;
           }}
-          className='border-border scroll-mt-24 rounded-lg border'
+          className='scroll-mt-24 rounded-lg border border-border'
         >
-          <div className='border-border flex flex-col gap-1 p-4'>
+          <div className='flex flex-col gap-1 border-border p-4'>
             <h3 className='text-xl leading-7 font-medium tracking-tight'>
               {domain}
             </h3>
-            <p className='text-primary text-base leading-tight font-normal tracking-tight'>
+            <p className='text-base leading-tight font-normal tracking-tight text-primary'>
               {groupedByDomain[domain].length} selector
               {groupedByDomain[domain].length !== 1 ? 's' : ''}{' '}
               <span className='text-secondary'>found</span>
@@ -159,7 +159,7 @@ const SelectorDetails = ({ data }: any) => {
           </div>
           <div>
             {groupedByDomain[domain].map((item: any, index: number) => (
-              <div key={item.id} className='border-border border-t'>
+              <div key={item.id} className='border-t border-border'>
                 <div className='flex flex-col gap-4 px-4 py-3'>
                   <DetailRow label='Selector'>
                     <div className='truncate font-mono text-sm overflow-ellipsis'>
@@ -178,7 +178,7 @@ const SelectorDetails = ({ data }: any) => {
                         </Badge>
                         <Badge
                           variant='source'
-                          className='text-secondary text-xs sm:text-sm'
+                          className='text-xs text-secondary sm:text-sm'
                         >
                           {item.origin == 'Inbox Upload' ? (
                             <>
@@ -189,7 +189,7 @@ const SelectorDetails = ({ data }: any) => {
                             </>
                           ) : (
                             <>
-                              <ArrowsCounterClockwiseIcon className='text-secondary h-3 w-3 sm:h-4 sm:w-4' />
+                              <ArrowsCounterClockwiseIcon className='h-3 w-3 text-secondary sm:h-4 sm:w-4' />
                               <span className='text-xs leading-none font-normal tracking-tight sm:hidden'>
                                 Rev Eng
                               </span>
@@ -202,7 +202,7 @@ const SelectorDetails = ({ data }: any) => {
                         {item.provenanceVerified && (
                           <Badge
                             variant='source'
-                            className='text-secondary text-xs sm:text-sm'
+                            className='text-xs text-secondary sm:text-sm'
                           >
                             <SealCheckIcon
                               weight='bold'
@@ -215,7 +215,7 @@ const SelectorDetails = ({ data }: any) => {
                         )}
                         <FlagIcon
                           weight='fill'
-                          className='text-icon-muted h-3 w-3 sm:h-4 sm:w-4'
+                          className='h-3 w-3 text-icon-muted sm:h-4 sm:w-4'
                         />
                       </div>
                     </div>
@@ -230,7 +230,7 @@ const SelectorDetails = ({ data }: any) => {
                   onValueChange={() => toggleAccordion(item.id)}
                 >
                   <AccordionItem value={`selector-detail-${item.id}`}>
-                    <AccordionTrigger className='text-secondary p-4 font-normal tracking-tight hover:no-underline'>
+                    <AccordionTrigger className='p-4 font-normal tracking-tight text-secondary hover:no-underline'>
                       {openItems[item.id] ? 'Hide details' : 'More Details'}
                     </AccordionTrigger>
                     <AccordionContent className='flex flex-col gap-4 px-4 pt-2'>

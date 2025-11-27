@@ -21,7 +21,7 @@ export default function Calendar() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild className='w-full'>
-        <div className='border-input flex flex-row items-center justify-between rounded-lg border px-3 py-2'>
+        <div className='flex flex-row items-center justify-between rounded-lg border border-input px-3 py-2'>
           <Button
             variant='ghost'
             id='date'
@@ -57,7 +57,7 @@ export default function Calendar() {
             setDate(date);
             setOpen(false);
           }}
-          className='[[data-slot=card-content]_&]:bg-background [[data-slot=popover-content]_&]:bg-foreground w-auto shadow-sm sm:[--cell-size:--spacing(10.5)]'
+          className='w-auto shadow-sm sm:[--cell-size:--spacing(10.5)] [[data-slot=card-content]_&]:bg-background [[data-slot=popover-content]_&]:bg-foreground'
         />
       </PopoverContent>
     </Popover>

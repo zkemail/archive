@@ -4,28 +4,28 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 
 const badgeVariants = cva(
-  'inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+  'inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-none',
   {
     variants: {
       variant: {
         default:
-          'border-transparent bg-primary text-primary-foreground  hover:bg-primary/80',
+          'text-primary-foreground border-transparent bg-primary hover:bg-primary/80',
         secondary:
-          'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80',
+          'text-secondary-foreground border-transparent bg-secondary hover:bg-secondary/80',
         destructive:
-          'border-transparent bg-destructive text-destructive-foreground  hover:bg-destructive/80',
+          'text-destructive-foreground border-transparent bg-destructive hover:bg-destructive/80',
         outline: 'text-foreground',
         active:
-          'rounded border-0 px-2 py-0.5 gap-2  overflow-hidden text-xs font-normal leading-none tracking-tight bg-accent-background-green text-accent-foreground-green',
+          'gap-2 overflow-hidden rounded border-0 bg-accent-background-green px-2 py-0.5 text-xs leading-none font-normal tracking-tight text-accent-foreground-green',
         expired:
-          'rounded border-0 px-2 py-0.5 gap-2  overflow-hidden text-xs font-normal leading-none tracking-tight bg-accent-background-red text-accent-foreground-red',
+          'gap-2 overflow-hidden rounded border-0 bg-accent-background-red px-2 py-0.5 text-xs leading-none font-normal tracking-tight text-accent-foreground-red',
         updated:
-          'bg-accent-background-purple  text-accent-foreground-purple gap-2 overflow-hidden rounded border-0 px-2 py-0.5 text-xs leading-none font-normal tracking-tight',
+          'gap-2 overflow-hidden rounded border-0 bg-accent-background-purple px-2 py-0.5 text-xs leading-none font-normal tracking-tight text-accent-foreground-purple',
         present:
-          'bg-background text-secondary  gap-2 overflow-hidden rounded border-0 px-2 py-0.5 text-xs leading-none font-normal tracking-tight',
+          'gap-2 overflow-hidden rounded border-0 bg-background px-2 py-0.5 text-xs leading-none font-normal tracking-tight text-secondary',
         source:
-          'bg-[#FCFCFC] dark:bg-[#272727] text-secondary gap-1 overflow-hidden rounded border-0 px-1.5 text-xs leading-none font-normal tracking-tight inline-flex flex-row justify-around items-center ',
-        api: 'bg-icon-muted text-secondary rounded border-0 p-1 text-xs font-semibold leading-none tracking-tight uppercase',
+          'inline-flex flex-row items-center justify-around gap-1 overflow-hidden rounded border-0 bg-[#FCFCFC] px-1.5 text-xs leading-none font-normal tracking-tight text-secondary dark:bg-[#272727]',
+        api: 'rounded border-0 bg-icon-muted p-1 text-xs leading-none font-semibold tracking-tight text-secondary uppercase',
       },
     },
     defaultVariants: {

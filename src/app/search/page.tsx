@@ -14,7 +14,7 @@ export default function Home() {
   const data = searchResults;
   return (
     <div className='my-8 flex flex-col items-center justify-center'>
-      <div className='border-border relative mx-auto aspect-12/5 w-14/15 max-w-[720px] overflow-clip rounded-t-3xl border md:aspect-9/2'>
+      <div className='relative mx-auto aspect-12/5 w-14/15 max-w-[720px] overflow-clip rounded-t-3xl border border-border md:aspect-9/2'>
         <div className='absolute bottom-0 z-40 inline-flex flex-col items-start justify-start p-6'>
           <div className='flex justify-start text-[clamp(2rem,3.34vw,3rem)] font-bold text-white capitalize'>
             DKIM Archive
@@ -34,7 +34,7 @@ export default function Home() {
           className='object-cover'
         />
       </div>
-      <div className='bg-foreground border-border flex w-14/15 max-w-[720px] flex-col items-start justify-start gap-6 rounded-br-3xl rounded-bl-3xl border-r border-b border-l p-6'>
+      <div className='flex w-14/15 max-w-[720px] flex-col items-start justify-start gap-6 rounded-br-3xl rounded-bl-3xl border-r border-b border-l border-border bg-foreground p-6'>
         <div className='flex flex-col items-start justify-start gap-2 self-stretch'>
           <SearchAndFilterSection initialQuery={initialQuery} />
         </div>

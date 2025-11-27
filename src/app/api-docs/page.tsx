@@ -64,7 +64,7 @@ export default function ApiDocsPage() {
   return (
     <div className='my-8 flex flex-col items-center justify-center'>
       {/* Hero Section */}
-      <div className='border-border relative mx-auto aspect-12/5 w-14/15 max-w-[720px] overflow-clip rounded-t-3xl border md:aspect-9/2'>
+      <div className='relative mx-auto aspect-12/5 w-14/15 max-w-[720px] overflow-clip rounded-t-3xl border border-border md:aspect-9/2'>
         <div className='absolute bottom-0 z-40 inline-flex flex-col items-start justify-start p-6'>
           <div className='flex justify-start text-[clamp(2rem,3.34vw,3rem)] font-bold text-white capitalize'>
             DKIM Archive API
@@ -86,17 +86,17 @@ export default function ApiDocsPage() {
       </div>
 
       {/* Content Section */}
-      <div className='bg-foreground border-border flex w-14/15 max-w-[720px] flex-col items-start justify-start gap-6 rounded-br-3xl rounded-bl-3xl border-r border-b border-l p-6'>
+      <div className='flex w-14/15 max-w-[720px] flex-col items-start justify-start gap-6 rounded-br-3xl rounded-bl-3xl border-r border-b border-l border-border bg-foreground p-6'>
         {/* API Reference Section */}
         <div className='flex w-full flex-col gap-4'>
-          <h2 className='text-secondary text-lg font-semibold'>
+          <h2 className='text-lg font-semibold text-secondary'>
             API Reference
           </h2>
-          <p className='text-secondary text-sm leading-relaxed'>
+          <p className='text-sm leading-relaxed text-secondary'>
             This is the API specification for the DKIM Archive API, which
             processes Gmail messages for DKIM signatures and provides -
           </p>
-          <ol className='text-secondary ml-4 flex list-decimal flex-col gap-2 text-sm'>
+          <ol className='ml-4 flex list-decimal flex-col gap-2 text-sm text-secondary'>
             <li>
               Endpoints to{' '}
               <strong className='text-secondary'>query archived keys</strong>
@@ -115,50 +115,50 @@ export default function ApiDocsPage() {
         </div>
 
         {/* Base URL Section */}
-        <div className='bg-background flex w-full flex-col gap-3 rounded-lg p-4'>
-          <div className='text-secondary text-xs font-semibold tracking-wider uppercase'>
+        <div className='flex w-full flex-col gap-3 rounded-lg bg-background p-4'>
+          <div className='text-xs font-semibold tracking-wider text-secondary uppercase'>
             BASE URL
           </div>
-          <div className='border-border bg-border h-px w-full'></div>
+          <div className='h-px w-full border-border bg-border'></div>
           <div className='flex items-center justify-between'>
-            <code className='text-secondary font-mono text-sm'>
+            <code className='font-mono text-sm text-secondary'>
               https://archive.prove.email/api
             </code>
             <CopyButton text='https://archive.prove.email/api' />
           </div>
         </div>
-        <div className='border-border bg-border h-px w-full'></div>
+        <div className='h-px w-full border-border bg-border'></div>
 
         {/* List-keys Endpoint */}
         <div className='flex w-full flex-col gap-4'>
-          <h3 className='text-secondary text-base font-semibold'>List-keys</h3>
+          <h3 className='text-base font-semibold text-secondary'>List-keys</h3>
 
           {/* Endpoint Header */}
-          <div className='bg-background flex w-full flex-col gap-3 rounded-lg p-2'>
+          <div className='flex w-full flex-col gap-3 rounded-lg bg-background p-2'>
             <div className='flex items-center gap-2'>
               <Badge variant='api'>GET</Badge>
-              <code className='text-secondary font-mono text-sm'>/api</code>
+              <code className='font-mono text-sm text-secondary'>/api</code>
             </div>
           </div>
 
-          <p className='text-secondary text-sm'>
+          <p className='text-sm text-secondary'>
             Returns a list of DKIM keys for a given domain and its subdomains.
           </p>
 
           {/* Parameters Section */}
           <div className='flex flex-col gap-3'>
-            <h4 className='text-primary text-sm font-semibold'>Parameters</h4>
+            <h4 className='text-sm font-semibold text-primary'>Parameters</h4>
             <div className='flex flex-col gap-2 px-4'>
               <div className='flex items-center gap-2'>
-                <span className='text-primary text-sm font-medium'>domain</span>
-                <span className='text-accent-foreground-green text-sm'>
+                <span className='text-sm font-medium text-primary'>domain</span>
+                <span className='text-sm text-accent-foreground-green'>
                   string
                 </span>
                 (query)
                 <Badge variant='api'>REQUIRED</Badge>
               </div>
               <div className='px-2'>
-                <p className='text-secondary text-sm'>
+                <p className='text-sm text-secondary'>
                   Output the domain name and/or any matching subdomains
                 </p>
               </div>
@@ -166,12 +166,12 @@ export default function ApiDocsPage() {
           </div>
 
           {/* Try It Out Section */}
-          <div className='bg-background flex flex-col gap-3 rounded-lg border-0 p-4'>
-            <div className='text-secondary text-xs font-semibold tracking-wide uppercase'>
+          <div className='flex flex-col gap-3 rounded-lg border-0 bg-background p-4'>
+            <div className='text-xs font-semibold tracking-wide text-secondary uppercase'>
               TRY IT OUT
             </div>
             <div className='flex flex-col gap-2'>
-              <label className='text-primary text-sm font-medium'>Domain</label>
+              <label className='text-sm font-medium text-primary'>Domain</label>
               <Input
                 value={domainInput}
                 onChange={(e) => setDomainInput(e.target.value)}
@@ -187,28 +187,28 @@ export default function ApiDocsPage() {
 
             {/* API Results Display */}
             {isLoading && (
-              <div className='border-border flex h-[400px] w-full items-center justify-center overflow-auto rounded-lg border p-4'>
-                <div className='text-secondary text-sm'>Loading...</div>
+              <div className='flex h-[400px] w-full items-center justify-center overflow-auto rounded-lg border border-border p-4'>
+                <div className='text-sm text-secondary'>Loading...</div>
               </div>
             )}
 
             {error && (
-              <div className='border-border flex h-[400px] w-full items-center justify-center overflow-auto rounded-lg border p-4'>
+              <div className='flex h-[400px] w-full items-center justify-center overflow-auto rounded-lg border border-border p-4'>
                 <div className='text-sm text-red-500'>{error}</div>
               </div>
             )}
 
             {apiResults && apiResults.length > 0 && (
-              <div className='border-border bg-background h-[400px] w-full overflow-auto rounded-lg border'>
-                <pre className='text-secondary p-4 font-mono text-sm'>
+              <div className='h-[400px] w-full overflow-auto rounded-lg border border-border bg-background'>
+                <pre className='p-4 font-mono text-sm text-secondary'>
                   {JSON.stringify(apiResults, null, 2)}
                 </pre>
               </div>
             )}
 
             {apiResults && apiResults.length === 0 && (
-              <div className='border-border flex h-[400px] w-full items-center justify-center overflow-auto rounded-lg border p-4'>
-                <div className='text-secondary text-sm'>
+              <div className='flex h-[400px] w-full items-center justify-center overflow-auto rounded-lg border border-border p-4'>
+                <div className='text-sm text-secondary'>
                   No keys found for this domain
                 </div>
               </div>
@@ -225,18 +225,18 @@ export default function ApiDocsPage() {
 
           {/* Responses Section */}
           <div className='flex flex-col gap-4'>
-            <h4 className='text-primary text-sm font-semibold'>Responses</h4>
+            <h4 className='text-sm font-semibold text-primary'>Responses</h4>
 
             {/* 200 Success Response */}
             <div className='flex flex-col gap-3'>
               <div className='flex items-center gap-2'>
                 <Badge variant='api'>200</Badge>
-                <span className='text-secondary text-sm'>
+                <span className='text-sm text-secondary'>
                   Successful operation
                 </span>
               </div>
               <div className='ml-8'>
-                <div className='text-secondary text-xs'>
+                <div className='text-xs text-secondary'>
                   Media type:{' '}
                   <code className='text-primary'>application/json</code>
                 </div>
@@ -246,15 +246,15 @@ export default function ApiDocsPage() {
 
                 {/* Schema Section */}
                 <div className='flex flex-col gap-3'>
-                  <div className='text-secondary text-xs font-semibold tracking-wide uppercase'>
+                  <div className='text-xs font-semibold tracking-wide text-secondary uppercase'>
                     SCHEMA
                   </div>
-                  <div className='bg-background border-border relative rounded-lg border p-4'>
+                  <div className='relative rounded-lg border border-border bg-background p-4'>
                     <div className='absolute top-3 right-3'>
                       <CopyButton text='DkimKeys schema' />
                     </div>
                     <div className='font-mono text-sm'>
-                      <div className='text-secondary mb-2 font-semibold'>
+                      <div className='mb-2 font-semibold text-secondary'>
                         DkimKeys
                       </div>
                       <div className='ml-4 flex flex-col gap-1'>
@@ -283,21 +283,21 @@ export default function ApiDocsPage() {
                               string
                             </span>
                           </div>
-                          <div className='text-secondary flex items-center gap-2'>
+                          <div className='flex items-center gap-2 text-secondary'>
                             <span className='text-secondary'>lastSeenAt*</span>{' '}
                             <span className='text-accent-foreground-purple'>
                               string
                             </span>
-                            <span className='text-secondary text-xs'>
+                            <span className='text-xs text-secondary'>
                               date-time
                             </span>
                           </div>
-                          <div className='text-secondary flex items-center gap-2'>
+                          <div className='flex items-center gap-2 text-secondary'>
                             <span className='text-secondary'>firstSeenAt*</span>{' '}
                             <span className='text-accent-foreground-purple'>
                               string
                             </span>
-                            <span className='text-secondary text-xs'>
+                            <span className='text-xs text-secondary'>
                               date-time
                             </span>
                           </div>
@@ -313,32 +313,32 @@ export default function ApiDocsPage() {
             <div className='flex flex-col gap-4'>
               <div className='flex items-center gap-2'>
                 <Badge variant='api'>400</Badge>
-                <span className='text-secondary text-sm'>
+                <span className='text-sm text-secondary'>
                   Missing or invalid parameter
                 </span>
               </div>
               <div className='flex items-center gap-2'>
                 <Badge variant='api'>408</Badge>
-                <span className='text-secondary text-sm'>
+                <span className='text-sm text-secondary'>
                   Rate limit exceeded
                 </span>
               </div>
               <div className='flex items-center gap-2'>
                 <Badge variant='api'>500</Badge>
-                <span className='text-secondary text-sm'>Unexpected error</span>
+                <span className='text-sm text-secondary'>Unexpected error</span>
               </div>
             </div>
           </div>
 
           {/* Rate Limit Notice */}
-          <div className='bg-background flex items-center justify-between rounded-lg p-4'>
-            <p className='text-secondary flex-1 text-sm'>
+          <div className='flex items-center justify-between rounded-lg bg-background p-4'>
+            <p className='flex-1 text-sm text-secondary'>
               Limit reached? Reach out to our team to enhance your rate limit.
             </p>
             <Button
               variant='default'
               size='sm'
-              className='bg-primary text-background flex items-center gap-2'
+              className='flex items-center gap-2 bg-primary text-background'
               onClick={() =>
                 window.open('https://t.me/your-telegram', '_blank')
               }

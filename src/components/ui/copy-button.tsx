@@ -27,7 +27,7 @@ export function CopyButton({ text, className }: CopyButtonProps) {
     <button
       onClick={handleCopy}
       className={cn(
-        'text-secondary hover:text-primary transition-colors',
+        'text-secondary transition-colors hover:text-primary',
         className
       )}
       aria-label='Copy to clipboard'

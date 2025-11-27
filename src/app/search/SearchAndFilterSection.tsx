@@ -35,11 +35,11 @@ export function SearchAndFilterSection({
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen} className='w-full'>
       <div className='flex flex-col items-start justify-start gap-2 self-stretch'>
-        <div className='text-primary justify-start self-stretch text-base leading-tight tracking-tight'>
+        <div className='justify-start self-stretch text-base leading-tight tracking-tight text-primary'>
           Search
         </div>
         <div className='flex w-full items-center gap-2'>
-          <div className='border-border flex w-full items-center gap-2 rounded-lg border px-3 py-2'>
+          <div className='flex w-full items-center gap-2 rounded-lg border border-border px-3 py-2'>
             <MagnifyingGlassIcon size={16} color='#606060' weight='bold' />
             <div className='relative min-w-0 flex-1'>
               <Input
@@ -51,7 +51,7 @@ export function SearchAndFilterSection({
               {searchValue && (
                 <button
                   onClick={handleClear}
-                  className='hover:text-secondary absolute top-1/2 right-0 -translate-y-1/2 focus:outline-none'
+                  className='absolute top-1/2 right-0 -translate-y-1/2 hover:text-secondary focus:outline-none'
                   aria-label='Clear search'
                 >
                   <XIcon size={20} weight='bold' color='#606060' />
@@ -63,7 +63,7 @@ export function SearchAndFilterSection({
           <CollapsibleTrigger asChild>
             <Button
               variant='ghost'
-              className='bg-foreground border-border flex-shrink-0 rounded-lg border hover:opacity-80'
+              className='flex-shrink-0 rounded-lg border border-border bg-foreground hover:opacity-80'
               size='icon'
             >
               <SlidersHorizontalIcon size={16} weight='bold' color='#606060' />
@@ -97,13 +97,13 @@ export function SearchAndFilterSection({
           </div>
           <div className='flex flex-row gap-4'>
             <div className='flex w-full flex-col gap-1 self-stretch'>
-              <div className='text-primary self-stretch leading-tight tracking-tight'>
+              <div className='self-stretch leading-tight tracking-tight text-primary'>
                 Only show from date
               </div>
               <Calendar />
             </div>
             <div className='flex w-full flex-col gap-1 self-stretch'>
-              <div className='text-primary self-stretch leading-tight tracking-tight'>
+              <div className='self-stretch leading-tight tracking-tight text-primary'>
                 To date
               </div>
               <Calendar />
