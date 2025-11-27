@@ -6,6 +6,22 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 
 import { Badge } from '../../components/ui/badge';
 
+interface ProcessedLogsProps {
+  logResults: {
+    logResults: Array<{
+      id: number | string;
+      domain: string;
+      selector: string;
+      timestamp: string;
+      isAdded?: boolean;
+      isUpdated?: boolean;
+    }>;
+  };
+  onPause?: () => void;
+  onClearLog?: () => void;
+  onCollapse?: () => void;
+}
+
 const LogItem = ({ item }: any) => {
   const formatDate = (timestamp: string | number | Date) => {
     const date = new Date(timestamp);
@@ -64,7 +80,12 @@ const LogItem = ({ item }: any) => {
   );
 };
 
-const ProcessedLogs = ({ logResults }: any) => {
+const ProcessedLogs = ({
+  logResults,
+  onPause,
+  onClearLog,
+  onCollapse,
+}: ProcessedLogsProps) => {
   return (
     <div className='w-full rounded-lg border border-border bg-foreground dark:bg-background'>
       <div className='flex w-full flex-col justify-between gap-2 p-4 pb-4 sm:flex-row sm:items-center'>
@@ -73,33 +94,40 @@ const ProcessedLogs = ({ logResults }: any) => {
         </div>
         <div className='flex flex-row gap-3'>
           <Button
+            type='button'
             variant='ghost'
             size='sm'
             className='flex w-full gap-1 bg-foreground p-2 text-accent-foreground-red ring ring-[#C72C22]/40'
+            onClick={onPause}
           >
-            <PauseCircleIcon size={16} weight='bold' />
+            <PauseCircleIcon size={16} weight='bold' aria-hidden='true' />
             Pause
           </Button>
           <Button
+            type='button'
             variant='ghost'
             size='sm'
             className='flex w-full gap-1 bg-foreground p-2 text-ring ring ring-[#606060]/50 dark:text-secondary'
+            onClick={onClearLog}
           >
-            <TrashIcon size={16} weight='bold' />
+            <TrashIcon size={16} weight='bold' aria-hidden='true' />
             Clear Log
           </Button>
           <Button
+            type='button'
             variant='ghost'
             size='sm'
             className='hidden bg-foreground p-2 text-ring ring ring-[#606060]/50 sm:flex dark:text-secondary'
+            onClick={onCollapse}
+            aria-label='Collapse log panel'
           >
-            <MinusIcon size={16} weight='bold' />
+            <MinusIcon size={16} weight='bold' aria-hidden='true' />
           </Button>
         </div>
       </div>
       <ScrollArea className='h-[560px] w-full rounded-b-md border-0 bg-foreground p-4 text-base leading-tight font-normal tracking-tight text-primary'>
         <div className='space-y-3'>
-          {logResults.logResults.map((item: { id: any }) => (
+          {(logResults?.logResults ?? []).map((item) => (
             <LogItem key={item.id} item={item} />
           ))}
         </div>

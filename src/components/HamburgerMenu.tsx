@@ -41,19 +41,19 @@ export function HamburgerMenu({
             className='group flex flex-col items-center justify-center'
           >
             <div
-              className={`my-0.75 h-0.5 w-6 rounded bg-primary transition-transform ${
+              className={`my-[3px] h-0.5 w-6 rounded bg-primary transition-transform ${
                 isOpen
                   ? 'translate-y-2 rotate-45 group-hover:opacity-100'
                   : 'group-hover:opacity-100'
               }`}
             />
             <div
-              className={`my-0.75 h-0.5 w-6 rounded bg-primary transition-transform ${
+              className={`my-[3px] h-0.5 w-6 rounded bg-primary transition-transform ${
                 isOpen ? 'opacity-0' : 'group-hover:opacity-100'
               }`}
             />
             <div
-              className={`my-0.75 h-0.5 w-6 rounded bg-primary transition-transform ${
+              className={`my-[3px] h-0.5 w-6 rounded bg-primary transition-transform ${
                 isOpen
                   ? '-translate-y-2 -rotate-45 group-hover:opacity-100'
                   : 'group-hover:opacity-100'

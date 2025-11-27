@@ -371,9 +371,9 @@ const EmailUploader = ({
         <div>
           <Loader />
         </div>
-      ) : fetchedEmails.length == 0 ? (
+      ) : fetchedEmails.length === 0 ? (
         emailUploadOptions
-      ) : fetchedEmails.length == 1 ? (
+      ) : fetchedEmails.length === 1 ? (
         emailFetchFilter
       ) : (
         emailFetchData

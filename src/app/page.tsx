@@ -2,6 +2,7 @@
 
 import { ArrowRightIcon, MagnifyingGlassIcon } from '@phosphor-icons/react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { SetStateAction, useEffect, useState } from 'react';
 
 import { AnimatedNumber } from '@/components/ui/animated-number';
@@ -71,7 +72,14 @@ export default function Home() {
           <div className='flex justify-start text-[clamp(1rem,1.39vw,1.25rem)] leading-5 font-semibold tracking-tight text-white'>
             <span className='whitespace-normal'>
               Building the largest open-sourced directory of DKIM pairs.&nbsp;
-              <span className='underline'>Read More</span>
+              <Link
+                href='https://archive.zk.email/about'
+                className='underline hover:opacity-80'
+                target='_blank'
+                rel='noreferrer noopener'
+              >
+                Read More
+              </Link>
             </span>
           </div>
         </div>
@@ -154,7 +162,11 @@ export default function Home() {
             </div>
           </div>
         </div>
-        <div className='flex items-center justify-around self-stretch overflow-hidden rounded-lg bg-background px-3 py-2'>
+        <Link
+          href='/jwt'
+          className='flex items-center justify-around self-stretch overflow-hidden rounded-lg bg-background px-3 py-2 transition-opacity hover:opacity-80'
+          aria-label='Browse our JWT key directory'
+        >
           <div className='flex-1 justify-start leading-tight tracking-tight text-primary'>
             Browse our JWT key directory
           </div>
@@ -163,9 +175,10 @@ export default function Home() {
               size={16}
               weight='bold'
               className='bg-Grey-900 absolute text-primary'
+              aria-hidden='true'
             />
           </div>
-        </div>
+        </Link>
       </div>
     </main>
   );

@@ -83,6 +83,22 @@ export default function Calendar({
           }}
           className='w-auto shadow-sm sm:[--cell-size:--spacing(10.5)] [[data-slot=card-content]_&]:bg-background [[data-slot=popover-content]_&]:bg-foreground'
         />
+        {date && (
+          <div className='border-t border-border p-2 sm:hidden'>
+            <Button
+              type='button'
+              variant='ghost'
+              size='sm'
+              className='w-full text-secondary hover:text-primary'
+              onClick={() => {
+                handleClear();
+                setOpen(false);
+              }}
+            >
+              Clear date
+            </Button>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );
