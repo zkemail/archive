@@ -1,5 +1,8 @@
+'use client';
+
 import Image from 'next/image';
 import { useTheme } from 'next-themes';
+import { useId, useRef } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,8 +34,21 @@ const DragAndDropFile = ({
 }) => {
   const { resolvedTheme } = useTheme();
   const isDarkMode = resolvedTheme === 'dark';
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputId = useId();
 
   const strokeColor = isDarkMode ? '%233B3B3BFF' : '%23D4D4D4FF';
+
+  const handleDropzoneClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleDropzoneKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      fileInputRef.current?.click();
+    }
+  };
   return (
     <div className='flex w-full flex-col gap-4'>
       {title ? (
@@ -60,7 +76,15 @@ const DragAndDropFile = ({
       ) : null}
       <div
         className='w-full cursor-pointer rounded-lg p-8'
-        onClick={() => document.getElementById('email-file')?.click()}
+        role='button'
+        tabIndex={0}
+        aria-label={
+          file
+            ? `File uploaded: ${file.name}. Click to change file`
+            : 'Click or drop a file to upload'
+        }
+        onClick={handleDropzoneClick}
+        onKeyDown={handleDropzoneKeyDown}
         onDragOver={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -141,12 +165,12 @@ const DragAndDropFile = ({
             </>
           )}
           <Input
-            id='email-file'
+            ref={fileInputRef}
+            id={fileInputId}
             type='file'
             accept={accept}
             className='hidden'
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-              // Handle file upload
               const file = e.target.files?.[0];
               if (file) {
                 setFile(file);
