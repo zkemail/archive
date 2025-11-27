@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { useSearchParams } from 'next/navigation';
 
 import searchResults from '@/app/search/searchData.json';
 
@@ -8,6 +9,8 @@ import { SearchAndFilterSection } from './SearchAndFilterSection';
 import SelectorDetails from './SelectorDetails';
 
 export default function Home() {
+  const searchParams = useSearchParams();
+  const initialQuery = searchParams.get('q') ?? '';
   const data = searchResults;
   return (
     <div className='my-8 flex flex-col items-center justify-center'>
@@ -33,7 +36,7 @@ export default function Home() {
       </div>
       <div className='bg-foreground border-border flex w-14/15 max-w-[720px] flex-col items-start justify-start gap-6 rounded-br-3xl rounded-bl-3xl border-r border-b border-l p-6'>
         <div className='flex flex-col items-start justify-start gap-2 self-stretch'>
-          <SearchAndFilterSection />
+          <SearchAndFilterSection initialQuery={initialQuery} />
         </div>
         <div className='flex flex-col items-start justify-start gap-2 self-stretch'>
           <SelectorDetails data={data} />

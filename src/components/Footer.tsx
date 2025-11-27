@@ -52,7 +52,7 @@ function FooterLinks() {
         size={8}
         weight='fill'
       />
-      <Link href='/api' className='hover:text-secondary hidden sm:flex'>
+      <Link href='/api-docs' className='hover:text-secondary hidden sm:flex'>
         Explore API
       </Link>
       <DiamondIcon

@@ -3,7 +3,7 @@ import {
   SlidersHorizontalIcon,
   XIcon,
 } from '@phosphor-icons/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -15,10 +15,20 @@ import { Input } from '@/components/ui/input';
 
 import Calendar from './Calender';
 
-export function SearchAndFilterSection() {
+type SearchAndFilterSectionProps = {
+  initialQuery?: string;
+};
+
+export function SearchAndFilterSection({
+  initialQuery = '',
+}: SearchAndFilterSectionProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [searchValue, setSearchValue] = useState('');
+  const [searchValue, setSearchValue] = useState(initialQuery);
   const [filterValue, setFilterValue] = useState('all');
+
+  useEffect(() => {
+    setSearchValue(initialQuery);
+  }, [initialQuery]);
 
   const handleClear = () => setSearchValue('');
 
@@ -86,13 +96,13 @@ export function SearchAndFilterSection() {
             </Button>
           </div>
           <div className='flex flex-row gap-4'>
-            <div className='gap1 flex w-full flex-col self-stretch'>
+            <div className='flex w-full flex-col gap-1 self-stretch'>
               <div className='text-primary self-stretch leading-tight tracking-tight'>
                 Only show from date
               </div>
               <Calendar />
             </div>
-            <div className='gap1 flex w-full flex-col self-stretch'>
+            <div className='flex w-full flex-col gap-1 self-stretch'>
               <div className='text-primary self-stretch leading-tight tracking-tight'>
                 To date
               </div>

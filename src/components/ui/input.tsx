@@ -22,17 +22,18 @@ export interface InputProps
   startIcon?: React.ReactNode;
   tooltipComponent?: React.ReactNode;
   loading?: boolean;
+  fullWidth?: boolean;
 }
 
 const inputVariants = cva(
-  'flex items-center w-full border border-grey-500 disabled:border-grey-500 disabled:bg-neutral-100 justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors disabled:pointer-events-none disabled:text-grey-700 .placeholder-input::placeholder',
+  'flex items-center border border-grey-500 disabled:border-grey-500 disabled:bg-neutral-100 justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors disabled:pointer-events-none disabled:text-grey-700 .placeholder-input::placeholder',
   {
     variants: {
       size: {
         default: 'px-4 h-9 px-3 py-1 leading-[0.875rem]',
         sm: 'h-8 rounded-md px-3 text-sm leading-[0.875rem]',
         lg: 'h-10 rounded-md px-8',
-        search: 'h-4 w-full rounded-none',
+        search: 'h-4 rounded-none',
       },
     },
     defaultVariants: {
@@ -53,12 +54,13 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       size,
       tooltipComponent,
       loading,
+      fullWidth = true,
       ...props
     },
     ref
   ) => {
     return (
-      <div className='flex flex-col gap-2'>
+      <div className={cn('flex flex-col gap-2', fullWidth && 'w-full')}>
         {props.title ? (
           <div className='flex flex-row gap-2'>
             <Label className='text-grey-900 text-base' htmlFor={props.title}>
@@ -88,7 +90,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             disabled={loading}
             className={cn(
               inputVariants({ size, className }),
-              startIcon ? 'pl-10' : ''
+              startIcon ? 'pl-10' : '',
+              fullWidth && 'w-full'
             )}
             ref={ref}
             onWheel={(e) => (e.target as HTMLElement).blur()}

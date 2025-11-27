@@ -25,6 +25,7 @@ const badgeVariants = cva(
           'bg-background text-secondary  gap-2 overflow-hidden rounded border-0 px-2 py-0.5 text-xs leading-none font-normal tracking-tight',
         source:
           'bg-[#FCFCFC] dark:bg-[#272727] text-secondary gap-1 overflow-hidden rounded border-0 px-1.5 text-xs leading-none font-normal tracking-tight inline-flex flex-row justify-around items-center ',
+        api: 'bg-icon-muted text-secondary rounded border-0 p-1 text-xs font-semibold leading-none tracking-tight uppercase',
       },
     },
     defaultVariants: {

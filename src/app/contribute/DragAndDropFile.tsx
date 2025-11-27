@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import { useTheme } from 'next-themes';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +29,10 @@ const DragAndDropFile = ({
   errorMessage?: string;
   tooltipComponent?: React.ReactNode;
 }) => {
+  const { resolvedTheme } = useTheme();
+  const isDarkMode = resolvedTheme === 'dark';
+
+  const strokeColor = isDarkMode ? '%233B3B3BFF' : '%23D4D4D4FF';
   return (
     <div className='flex w-full flex-col gap-4'>
       {title ? (
@@ -69,7 +74,7 @@ const DragAndDropFile = ({
           }
         }}
         style={{
-          backgroundImage: `url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%23E2E2E2FF' stroke-width='4' stroke-dasharray='6%2c 14' stroke-dashoffset='2' stroke-linecap='square'/%3e%3c/svg%3e")`,
+          backgroundImage: `url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='${strokeColor}' stroke-width='4' stroke-dasharray='6%2c 14' stroke-dashoffset='2' stroke-linecap='square'/%3e%3c/svg%3e")`,
         }}
       >
         <div className='flex flex-col items-center justify-center gap-4'>
@@ -125,11 +130,13 @@ const DragAndDropFile = ({
                 }}
               />
               <div className='flex flex-col items-center text-base font-semibold'>
-                <p className='text-brand-400'>
+                <p className='text-accent-foreground-blue'>
                   Click to upload{' '}
-                  <span className='text-grey-700'>or drag and drop</span>
+                  <span className='text-secondary'>or drop here</span>
                 </p>
-                <p className='text-grey-700'>({accept} format)</p>
+                <p className='text-accent-foreground-blue underline'>
+                  How to get the PST/MBOX file?
+                </p>
               </div>
             </>
           )}

@@ -90,6 +90,14 @@ export default function Home() {
                 placeholder='Domain name'
                 size='search'
                 className='text-secondary flex-1 border-0 text-base leading-tight tracking-tight outline-0'
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const value = e.currentTarget.value.trim();
+                    if (value) {
+                      window.location.href = `/search?q=${encodeURIComponent(value)}`;
+                    }
+                  }
+                }}
               />
             </div>
           </div>
