@@ -33,6 +33,23 @@ export default function ApiDocsPage() {
   }
 ]`;
 
+  const dkimKeysSchema = {
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        value: { type: 'string' },
+        domain: { type: 'string' },
+        selector: { type: 'string' },
+        lastSeenAt: { type: 'string', format: 'date-time' },
+        firstSeenAt: { type: 'string', format: 'date-time' },
+      },
+      required: ['value', 'domain', 'selector', 'lastSeenAt', 'firstSeenAt'],
+    },
+  };
+
+  const dkimKeysSchemaString = JSON.stringify(dkimKeysSchema, null, 2);
+
   const handleSearchKeys = async () => {
     if (!domainInput.trim()) {
       setError('Please enter a domain');
@@ -251,7 +268,7 @@ export default function ApiDocsPage() {
                   </div>
                   <div className='relative rounded-lg border border-border bg-background p-4'>
                     <div className='absolute top-3 right-3'>
-                      <CopyButton text='DkimKeys schema' />
+                      <CopyButton text={dkimKeysSchemaString} />
                     </div>
                     <div className='font-mono text-sm'>
                       <div className='mb-2 font-semibold text-secondary'>
