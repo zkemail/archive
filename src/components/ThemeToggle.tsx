@@ -41,9 +41,9 @@ const ThemeToggle = ({ theme, setTheme, mounted }: ThemeToggleProps) => {
       >
         <SunDimIcon
           size={24}
-          color='#3B3B3B'
+          color='currentColor'
           weight={theme === 'light' ? 'fill' : 'regular'}
-          className='transition-all'
+          className='text-icon-sun transition-all'
         />
       </Button>
       <Button
@@ -56,9 +56,9 @@ const ThemeToggle = ({ theme, setTheme, mounted }: ThemeToggleProps) => {
       >
         <MoonIcon
           size={24}
-          color={theme === 'dark' ? '#D4D4D4' : '#A8A8A8'}
+          color='currentColor'
           weight={theme === 'dark' ? 'fill' : 'regular'}
-          className='transition-all'
+          className='text-icon-moon transition-all'
         />
       </Button>
     </div>

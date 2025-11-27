@@ -13,18 +13,10 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
+import { formatDate } from '@/lib/utils';
 
 import { Badge } from '../../components/ui/badge';
 import ActivityChart from './ActivityChart';
-
-const formatDate = (dateString: string) => {
-  try {
-    const date = new Date(dateString);
-    return date.toLocaleString();
-  } catch {
-    return 'Invalid date';
-  }
-};
 
 const isExpired = (lastActive: string) => {
   const lastActiveDate = new Date(lastActive);
@@ -180,7 +172,7 @@ const SelectorDetails = ({ data }: any) => {
                           variant='source'
                           className='text-xs text-secondary sm:text-sm'
                         >
-                          {item.origin == 'Inbox Upload' ? (
+                          {item.origin === 'Inbox Upload' ? (
                             <>
                               <EnvelopeSimpleIcon className='h-3 w-3 sm:h-4 sm:w-4' />
                               <span className='text-xs leading-none font-normal tracking-tight'>
