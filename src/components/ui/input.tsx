@@ -55,15 +55,19 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       tooltipComponent,
       loading,
       fullWidth = true,
+      id,
       ...props
     },
     ref
   ) => {
+    const generatedId = React.useId();
+    const inputId = id ?? generatedId;
+
     return (
       <div className={cn('flex flex-col gap-2', fullWidth && 'w-full')}>
         {props.title ? (
           <div className='flex flex-row gap-2'>
-            <Label className='text-grey-900 text-base' htmlFor={props.title}>
+            <Label className='text-grey-900 text-base' htmlFor={inputId}>
               {props.title}
             </Label>
 
@@ -86,12 +90,14 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         ) : null}
         <div className='relative'>
           <input
+            id={inputId}
             type={type}
             disabled={loading}
             className={cn(
-              inputVariants({ size, className }),
-              startIcon ? 'pl-10' : '',
-              fullWidth && 'w-full'
+              inputVariants({ size }),
+              startIcon && 'pl-10',
+              fullWidth && 'w-full',
+              className
             )}
             ref={ref}
             onWheel={(e) => (e.target as HTMLElement).blur()}

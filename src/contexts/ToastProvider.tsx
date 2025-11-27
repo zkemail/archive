@@ -29,7 +29,7 @@ export default function ToastProvider({ children }: ToastProviderProps) {
           ' ' +
           'my-1 relative flex py-2 pt-3 px-4 rounded-md justify-between overflow-hidden cursor-pointer text-base border border-grey-400 bg-white'
         }
-        className={() => 'text-base'}
+        className='text-base'
         position='bottom-left'
         autoClose={3000}
         icon={false}
