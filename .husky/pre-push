@@ -1,0 +1,19 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "Pre-push: running production build..."
+
+# Allow skipping locally if needed
+if [ -n "$SKIP_PREPUSH_BUILD" ]; then
+  echo "Pre-push: SKIP_PREPUSH_BUILD is set, skipping build."
+  exit 0
+fi
+
+# Prefer pnpm in this repo; fall back to npm if pnpm is not available
+if command -v pnpm >/dev/null 2>&1; then
+  pnpm build
+else
+  npm run build
+fi
+
+

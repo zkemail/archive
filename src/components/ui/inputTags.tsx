@@ -1,13 +1,16 @@
 'use client';
 
+import { XIcon } from 'lucide-react';
 import * as React from 'react';
+
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { XIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
 import { Label } from './label';
 
 interface InputTagsProps {
+  id?: string;
   title?: string;
   value: string[];
   onChange: (value: string[]) => void;
@@ -16,8 +19,10 @@ interface InputTagsProps {
 }
 
 const InputTags = React.forwardRef<HTMLInputElement, InputTagsProps>(
-  ({ className, value, onChange, ...props }, ref) => {
+  ({ className, value, onChange, id, ...props }, ref) => {
     const [pendingDataPoint, setPendingDataPoint] = React.useState('');
+    const generatedId = React.useId();
+    const inputId = id ?? generatedId;
 
     React.useEffect(() => {
       if (pendingDataPoint.includes(',')) {
@@ -39,36 +44,39 @@ const InputTags = React.forwardRef<HTMLInputElement, InputTagsProps>(
     };
 
     return (
-      <div className="flex flex-col gap-2">
+      <div className='flex flex-col gap-2'>
         {props.title ? (
-          <Label className="text-base text-grey-900" htmlFor={props.title}>
+          <Label className='text-grey-900 text-base' htmlFor={inputId}>
             {props.title}
           </Label>
         ) : null}
         <div
           className={cn(
             // caveat: :has() variant requires tailwind v3.4 or above: https://tailwindcss.com/blog/tailwindcss-v3-4#new-has-variant
-            'flex min-h-10 w-full flex-wrap gap-2 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm ring-offset-white disabled:cursor-not-allowed disabled:opacity-50 has-[:focus-visible]:outline-none has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-neutral-950 has-[:focus-visible]:ring-offset-2 dark:border-neutral-800 dark:bg-neutral-950 dark:ring-offset-neutral-950 dark:has-[:focus-visible]:ring-neutral-300',
+            'flex min-h-10 w-full flex-wrap gap-2 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm ring-offset-white disabled:cursor-not-allowed disabled:opacity-50 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-neutral-950 has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:outline-none dark:border-neutral-800 dark:bg-neutral-950 dark:ring-offset-neutral-950 dark:has-[:focus-visible]:ring-neutral-300',
             className
           )}
         >
           {value.map((item) => (
-            <Badge key={item} variant="secondary">
+            <Badge key={item} variant='secondary'>
               {item}
               <Button
-                variant="ghost"
-                size="icon"
-                className="ml-2 h-3 w-3"
+                type='button'
+                variant='ghost'
+                size='icon'
+                className='ml-2 h-3 w-3'
+                aria-label={`Remove ${item}`}
                 onClick={() => {
                   onChange(value.filter((i) => i !== item));
                 }}
               >
-                <XIcon className="w-3" />
+                <XIcon className='w-3' aria-hidden='true' />
               </Button>
             </Badge>
           ))}
           <input
-            className="flex-1 outline-none placeholder:text-neutral-500 dark:placeholder:text-neutral-400"
+            id={inputId}
+            className='flex-1 outline-none placeholder:text-neutral-500 dark:placeholder:text-neutral-400'
             value={pendingDataPoint}
             onChange={(e) => setPendingDataPoint(e.target.value)}
             onKeyDown={(e) => {

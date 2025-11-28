@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 export default function Loader() {
   const animationContainer = useRef(null);
@@ -32,8 +32,8 @@ export default function Loader() {
         animationInstance.current = null;
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return <div ref={animationContainer} className="h-16 w-16"></div>;
+  return <div ref={animationContainer} className='h-16 w-16'></div>;
 }

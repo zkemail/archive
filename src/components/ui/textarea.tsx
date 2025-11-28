@@ -1,33 +1,43 @@
+import { Label } from '@radix-ui/react-label';
 import * as React from 'react';
 
 import { cn } from '@/lib/utils';
-import { Label } from '@radix-ui/react-label';
 
-export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+export interface TextareaProps
+  extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   title?: string;
   errorMessage?: string;
   helpText?: string;
 }
 
 const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ className, errorMessage, helpText, ...props }, ref) => {
+  ({ className, errorMessage, helpText, id, ...props }, ref) => {
+    const generatedId = React.useId();
+    const textareaId = id ?? generatedId;
+
     return (
-      <div className="flex flex-col gap-2">
+      <div className='flex flex-col gap-2'>
         {props.title ? (
-          <Label className="text-base text-grey-900" htmlFor={props.title}>
+          <Label className='text-grey-900 text-base' htmlFor={textareaId}>
             {props.title}
           </Label>
         ) : null}
         <textarea
+          id={textareaId}
           className={cn(
-            'flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
+            'placeholder:text-muted-foreground flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',
             className
           )}
           ref={ref}
           {...props}
         />
         {errorMessage || helpText ? (
-          <p className={cn('text-base text-grey-600', errorMessage ? 'text-red-500' : '')}>
+          <p
+            className={cn(
+              'text-grey-600 text-base',
+              errorMessage ? 'text-red-500' : ''
+            )}
+          >
             {errorMessage || helpText}
           </p>
         ) : null}

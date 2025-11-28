@@ -1,19 +1,15 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import { GoogleOAuthProvider } from "@react-oauth/google";
-import ToastProvider from "@/contexts/ToastProvider";
-import GoogleAuthProvider from "@/contexts/GoogleAuthProvider";
+import './globals.css';
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+import { GoogleOAuthProvider } from '@react-oauth/google';
+import type { Metadata } from 'next';
+import { Fustat } from 'next/font/google';
+import { ThemeProvider } from 'next-themes';
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import Footer from '@/components/Footer';
+import Navbar from '@/components/Navbar';
+import ToastProvider from '@/contexts/ToastProvider';
+
+const fustat = Fustat({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'ZK Email',
@@ -37,30 +33,16 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  if (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
-    return (
-      <html lang="en">
-        <body
-          className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-        >
-          <GoogleOAuthProvider
-            clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}
-          >
-            <GoogleAuthProvider>
-              <ToastProvider>{children}</ToastProvider>
-            </GoogleAuthProvider>
-          </GoogleOAuthProvider>
-        </body>
-      </html>
-    );
-  }
-
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <ToastProvider>{children}</ToastProvider>
+    <html lang='en' suppressHydrationWarning>
+      <body className={`${fustat.className} transition-theme antialiased`}>
+        <ThemeProvider attribute='class' enableSystem defaultTheme='system'>
+          <div className='transition-theme flex h-screen flex-col justify-between'>
+            <Navbar />
+            {children}
+            <Footer />
+          </div>
+        </ThemeProvider>
       </body>
     </html>
   );

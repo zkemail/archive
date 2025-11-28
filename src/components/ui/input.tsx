@@ -1,30 +1,39 @@
+import { cva } from 'class-variance-authority';
+import Image from 'next/image';
 import * as React from 'react';
 
 import { cn } from '@/lib/utils';
-import { Label } from './label';
-import { cva } from 'class-variance-authority';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './tooltip';
-import Image from 'next/image';
 
-export interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
+import { Label } from './label';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from './tooltip';
+
+export interface InputProps
+  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
   title?: string;
   error?: boolean;
   errorMessage?: string | React.ReactNode;
   helpText?: string;
-  size?: 'default' | 'sm' | 'lg';
+  size?: 'default' | 'sm' | 'lg' | 'search';
   startIcon?: React.ReactNode;
   tooltipComponent?: React.ReactNode;
   loading?: boolean;
+  fullWidth?: boolean;
 }
 
 const inputVariants = cva(
-  'inline-flex items-center w-full border border-grey-500 disabled:border-grey-500 disabled:bg-neutral-100 justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:text-grey-700 .placeholder-text-grey-700::placeholder',
+  'border-grey-500 disabled:border-grey-500 disabled:text-grey-700 .placeholder-input::placeholder flex items-center justify-center rounded-md border text-sm font-medium whitespace-nowrap transition-colors disabled:pointer-events-none disabled:bg-neutral-100',
   {
     variants: {
       size: {
-        default: 'px-4 h-9 px-3 py-1 leading-[0.875rem]',
+        default: 'h-9 px-3 px-4 py-1 leading-[0.875rem]',
         sm: 'h-8 rounded-md px-3 text-sm leading-[0.875rem]',
         lg: 'h-10 rounded-md px-8',
+        search: 'h-4 rounded-none',
       },
     },
     defaultVariants: {
@@ -45,15 +54,20 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       size,
       tooltipComponent,
       loading,
+      fullWidth = true,
+      id,
       ...props
     },
     ref
   ) => {
+    const generatedId = React.useId();
+    const inputId = id ?? generatedId;
+
     return (
-      <div className="flex flex-col gap-2">
+      <div className={cn('flex flex-col gap-2', fullWidth && 'w-full')}>
         {props.title ? (
-          <div className="flex flex-row gap-2">
-            <Label className="text-base text-grey-900" htmlFor={props.title}>
+          <div className='flex flex-row gap-2'>
+            <Label className='text-grey-900 text-base' htmlFor={inputId}>
               {props.title}
             </Label>
 
@@ -61,7 +75,12 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger>
-                    <Image src="/assets/Info.svg" alt="info" width={16} height={16} />
+                    <Image
+                      src='/assets/Info.svg'
+                      alt='info'
+                      width={16}
+                      height={16}
+                    />
                   </TooltipTrigger>
                   <TooltipContent>{tooltipComponent}</TooltipContent>
                 </Tooltip>
@@ -69,26 +88,39 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             ) : null}
           </div>
         ) : null}
-        <div className="relative">
+        <div className='relative'>
           <input
+            id={inputId}
             type={type}
             disabled={loading}
-            className={cn(inputVariants({ size, className }), startIcon ? 'pl-10' : '')}
+            className={cn(
+              inputVariants({ size }),
+              startIcon && 'pl-10',
+              fullWidth && 'w-full',
+              className
+            )}
             ref={ref}
             onWheel={(e) => (e.target as HTMLElement).blur()}
             {...props}
           />
           {startIcon && (
-            <span className="absolute left-3 top-1/2 -translate-y-1/2">{startIcon}</span>
+            <span className='absolute top-1/2 left-3 -translate-y-1/2'>
+              {startIcon}
+            </span>
           )}
           {loading && (
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer">
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />
+            <span className='absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer'>
+              <div className='h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600' />
             </span>
           )}
         </div>
         {errorMessage || helpText ? (
-          <p className={cn('text-base text-grey-600', error ? 'text-red-500' : '')}>
+          <p
+            className={cn(
+              'text-grey-600 text-base',
+              error ? 'text-red-500' : ''
+            )}
+          >
             {errorMessage || helpText}
           </p>
         ) : null}

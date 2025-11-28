@@ -39,23 +39,23 @@ export async function fetchEmailList(
   accessToken: string,
   queryParams: {
     maxResults?: number;
-    pageToken?: number;
+    pageToken?: string;
     q?: string;
   }
 ): Promise<GmailMessagesListResponse> {
   const defaultParams = {
     maxResults: 5,
-    pageToken: 0,
   };
 
   const finalQueryParams = { ...defaultParams, ...queryParams };
-  
+
   // Remove null and undefined values from query parameters
   const cleanedParams = Object.fromEntries(
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    Object.entries(finalQueryParams).filter(([_, value]) => value != null).map(([key, value]) => [key, String(value)])
+    Object.entries(finalQueryParams)
+      .filter(([_, value]) => value != null)
+      .map(([key, value]) => [key, String(value)])
   );
-  
+
   const queryString = new URLSearchParams(cleanedParams).toString();
   const url = `https://www.googleapis.com/gmail/v1/users/me/messages?${queryString}`;
 
@@ -115,7 +115,8 @@ export async function fetchEmailsRaw(
 
           const decodedContents = atob(rawBase64);
 
-          const subject = decodedContents.match(/Subject: (.*)/)?.[1] || 'No Subject';
+          const subject =
+            decodedContents.match(/Subject: (.*)/)?.[1] || 'No Subject';
 
           return {
             emailMessageId: messageId,
