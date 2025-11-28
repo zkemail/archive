@@ -3,10 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "pnpm run lint --fix && pnpm run prettier && next dev --turbopack",
+    "dev": "pnpm run lint --fix && pnpm run prettier && next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "clean": "rm -rf node_modules && rm -rf .next",
     "prettier:check": "prettier --check '**/**/*.{js,jsx,ts,tsx}'",
     "prettier": "prettier --write --cache '**/**/*.{js,jsx,ts,tsx}'",
     "prepare": "husky"

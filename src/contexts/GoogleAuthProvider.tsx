@@ -76,7 +76,7 @@ const GoogleAuthProvider = ({ children }: ProvidersProps) => {
           if (email) {
             setLoggedInGmail(email);
 
-            localStorage.setItem('loggedInEmail', email);
+            // localStorage.setItem('loggedInEmail', email);
           }
         } catch (error) {
           console.error('Error in fetching profile data:', error);
@@ -116,10 +116,10 @@ const GoogleAuthProvider = ({ children }: ProvidersProps) => {
     // localStorage.removeItem(getGoogleAuthTokenKey());
 
     setIsGoogleAuthed(false);
-    localStorage.removeItem('isGoogleAuthed');
+    // localStorage.removeItem('isGoogleAuthed');
 
     setLoggedInGmail(null);
-    localStorage.removeItem('loggedInGmail');
+    // localStorage.removeItem('loggedInGmail');
 
     googleLogout();
   };
