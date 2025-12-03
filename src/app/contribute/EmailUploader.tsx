@@ -19,6 +19,7 @@ import { Separator } from '@/components/ui/separator';
 import { RawEmailResponse } from '@/hooks/useGmailClient';
 import { fetchEmailList, fetchEmailsRaw } from '@/hooks/useGmailClient';
 import useGoogleAuth from '@/hooks/useGoogleAuth';
+import { analytics } from '@/lib/analytics';
 import { decodeMimeEncodedText, formatDate, getFileContent } from '@/lib/utils';
 
 import Calendar from '../search/Calendar';
@@ -146,6 +147,7 @@ const EmailUploader = ({
         <Button
           className='flex w-max items-center gap-2 px-6 text-base leading-none font-semibold'
           onClick={() => {
+            analytics.capture('gmail_connect');
             // TODO: it is temporary setup just to navigate
             const exampleRawEmail: RawEmailResponse = {
               emailMessageId: '1234567890',
@@ -198,6 +200,9 @@ const EmailUploader = ({
           }
           setFile={async (e) => {
             if (!e) return;
+            analytics.capture('file_upload_start', {
+              fileType: e.name.split('.').pop(),
+            });
             setFile(e);
             onFileUpload(e);
           }}
@@ -293,6 +298,7 @@ const EmailUploader = ({
       <div className='flex flex-col items-center justify-center gap-2 self-stretch'>
         <Button
           onClick={() => {
+            analytics.capture('email_process_start', { source: 'gmail' });
             // TODO: it is temporary setup just to navigate
             const exampleRawEmail: RawEmailResponse = {
               emailMessageId: '1234567890',
