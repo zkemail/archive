@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -11,4 +5,76 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+model DkimRecord {
+  id                   Int                  @id @default(autoincrement())
+  firstSeenAt          DateTime
+  value                String
+  domainSelectorPairId Int
+  provenanceVerified   Boolean?
+  lastSeenAt           DateTime?
+  keyData              String?
+  keyType              KeyType?
+  source               String?
+  DomainSelectorPair   DomainSelectorPair   @relation(fields: [domainSelectorPairId], references: [id])
+  EmailPairGcdResult   EmailPairGcdResult[]
+
+  @@index([domainSelectorPairId])
+}
+
+model DomainSelectorPair {
+  id               Int          @id @default(autoincrement())
+  domain           String
+  lastRecordUpdate DateTime?
+  selector         String
+  sourceIdentifier String
+  DkimRecord       DkimRecord[]
+
+  @@index([domain])
+  @@index([domain, selector])
+}
+
+model EmailPairGcdResult {
+  emailSignatureA_id                                                   Int
+  emailSignatureB_id                                                   Int
+  foundGcd                                                             Boolean
+  timestamp                                                            DateTime
+  dkimRecordId                                                         Int?
+  DkimRecord                                                           DkimRecord?    @relation(fields: [dkimRecordId], references: [id])
+  EmailSignature_EmailPairGcdResult_emailSignatureA_idToEmailSignature EmailSignature @relation("EmailPairGcdResult_emailSignatureA_idToEmailSignature", fields: [emailSignatureA_id], references: [id])
+  EmailSignature_EmailPairGcdResult_emailSignatureB_idToEmailSignature EmailSignature @relation("EmailPairGcdResult_emailSignatureB_idToEmailSignature", fields: [emailSignatureB_id], references: [id])
+
+  @@id([emailSignatureA_id, emailSignatureB_id])
+}
+
+model EmailSignature {
+  id                                                                       Int                  @id @default(autoincrement())
+  domain                                                                   String
+  selector                                                                 String
+  headerHash                                                               String
+  dkimSignature                                                            String
+  timestamp                                                                DateTime?
+  signingAlgorithm                                                         String
+  canonInfo                                                                String
+  headerHashV2                                                             String?
+  EmailPairGcdResult_EmailPairGcdResult_emailSignatureA_idToEmailSignature EmailPairGcdResult[] @relation("EmailPairGcdResult_emailSignatureA_idToEmailSignature")
+  EmailPairGcdResult_EmailPairGcdResult_emailSignatureB_idToEmailSignature EmailPairGcdResult[] @relation("EmailPairGcdResult_emailSignatureB_idToEmailSignature")
+
+  @@unique([headerHashV2, dkimSignature])
+  @@index([domain, selector, timestamp])
+  @@index([headerHashV2, dkimSignature])
+}
+
+model JsonWebKeySets {
+  id                 Int      @id @default(autoincrement())
+  x509Certificate    String
+  jwks               String
+  lastUpdated        DateTime
+  provenanceVerified Boolean?
+}
+
+enum KeyType {
+  RSA
+  Ed25519
 }
