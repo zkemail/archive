@@ -31,7 +31,6 @@ model DomainSelectorPair {
   sourceIdentifier String
   DkimRecord       DkimRecord[]
 
-  @@index([domain])
   @@index([domain, selector])
 }
 
@@ -63,7 +62,6 @@ model EmailSignature {
 
   @@unique([headerHashV2, dkimSignature])
   @@index([domain, selector, timestamp])
-  @@index([headerHashV2, dkimSignature])
 }
 
 model JsonWebKeySets {
