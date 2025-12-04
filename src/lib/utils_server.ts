@@ -1,17 +1,12 @@
 import { execFileSync } from 'node:child_process';
 
-import type { KeyType } from '@prisma/client';
-import { type DomainSelectorPair } from '@prisma/client';
 import dns from 'dns';
 
-import {
-  createDkimRecord,
-  dspToString,
-  prisma,
-  recordToString,
-  updateDspTimestamp,
-} from './db';
+import type { DomainSelectorPair, KeyType } from '@/generated/prisma/client';
+
+import { createDkimRecord, prisma, updateDspTimestamp } from './db';
 import { generateWitness } from './generateWitness';
+import { logger } from './logger';
 import {
   type DnsDkimFetchResult,
   type DspSourceIdentifier,
@@ -23,7 +18,6 @@ async function refreshKeysFromDns(dsp: DomainSelectorPair) {
   const now = new Date();
   const oneHourAgo = new Date(now.getTime() - 1000 * 60 * 60);
   if (!dsp.lastRecordUpdate || dsp.lastRecordUpdate < oneHourAgo) {
-    console.log(`refresh key for ${dspToString(dsp)}`);
     await fetchAndStoreDkimDnsRecord(dsp);
     updateDspTimestamp(dsp, new Date());
   }
@@ -63,18 +57,14 @@ export async function addDomainSelectorPair(
     },
   });
   if (dsp) {
-    console.log(`found domain/selector pair ${dspToString(dsp)}`);
     await refreshKeysFromDns(dsp);
     return { already_in_db: true, added: false };
   }
   const records = await fetchDkimDnsRecord(domain, selector);
   if (records.length === 0) {
-    console.log(`no dkim dns record found for ${selector}, ${domain}`);
+    logger.debug('dns_lookup_empty', { domain, selector });
     return { already_in_db: false, added: false };
   }
-  console.log(
-    `found ${records.length} dkim dns records for ${selector}, ${domain}, adding DSP and records`
-  );
 
   const newDsp = await prisma.domainSelectorPair.create({
     data: {
@@ -106,44 +96,46 @@ export async function addDomainSelectorPair(
 }
 
 async function runCommand(file: string, args: string[], input: Buffer) {
-  console.log(`running ${file} ${args.join(' ')}`);
   try {
     const result = execFileSync(file, args, { input });
     return result.toString();
   } catch (error) {
-    console.log(`error running ${file} ${args.join(' ')}: ${error}`);
+    logger.error('command_failed', {
+      command: `${file} ${args.join(' ')}`,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 }
 
-// return key info if the key is valid, othwerwise raise an exception
+// return key info if the key is valid, otherwise raise an exception
 async function decodeKeyInfo(
   dkimRecordTsv: string
 ): Promise<{ keyType: KeyType; keyDataBase64: string | null }> {
   const tagValues = parseDkimTagList(dkimRecordTsv);
-  console.log(`tagValues: ${JSON.stringify(tagValues)}`);
   const keyType = kValueToKeyType(tagValues['k']);
+
   if (!Object.prototype.hasOwnProperty.call(tagValues, 'p')) {
-    throw `no p= tag found in dkim record`;
+    throw new Error('no p= tag found in dkim record');
   }
+
   const p_base64 = tagValues['p'].trim();
   if (p_base64 === '') {
-    // an empty p= tag is allowed and means that the key is revoked, see https://datatracker.ietf.org/doc/html/rfc6376#section-3.6.1
-    throw `empty p= tag found in dkim record`;
+    // an empty p= tag is allowed and means that the key is revoked
+    // see https://datatracker.ietf.org/doc/html/rfc6376#section-3.6.1
+    throw new Error('empty p= tag found in dkim record (key revoked)');
   }
 
   const p_binary = Buffer.from(p_base64, 'base64');
   if (keyType === 'RSA') {
-    console.log(`running openssl asn1parse on RSA key`);
     const asn1parse_output = await runCommand(
       '/usr/bin/env',
       ['openssl', 'asn1parse', '-inform', 'DER'],
       p_binary
     );
     if (!asn1parse_output) {
-      throw `error running openssl asn1parse on RSA key`;
+      throw new Error('openssl asn1parse failed for RSA key');
     }
-    console.log(`openssl output: ${JSON.stringify(asn1parse_output)}`);
 
     // p_base64 may contain non-base64 characters, which are ignored by Buffer.from
     const p_base64_normalized = p_binary.toString('base64');
@@ -160,66 +152,73 @@ export async function fetchDkimDnsRecord(
   const resolver = new dns.promises.Resolver({ timeout: 2500 });
   const qname = `${selector}._domainkey.${domain}`;
   let records;
+
   try {
     records = (await resolver.resolve(qname, 'TXT')).map((record) =>
       record.join('')
     );
   } catch (error) {
+    // Fallback to public DNS
     try {
-      console.log(
-        `[DNS] System DNS failed for ${qname}: ${error}. Falling back to `
-      );
+      logger.warn('dns_fallback', {
+        qname,
+        reason: error instanceof Error ? error.message : String(error),
+      });
       resolver.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1', '1.0.0.1']);
       records = (await resolver.resolve(qname, 'TXT')).map((record) =>
         record.join('')
       );
-    } catch (error) {
-      console.log(`[DNS] All DNS servers failed for ${qname}: ${error}.`);
+    } catch (fallbackError) {
+      logger.error('dns_lookup_failed', {
+        qname,
+        error:
+          fallbackError instanceof Error
+            ? fallbackError.message
+            : String(fallbackError),
+      });
       return [];
     }
   }
-  console.log(`found: ${records.length} records for ${qname}`);
-  const result = [];
+
+  const result: DnsDkimFetchResult[] = [];
   for (const record of records) {
-    console.log(`record: ${record}`);
-    console.log(`found dns record for ${qname}`);
     try {
       const { keyType, keyDataBase64 } = await decodeKeyInfo(record);
-      console.log(`keyType: ${keyType}, keyDataBase64: ${keyDataBase64}`);
-      const dkimRecord: DnsDkimFetchResult = {
+      result.push({
         selector,
         domain,
         value: record,
         timestamp: new Date(),
         keyType,
         keyDataBase64,
-      };
-      result.push(dkimRecord);
+      });
     } catch (error) {
-      console.log(`error decoding record: ${error}`);
+      logger.warn('dkim_decode_failed', {
+        domain,
+        selector,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
+
   return result;
 }
 
 /**
- * @returns true iff a record was added
+ * Fetches DKIM records from DNS and stores them in the database
  */
 export async function fetchAndStoreDkimDnsRecord(dsp: DomainSelectorPair) {
-  console.log(`fetching ${dsp.selector}._domainkey.${dsp.domain} from dns`);
   const dnsRecords = await fetchDkimDnsRecord(dsp.domain, dsp.selector);
+
   for (const dnsRecord of dnsRecords) {
     let dbRecord = await prisma.dkimRecord.findFirst({
       where: {
-        domainSelectorPair: dsp,
+        domainSelectorPairId: dsp.id,
         value: dnsRecord.value,
       },
     });
 
     if (dbRecord) {
-      console.log(
-        `record already exists: ${recordToString(dbRecord)} for domain/selector pair ${dspToString(dsp)}, updating lastSeenAt to ${dnsRecord.timestamp}`
-      );
       await prisma.dkimRecord.update({
         where: { id: dbRecord.id },
         data: { lastSeenAt: dnsRecord.timestamp },

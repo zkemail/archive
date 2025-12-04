@@ -1,11 +1,15 @@
+import { PrismaPg } from '@prisma/adapter-pg';
+import { LRUCache } from 'lru-cache';
+import { Pool } from 'pg';
+
 import {
   type DkimRecord,
   type DomainSelectorPair,
   Prisma,
   PrismaClient,
-} from '@prisma/client';
-import { LRUCache } from 'lru-cache';
+} from '@/generated/prisma/client';
 
+import { logger } from './logger';
 import { DnsDkimFetchResult, fetchJsonWebKeySet, fetchx509Cert } from './utils';
 
 // In process Cache configuration (LRU cache)
@@ -31,21 +35,18 @@ const dspIdCache = new LRUCache<string, number>({
 });
 
 const createPrismaClient = () => {
-  const prismaUrl = new URL(process.env.POSTGRES_PRISMA_URL as string);
-
-  // Optimize connection pooling parameters
-  prismaUrl.searchParams.set('connection_limit', '20'); // Max connections
-  prismaUrl.searchParams.set('pool_timeout', '10'); // Pool acquire timeout (seconds)
-  prismaUrl.searchParams.set('connect_timeout', '10'); // Connection timeout
-  prismaUrl.searchParams.set('socket_timeout', '30'); // Query timeout
-
-  return new PrismaClient({
-    datasources: {
-      db: {
-        url: prismaUrl.toString(),
-      },
-    },
+  // Create a pg Pool with optimized connection settings
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: 20, // Max connections
+    idleTimeoutMillis: 30000, // 30 seconds idle timeout
+    connectionTimeoutMillis: 10000, // 10 seconds connection timeout
   });
+
+  // Create the Prisma adapter with the pool
+  const adapter = new PrismaPg(pool);
+
+  return new PrismaClient({ adapter });
 };
 
 declare global {
@@ -119,8 +120,6 @@ export async function updateDspTimestamp(
   });
 
   clearRecordsCache(dsp.domain, dsp.selector);
-
-  console.log(`updated dsp timestamp ${dspToString(updatedSelector)}`);
 }
 
 export async function createDkimRecord(
@@ -140,11 +139,14 @@ export async function createDkimRecord(
   });
 
   clearRecordsCache(dsp.domain, dsp.selector);
-  console.log(
-    `created dkim record ${recordToString(
-      dkimRecord
-    )} for domain/selector pair ${dspToString(dsp)}`
-  );
+
+  logger.info('dkim_record_created', {
+    recordId: dkimRecord.id,
+    domain: dsp.domain,
+    selector: dsp.selector,
+    keyType: dkimDsnRecord.keyType,
+  });
+
   return dkimRecord;
 }
 
@@ -158,7 +160,9 @@ export async function getLastJWKeySet() {
 
     return lastJwtKey;
   } catch (error) {
-    console.error('Error fetching the last JWT key:', error);
+    logger.error('jwk_fetch_failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
@@ -168,7 +172,7 @@ export async function updateJWKeySet() {
     const latestx509Cert = await fetchx509Cert();
     const latestJsonWebKeySet = await fetchJsonWebKeySet();
     if (latestx509Cert == '' || latestJsonWebKeySet == '') {
-      console.error('Error fetching latest keys');
+      logger.error('jwk_update_failed', { reason: 'empty_keys' });
       return;
     }
     if (lastJWKeySet?.x509Certificate != latestx509Cert) {
@@ -190,7 +194,9 @@ export async function updateJWKeySet() {
       });
     }
   } catch (error) {
-    console.error('Error updating the JWT key:', error);
+    logger.error('jwk_update_failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
