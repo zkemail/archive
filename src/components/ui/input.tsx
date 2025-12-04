@@ -12,8 +12,10 @@ import {
   TooltipTrigger,
 } from './tooltip';
 
-export interface InputProps
-  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
+export interface InputProps extends Omit<
+  React.InputHTMLAttributes<HTMLInputElement>,
+  'size'
+> {
   title?: string;
   error?: boolean;
   errorMessage?: string | React.ReactNode;
