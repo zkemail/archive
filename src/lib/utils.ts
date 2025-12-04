@@ -1,10 +1,11 @@
-import type { KeyType } from '@prisma/client';
 import { ParsedEmail } from '@zk-email/sdk';
 // import { parseEmail as parseEmailUtils } from '@zk-email/sdk';
 import { type ClassValue, clsx } from 'clsx';
 import type { ReadonlyHeaders } from 'next/dist/server/web/spec-extension/adapters/headers';
 import type { RateLimiterMemory } from 'rate-limiter-flexible';
 import { twMerge } from 'tailwind-merge';
+
+import type { KeyType } from '@/generated/prisma/client';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

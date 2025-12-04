@@ -1,5 +1,6 @@
-import type { DkimRecord, DomainSelectorPair } from '@prisma/client';
 import { WitnessClient } from '@witnessco/client';
+
+import type { DkimRecord, DomainSelectorPair } from '@/generated/prisma/client';
 
 import { prisma, recordToString } from './db';
 import {
