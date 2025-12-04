@@ -17,8 +17,8 @@ model DkimRecord {
   keyData              String?
   keyType              KeyType?
   source               String?
-  DomainSelectorPair   DomainSelectorPair   @relation(fields: [domainSelectorPairId], references: [id])
-  EmailPairGcdResult   EmailPairGcdResult[]
+  domainSelectorPair   DomainSelectorPair   @relation(fields: [domainSelectorPairId], references: [id])
+  emailPairGcdResults  EmailPairGcdResult[]
 
   @@index([domainSelectorPairId])
 }
@@ -29,36 +29,36 @@ model DomainSelectorPair {
   lastRecordUpdate DateTime?
   selector         String
   sourceIdentifier String
-  DkimRecord       DkimRecord[]
+  records          DkimRecord[]
 
   @@index([domain, selector])
 }
 
 model EmailPairGcdResult {
-  emailSignatureA_id                                                   Int
-  emailSignatureB_id                                                   Int
-  foundGcd                                                             Boolean
-  timestamp                                                            DateTime
-  dkimRecordId                                                         Int?
-  DkimRecord                                                           DkimRecord?    @relation(fields: [dkimRecordId], references: [id])
-  EmailSignature_EmailPairGcdResult_emailSignatureA_idToEmailSignature EmailSignature @relation("EmailPairGcdResult_emailSignatureA_idToEmailSignature", fields: [emailSignatureA_id], references: [id])
-  EmailSignature_EmailPairGcdResult_emailSignatureB_idToEmailSignature EmailSignature @relation("EmailPairGcdResult_emailSignatureB_idToEmailSignature", fields: [emailSignatureB_id], references: [id])
+  emailSignatureA_id Int
+  emailSignatureB_id Int
+  foundGcd           Boolean
+  timestamp          DateTime
+  dkimRecordId       Int?
+  dkimRecord         DkimRecord?    @relation(fields: [dkimRecordId], references: [id])
+  emailSignatureA    EmailSignature @relation(name: "gcdPairAsA", fields: [emailSignatureA_id], references: [id])
+  emailSignatureB    EmailSignature @relation(name: "gcdPairAsB", fields: [emailSignatureB_id], references: [id])
 
   @@id([emailSignatureA_id, emailSignatureB_id])
 }
 
 model EmailSignature {
-  id                                                                       Int                  @id @default(autoincrement())
-  domain                                                                   String
-  selector                                                                 String
-  headerHash                                                               String
-  dkimSignature                                                            String
-  timestamp                                                                DateTime?
-  signingAlgorithm                                                         String
-  canonInfo                                                                String
-  headerHashV2                                                             String?
-  EmailPairGcdResult_EmailPairGcdResult_emailSignatureA_idToEmailSignature EmailPairGcdResult[] @relation("EmailPairGcdResult_emailSignatureA_idToEmailSignature")
-  EmailPairGcdResult_EmailPairGcdResult_emailSignatureB_idToEmailSignature EmailPairGcdResult[] @relation("EmailPairGcdResult_emailSignatureB_idToEmailSignature")
+  id                   Int                  @id @default(autoincrement())
+  domain               String
+  selector             String
+  headerHash           String
+  headerHashV2         String?
+  dkimSignature        String
+  timestamp            DateTime?
+  signingAlgorithm     String
+  canonInfo            String
+  email_A_in_gcd_pairs EmailPairGcdResult[] @relation(name: "gcdPairAsA")
+  email_B_in_gcd_pairs EmailPairGcdResult[] @relation(name: "gcdPairAsB")
 
   @@unique([headerHashV2, dkimSignature])
   @@index([domain, selector, timestamp])
@@ -68,7 +68,7 @@ model JsonWebKeySets {
   id                 Int      @id @default(autoincrement())
   x509Certificate    String
   jwks               String
-  lastUpdated        DateTime
+  lastUpdated        DateTime @updatedAt
   provenanceVerified Boolean?
 }
 
