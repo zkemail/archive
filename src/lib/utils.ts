@@ -459,3 +459,223 @@ export function keySourceIdentifierToHumanReadable(
       return 'Unknown';
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Date Validation Helper
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function isValidDate(year: number, month: number, day: number) {
+  const date = new Date(year, month - 1, day);
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DKIM Header Parsing Functions
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Regex to extract DKIM-Signature header blocks
+export const DKIM_HEADER_REGEX = /^DKIM-Signature:\s*(.+?)(?=\r?\n[^ \t])/gims;
+
+export const DIGEST_INFO: Record<string, Buffer> = {
+  'rsa-sha1': Buffer.from('3021300906052b0e03021a05000414', 'hex'),
+  'rsa-sha256': Buffer.from('3031300d060960864801650304020105000420', 'hex'),
+  'rsa-sha512': Buffer.from('3051300d060960864801650304020305000440', 'hex'),
+};
+
+// Extract all DKIM-Signature blocks and return [rawHeader]
+export function getDkimSigsArray(rawEmail: string): string[] {
+  const blocks: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = DKIM_HEADER_REGEX.exec(rawEmail))) {
+    const rawHeader = match[0];
+    blocks.push(rawHeader);
+  }
+  return blocks;
+}
+
+export function parseDkimTagListV2(rawHeader: string): Record<string, string> {
+  const unfoldedSignature = rawHeader
+    .replace(/\r?\n\s+/g, ' ')
+    .replace(/^DKIM-Signature\s*:\s*/i, '');
+  return Object.fromEntries(
+    unfoldedSignature
+      .trim()
+      .split(';')
+      .map((part) => {
+        const [k, v] = part.split('=', 2).map((x) => x.trim());
+        return [k, v];
+      })
+  );
+}
+
+// Note:- This follows RFC 5322 for parsing the Email header
+export function parseEmailHeaderV2(rawEmail: { toString: () => string }) {
+  const emailContent =
+    typeof rawEmail === 'string' ? rawEmail : rawEmail.toString();
+
+  // Split email into headers and body at first blank line
+  const headerBodySplit = emailContent.split(/\r?\n\r?\n/);
+  const headerSection = headerBodySplit[0];
+
+  // Split headers by lines, but handle folded headers (RFC 5322)
+  const headerLines = [];
+  const lines = headerSection.split(/(?<=\r?\n)/);
+
+  let currentHeader = '';
+
+  for (const line of lines) {
+    if (line.match(/^[\t ]/)) {
+      currentHeader += line;
+    } else {
+      if (currentHeader) {
+        headerLines.push(currentHeader);
+      }
+      currentHeader = line;
+    }
+  }
+
+  if (currentHeader) {
+    headerLines.push(currentHeader);
+  }
+
+  const headers = [];
+
+  for (const headerLine of headerLines) {
+    const colonIndex = headerLine.indexOf(':');
+    if (colonIndex === -1) continue;
+
+    const name = headerLine.substring(0, colonIndex);
+    const value = headerLine.substring(colonIndex + 1);
+
+    headers.push([name, value]);
+  }
+  return headers;
+}
+
+// Function to parse DKIM header into [[header_name, header_value]] format
+export function parseDkimSignature(dkimHeader: string): [[string, string]] {
+  const colonIndex = dkimHeader.indexOf(':');
+  if (colonIndex === -1) {
+    throw new Error('Invalid header format: no colon found');
+  }
+
+  const headerName = dkimHeader.substring(0, colonIndex).trim();
+  const headerValue = dkimHeader
+    .substring(colonIndex + 1)
+    .replace(/b\s*=\s*([^;]*)/, 'b=');
+
+  return [[headerName, headerValue]];
+}
+
+// Select signed headers according to RFC 6376 section 5.4.2
+export function selectSignedHeadersnew(
+  allHeaders: string[][],
+  wantedHeaders: string[]
+): string[][] {
+  const signHeaders: string[][] = [];
+  const lastIndex: Record<string, number> = {};
+
+  for (const headerName of wantedHeaders) {
+    const lowerHeaderName = headerName.toLowerCase().trim();
+
+    let i = lastIndex[lowerHeaderName] ?? allHeaders.length;
+
+    while (i > 0) {
+      i--;
+      if (allHeaders[i] && allHeaders[i][0].toLowerCase() === lowerHeaderName) {
+        signHeaders.push(allHeaders[i]);
+        break;
+      }
+    }
+
+    lastIndex[lowerHeaderName] = i;
+  }
+
+  return signHeaders;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DKIM Header Canonicalization Functions (RFC 6376)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function canonicalizeHeaders(headers: any, algorithm: string) {
+  if (algorithm === 'simple') {
+    return canonicalizeHeadersSimple(headers);
+  } else if (algorithm === 'relaxed') {
+    return canonicalizeHeadersRelaxed(headers);
+  } else {
+    throw new Error(`Invalid canonicalization algorithm: ${algorithm}`);
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function canonicalizeHeadersSimple(headers: [any, any][]) {
+  return headers.map(([name, value]) => [name, value]);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function canonicalizeHeadersRelaxed(headers: [any, any][]) {
+  return headers.map(([name, value]) => {
+    const lowerName = name.toLowerCase().trim();
+
+    let unfoldedValue = unfoldHeaderValue(value);
+    unfoldedValue = compressWhitespace(unfoldedValue);
+    unfoldedValue = unfoldedValue.trim();
+
+    return [lowerName, unfoldedValue + '\r\n'];
+  });
+}
+
+function compressWhitespace(content: string) {
+  return content.replace(/[\t ]+/g, ' ');
+}
+
+function unfoldHeaderValue(content: string) {
+  return content.replace(/\r?\n[\t ]/g, ' ');
+}
+
+// Computes a cryptographic hash of email headers using DKIM canonicalization
+export function computeCanonicalizedHeaderHash(
+  hash: { update: (data: Buffer) => void },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  headers: Array<Array<any>>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sigHdr: Array<Array<any>>,
+  canon: string
+) {
+  for (const hdr of headers) {
+    hash.update(Buffer.from(hdr[0]));
+    hash.update(Buffer.from(':'));
+    hash.update(Buffer.from(hdr[1]));
+  }
+
+  hash.update(Buffer.from(sigHdr[0][0]));
+  hash.update(Buffer.from(':'));
+  if (canon == 'relaxed')
+    hash.update(Buffer.from(sigHdr[0][1].replace(/\s+$/gm, '')));
+  else hash.update(Buffer.from(sigHdr[0][1]));
+}
+
+// Build EMSA-PKCS#1 v1.5 block
+export function encodeRsaPkcs1Digest(
+  digest: Buffer,
+  algName: string,
+  keySize: number
+): bigint {
+  const prefix = DIGEST_INFO[algName] || Buffer.alloc(0);
+  const t = Buffer.concat([prefix, digest]);
+  const psLen = keySize - t.length - 3;
+  const padding = Buffer.alloc(psLen, 0xff);
+  const em = Buffer.concat([
+    Buffer.from([0x00, 0x01]),
+    padding,
+    Buffer.from([0x00]),
+    t,
+  ]);
+  return BigInt(`0x${em.toString('hex')}`);
+}
