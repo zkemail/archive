@@ -15,9 +15,7 @@ import type { DomainSearchResult } from '@/types/api';
  *
  * Returns array of DKIM records matching the query
  */
-export async function GET(
-  request: NextRequest
-): Promise<NextResponse<DomainSearchResult[] | { error: string }>> {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   // Apply rate limiting
   const rateLimit = await checkRateLimit('key');
   if (!rateLimit.success) {

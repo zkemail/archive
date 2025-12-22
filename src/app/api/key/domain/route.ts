@@ -16,9 +16,7 @@ import type { DomainSearchResult } from '@/types/api';
  * This endpoint uses an in-memory LRU cache to reduce database load
  * for frequently accessed domains. Cache TTL is 30 minutes.
  */
-export async function GET(
-  request: NextRequest
-): Promise<NextResponse<DomainSearchResult[] | { error: string }>> {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   // Apply rate limiting (higher limit for cached endpoint)
   const rateLimit = await checkRateLimit('keyDomain');
   if (!rateLimit.success) {

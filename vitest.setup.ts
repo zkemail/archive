@@ -1,6 +1,6 @@
 import '@testing-library/react';
 
-import { vi } from 'vitest';
+import { beforeEach, vi } from 'vitest';
 
 // Mock Next.js headers
 vi.mock('next/headers', () => ({

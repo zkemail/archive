@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 import { getJWKeySetRecord } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { addRateLimitHeaders, checkRateLimit } from '@/lib/rateLimit';
-import type { JwkSetRecord } from '@/types/api';
 
 /**
  * GET /api/jwk_set
@@ -12,9 +11,7 @@ import type { JwkSetRecord } from '@/types/api';
  * Returns all JWK set records stored in the database
  * These are typically Google's OAuth JWKs used for token verification
  */
-export async function GET(): Promise<
-  NextResponse<JwkSetRecord[] | { error: string }>
-> {
+export async function GET(): Promise<NextResponse> {
   // Apply strict rate limiting for this endpoint
   const rateLimit = await checkRateLimit('jwkSet');
   if (!rateLimit.success) {
