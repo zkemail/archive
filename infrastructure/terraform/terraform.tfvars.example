@@ -1,0 +1,23 @@
+# ZK Email Archive - Terraform Variables Example
+# Copy this file to terraform.tfvars and fill in your values
+
+# Required: GCP Project ID
+project_id = "your-gcp-project-id"
+
+# Optional: GCP Region (default: us-central1)
+region = "us-central1"
+
+# Optional: Environment name
+environment = "production"
+
+# Optional: Cloud Tasks queue name
+cloud_tasks_queue_name = "archive-gcd-queue"
+
+# Optional: Cloud Function name (if deploying GCD function)
+cloud_function_name = ""
+
+# Optional: Application URL
+app_url = "https://archive.example.com"
+
+# Optional: Cloud SQL connection name
+database_connection_name = ""
