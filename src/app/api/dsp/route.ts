@@ -57,8 +57,8 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      logger.warn('dsp_validation_error', { errors: error.errors });
-      return NextResponse.json(error.errors, { status: 400 });
+      logger.warn('dsp_validation_error', { errors: error.issues });
+      return NextResponse.json(error.issues, { status: 400 });
     }
 
     logger.error('dsp_add_failed', {

@@ -38,11 +38,13 @@ export default function RootLayout({
       <body className={`${fustat.className} transition-theme antialiased`}>
         <SessionProvider>
           <ThemeProvider attribute='class' enableSystem defaultTheme='system'>
-            <div className='transition-theme flex h-screen flex-col justify-between'>
-              <Navbar />
-              {children}
-              <Footer />
-            </div>
+            <ToastProvider>
+              <div className='transition-theme flex h-screen flex-col justify-between'>
+                <Navbar />
+                {children}
+                <Footer />
+              </div>
+            </ToastProvider>
           </ThemeProvider>
         </SessionProvider>
       </body>

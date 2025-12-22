@@ -69,7 +69,7 @@ export const authOptions = {
           token.refresh_token = tokens.refresh_token ?? token.refresh_token;
           token.scope = tokens.scope;
           return token;
-        } catch (error) {
+        } catch {
           return { ...token, error: 'RefreshAccessTokenError' as const };
         }
       }
