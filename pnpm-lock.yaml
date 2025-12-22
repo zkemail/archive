@@ -70,7 +70,7 @@ importers:
         version: 0.12.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@witnessco/client':
         specifier: ^0.6.0
-        version: 0.6.0(viem@2.40.4(typescript@5.9.3)(zod@3.25.76))
+        version: 0.6.0(viem@2.40.4(typescript@5.9.3)(zod@4.2.1))
       '@zk-email/relayer-utils':
         specifier: ^0.4.65
         version: 0.4.65
@@ -143,6 +143,9 @@ importers:
       tw-animate-css:
         specifier: ^1.4.0
         version: 1.4.0
+      zod:
+        specifier: ^4.2.1
+        version: 4.2.1
     devDependencies:
       '@eslint/compat':
         specifier: ^1.4.1
@@ -4167,6 +4170,9 @@ packages:
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
+  zod@4.2.1:
+    resolution: {integrity: sha512-0wZ1IRqGGhMP76gLqz8EyfBXKk0J2qo2+H3fi4mcUP/KtTocoX08nmIAHl1Z2kJIZbZee8KOpBCSNPRgauucjw==}
+
 snapshots:
 
   '@adraffy/ens-normalize@1.10.1': {}
@@ -5569,10 +5575,10 @@ snapshots:
   '@unrs/resolver-binding-win32-x64-msvc@1.11.1':
     optional: true
 
-  '@witnessco/client@0.6.0(viem@2.40.4(typescript@5.9.3)(zod@3.25.76))':
+  '@witnessco/client@0.6.0(viem@2.40.4(typescript@5.9.3)(zod@4.2.1))':
     dependencies:
       '@kubb/oas': 2.28.4
-      viem: 2.40.4(typescript@5.9.3)(zod@3.25.76)
+      viem: 2.40.4(typescript@5.9.3)(zod@4.2.1)
     transitivePeerDependencies:
       - encoding
       - supports-color
@@ -5616,6 +5622,11 @@ snapshots:
     optionalDependencies:
       typescript: 5.9.3
       zod: 3.25.76
+
+  abitype@1.1.0(typescript@5.9.3)(zod@4.2.1):
+    optionalDependencies:
+      typescript: 5.9.3
+      zod: 4.2.1
 
   acorn-jsx@5.3.2(acorn@8.15.0):
     dependencies:
@@ -7362,6 +7373,21 @@ snapshots:
     transitivePeerDependencies:
       - zod
 
+  ox@0.9.6(typescript@5.9.3)(zod@4.2.1):
+    dependencies:
+      '@adraffy/ens-normalize': 1.11.1
+      '@noble/ciphers': 1.3.0
+      '@noble/curves': 1.9.1
+      '@noble/hashes': 1.8.0
+      '@scure/bip32': 1.7.0
+      '@scure/bip39': 1.6.0
+      abitype: 1.1.0(typescript@5.9.3)(zod@4.2.1)
+      eventemitter3: 5.0.1
+    optionalDependencies:
+      typescript: 5.9.3
+    transitivePeerDependencies:
+      - zod
+
   p-limit@3.1.0:
     dependencies:
       yocto-queue: 0.1.0
@@ -8226,6 +8252,23 @@ snapshots:
       - utf-8-validate
       - zod
 
+  viem@2.40.4(typescript@5.9.3)(zod@4.2.1):
+    dependencies:
+      '@noble/curves': 1.9.1
+      '@noble/hashes': 1.8.0
+      '@scure/bip32': 1.7.0
+      '@scure/bip39': 1.6.0
+      abitype: 1.1.0(typescript@5.9.3)(zod@4.2.1)
+      isows: 1.0.7(ws@8.18.3)
+      ox: 0.9.6(typescript@5.9.3)(zod@4.2.1)
+      ws: 8.18.3
+    optionalDependencies:
+      typescript: 5.9.3
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+      - zod
+
   wasmbuilder@0.0.16: {}
 
   wasmcurves@0.2.2:
@@ -8343,3 +8386,5 @@ snapshots:
       grammex: 3.1.12
 
   zod@3.25.76: {}
+
+  zod@4.2.1: {}
