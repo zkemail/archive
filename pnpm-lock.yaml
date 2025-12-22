@@ -71,6 +71,9 @@ importers:
       '@react-oauth/google':
         specifier: ^0.12.2
         version: 0.12.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      '@types/node-forge':
+        specifier: ^1.3.14
+        version: 1.3.14
       '@witnessco/client':
         specifier: ^0.6.0
         version: 0.6.0(viem@2.40.4(typescript@5.9.3)(zod@4.2.1))
@@ -1629,6 +1632,9 @@ packages:
 
   '@types/json5@0.0.29':
     resolution: {integrity: sha512-dRLjCWHYg4oaA77cxO64oO+7JwCwnIzkZPdrrC71jQmQtlhM556pwKo5bUzqvZndkVbeFLIIi+9TC40JNF5hNQ==}
+
+  '@types/node-forge@1.3.14':
+    resolution: {integrity: sha512-mhVF2BnD4BO+jtOp7z1CdzaK4mbuK0LLQYAvdOLqHTavxFNq4zA1EmYkpnFjP8HOUzedfQkRnp0E2ulSAYSzAw==}
 
   '@types/node@20.19.25':
     resolution: {integrity: sha512-ZsJzA5thDQMSQO788d7IocwwQbI8B5OPzmqNvpf3NY/+MHDAS759Wo0gd2WQeXYt5AAAQjzcrTVC6SKCuYgoCQ==}
@@ -6274,6 +6280,10 @@ snapshots:
   '@types/json-schema@7.0.15': {}
 
   '@types/json5@0.0.29': {}
+
+  '@types/node-forge@1.3.14':
+    dependencies:
+      '@types/node': 20.19.25
 
   '@types/node@20.19.25':
     dependencies:
