@@ -43,3 +43,14 @@ next-env.d.ts
 .claude
 
 /src/generated/prisma
+
+# terraform
+infrastructure/terraform/.terraform/
+infrastructure/terraform/*.tfstate
+infrastructure/terraform/*.tfstate.backup
+infrastructure/terraform/*.tfvars
+!infrastructure/terraform/*.tfvars.example
+infrastructure/terraform/.terraform.lock.hcl
+
+# vitest
+.vitest
