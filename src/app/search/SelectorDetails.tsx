@@ -65,9 +65,6 @@ const SelectorDetails = ({ data }: any) => {
       ...prev,
       [itemId]: !prev[itemId],
     }));
-    if (isOpening) {
-      analytics.capture('selector_expanded', { domain, selector });
-    }
   };
 
   const scrollToDomain = (domain: string) => {
