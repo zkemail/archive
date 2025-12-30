@@ -1,6 +1,8 @@
 import { execFileSync } from 'node:child_process';
 
 import dns from 'dns';
+import type { ReadonlyHeaders } from 'next/dist/server/web/spec-extension/adapters/headers';
+import type { RateLimiterMemory } from 'rate-limiter-flexible';
 
 import type { DomainSelectorPair, KeyType } from '@/generated/prisma/client';
 
@@ -242,4 +244,20 @@ export function pubKeyLength(signature: any) {
     }
   }
   return minBytes;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Rate Limiting Helper
+// ═══════════════════════════════════════════════════════════════════════════
+
+export async function checkRateLimiter(
+  rateLimiter: RateLimiterMemory,
+  headers: ReadonlyHeaders,
+  consumePoints: number
+) {
+  const forwardedFor = headers.get('x-forwarded-for');
+  if (forwardedFor) {
+    const clientIp = forwardedFor.split(',')[0];
+    await rateLimiter.consume(clientIp, consumePoints);
+  }
 }
