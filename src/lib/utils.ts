@@ -1,8 +1,6 @@
 import { ParsedEmail } from '@zk-email/sdk';
 // import { parseEmail as parseEmailUtils } from '@zk-email/sdk';
 import { type ClassValue, clsx } from 'clsx';
-import type { ReadonlyHeaders } from 'next/dist/server/web/spec-extension/adapters/headers';
-import type { RateLimiterMemory } from 'rate-limiter-flexible';
 import { twMerge } from 'tailwind-merge';
 
 import type { KeyType } from '@/generated/prisma/client';
@@ -349,22 +347,6 @@ export function getCanonicalJWKRecordString(jwkSetData: jwkSet): string {
   };
 
   return JSON.stringify(canonicalObject, Object.keys(canonicalObject).sort());
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Rate Limiting Helper
-// ═══════════════════════════════════════════════════════════════════════════
-
-export async function checkRateLimiter(
-  rateLimiter: RateLimiterMemory,
-  headers: ReadonlyHeaders,
-  consumePoints: number
-) {
-  const forwardedFor = headers.get('x-forwarded-for');
-  if (forwardedFor) {
-    const clientIp = forwardedFor.split(',')[0];
-    await rateLimiter.consume(clientIp, consumePoints);
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

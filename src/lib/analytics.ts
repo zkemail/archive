@@ -2,7 +2,7 @@ import posthog from 'posthog-js';
 
 const isDev = process.env.NODE_ENV === 'development';
 const isBrowser = typeof window !== 'undefined';
-
+// client side analytics
 export const analytics = {
   capture: (event: string, properties?: Record<string, unknown>) => {
     if (!isBrowser) return; // SSR safety
