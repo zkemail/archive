@@ -2,24 +2,28 @@ import { headers } from 'next/headers';
 import { type NextRequest, NextResponse } from 'next/server';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 
-import { DomainSearchResults, querySchema } from '@/app/api/key/route';
+import { type DomainSearchResults } from '@/app/api/key/route';
 import { rateLimited, serverError, validationError } from '@/lib/api-response';
 import { findRecordsWithCache, type RecordWithSelector } from '@/lib/db';
 import { logger } from '@/lib/logger';
-import { checkRateLimiter } from '@/lib/utils_server';
-import { addDomainSelectorPair, fetchDkimDnsRecord } from '@/lib/utils_server';
+import {
+  addDomainSelectorPair,
+  checkRateLimiter,
+  fetchDkimDnsRecord,
+} from '@/lib/utils_server';
+import { dspQuerySchema } from '@/lib/validation';
 
 const rateLimiter = new RateLimiterMemory({ points: 2000, duration: 1 });
 
 export async function GET(request: NextRequest) {
   try {
     await checkRateLimiter(rateLimiter, await headers(), 1);
-  } catch (error: any) {
+  } catch {
     return rateLimited();
   }
 
   const params = Object.fromEntries(request.nextUrl.searchParams.entries());
-  const parsed = querySchema.safeParse(params);
+  const parsed = dspQuerySchema.safeParse(params);
 
   if (!parsed.success) {
     return validationError(parsed.error);
@@ -32,7 +36,7 @@ export async function GET(request: NextRequest) {
     let dbRecords: RecordWithSelector[] = [];
     try {
       dbRecords = await findRecordsWithCache(domain, selector);
-    } catch (dbError: any) {
+    } catch (dbError) {
       logger.error('domain_route_db_error', {
         error: dbError instanceof Error ? dbError.message : String(dbError),
         domain,
@@ -73,7 +77,7 @@ export async function GET(request: NextRequest) {
             });
           });
         }
-      } catch (dnsError: any) {
+      } catch (dnsError) {
         logger.warn('domain_route_dns_error', {
           error:
             dnsError instanceof Error ? dnsError.message : String(dnsError),
@@ -92,7 +96,7 @@ export async function GET(request: NextRequest) {
     ];
 
     return NextResponse.json(combinedResults, { status: 200 });
-  } catch (error: any) {
+  } catch (error) {
     logger.error('key_route_error', {
       error: error instanceof Error ? error.message : String(error),
       domain,
