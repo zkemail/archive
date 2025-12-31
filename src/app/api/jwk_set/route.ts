@@ -12,14 +12,14 @@ const rateLimiter = new RateLimiterMemory({ points: 5, duration: 10 });
 export async function GET() {
   try {
     await checkRateLimiter(rateLimiter, await headers(), 1);
-  } catch (error) {
+  } catch {
     return rateLimited();
   }
 
   try {
     const JwkSet = await getJWKeySetRecord();
     return NextResponse.json(JwkSet, { status: 200 });
-  } catch (error: any) {
+  } catch (error) {
     logger.error('jwk_set_route_error', {
       error: error instanceof Error ? error.message : String(error),
     });
