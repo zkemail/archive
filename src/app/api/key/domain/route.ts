@@ -1,44 +1,44 @@
 import { headers } from 'next/headers';
-import { NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 
+import { DomainSearchResults, querySchema } from '@/app/api/key/route';
+import { rateLimited, serverError, validationError } from '@/lib/api-response';
 import { findRecordsWithCache, type RecordWithSelector } from '@/lib/db';
+import { logger } from '@/lib/logger';
 import { checkRateLimiter } from '@/lib/utils_server';
 import { addDomainSelectorPair, fetchDkimDnsRecord } from '@/lib/utils_server';
 
-import { DomainSearchResults } from '../route';
-
 const rateLimiter = new RateLimiterMemory({ points: 2000, duration: 1 });
 
-export async function GET(req: Request) {
+export async function GET(request: NextRequest) {
   try {
     await checkRateLimiter(rateLimiter, await headers(), 1);
   } catch (error: any) {
-    return NextResponse.json('Rate limit exceeded', { status: 429 });
+    return rateLimited();
   }
 
+  const params = Object.fromEntries(request.nextUrl.searchParams.entries());
+  const parsed = querySchema.safeParse(params);
+
+  if (!parsed.success) {
+    return validationError(parsed.error);
+  }
+
+  const { domain, selector } = parsed.data;
+
   try {
-    const { searchParams } = new URL(req.url);
-    const domain = searchParams.get('domain');
-    const selector = searchParams.get('selector') || undefined;
-
-    if (!domain) {
-      return NextResponse.json('missing domain parameter', { status: 400 });
-    }
-
     // Fetch from database
     let dbRecords: RecordWithSelector[] = [];
     try {
       dbRecords = await findRecordsWithCache(domain, selector);
     } catch (dbError: any) {
-      console.error('Database error in findRecordsWithCache:', dbError);
-      return NextResponse.json(
-        {
-          error: 'Database error',
-          details: 'Failed to fetch records from archive',
-        },
-        { status: 500 }
-      );
+      logger.error('domain_route_db_error', {
+        error: dbError instanceof Error ? dbError.message : String(dbError),
+        domain,
+        selector,
+      });
+      return serverError();
     }
 
     // Convert DB records to result format
@@ -66,11 +66,20 @@ export async function GET(req: Request) {
         // Async call to add DSP to database (fire and forget)
         if (dnsRecords.length > 0) {
           addDomainSelectorPair(domain, selector, 'api').catch((err) => {
-            console.error('Error adding DSP asynchronously:', err);
+            logger.error('domain_route_dsp_add_failed', {
+              error: err instanceof Error ? err.message : String(err),
+              domain,
+              selector,
+            });
           });
         }
       } catch (dnsError: any) {
-        console.error('DNS fetch error:', dnsError);
+        logger.warn('domain_route_dns_error', {
+          error:
+            dnsError instanceof Error ? dnsError.message : String(dnsError),
+          domain,
+          selector,
+        });
         // Continue with DB results only
       }
     }
@@ -84,10 +93,11 @@ export async function GET(req: Request) {
 
     return NextResponse.json(combinedResults, { status: 200 });
   } catch (error: any) {
-    console.error('Unexpected error in /api/key/domain:', error);
-    return NextResponse.json(
-      { error: 'Internal server error', details: error.message },
-      { status: 500 }
-    );
+    logger.error('key_route_error', {
+      error: error instanceof Error ? error.message : String(error),
+      domain,
+      selector,
+    });
+    return serverError();
   }
 }
