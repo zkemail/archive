@@ -18,7 +18,7 @@ export type DomainSearchResults = {
   value: string;
 };
 
-const querySchema = z.object({
+export const querySchema = z.object({
   domain: z
     .string()
     .min(1, 'domain is required')
