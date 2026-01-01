@@ -8,8 +8,6 @@ import { logger } from '@/lib/logger';
 import { checkRateLimiter } from '@/lib/utils_server';
 import { dspQuerySchema } from '@/lib/validation';
 
-export type RecordSource = 'dns' | 'database' | 'both';
-
 export type DomainSearchResults = {
   domain: string;
   selector: string;
