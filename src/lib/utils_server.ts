@@ -250,14 +250,26 @@ export function pubKeyLength(signature: any) {
 // Rate Limiting Helper
 // ═══════════════════════════════════════════════════════════════════════════
 
+export function getClientIp(headers: ReadonlyHeaders): string {
+  const forwardedFor = headers.get('x-forwarded-for');
+  if (forwardedFor) {
+    return forwardedFor.split(',')[0].trim();
+  }
+
+  const realIp = headers.get('x-real-ip');
+  if (realIp) {
+    return realIp.trim();
+  }
+
+  // Fallback: use a global key to still enforce rate limiting
+  return 'unknown-ip';
+}
+
 export async function checkRateLimiter(
   rateLimiter: RateLimiterMemory,
   headers: ReadonlyHeaders,
   consumePoints: number
 ) {
-  const forwardedFor = headers.get('x-forwarded-for');
-  if (forwardedFor) {
-    const clientIp = forwardedFor.split(',')[0];
-    await rateLimiter.consume(clientIp, consumePoints);
-  }
+  const clientIp = getClientIp(headers);
+  await rateLimiter.consume(clientIp, consumePoints);
 }
