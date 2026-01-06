@@ -5,6 +5,9 @@ import { twMerge } from 'tailwind-merge';
 
 import type { KeyType } from '@/generated/prisma/client';
 
+// Regex to extract DKIM-Signature header blocks
+export const DKIM_HEADER_REGEX = /^DKIM-Signature:\s*(.+?)(?=\r?\n[^ \t])/gims;
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -440,4 +443,80 @@ export function keySourceIdentifierToHumanReadable(
     case 'unknown':
       return 'Unknown';
   }
+}
+
+// Note: This follows RFC 5322 for parsing the Email header, it keeps the white spaces and CRLF for simple/relaxed canonicalization
+export function parseEmailHeader(rawEmail: { toString: () => string }) {
+  const emailContent =
+    typeof rawEmail === 'string' ? rawEmail : rawEmail.toString();
+
+  // Split email into headers and body at first blank line
+  const headerBodySplit = emailContent.split(/\r?\n\r?\n/);
+  const headerSection = headerBodySplit[0];
+
+  // Split headers by lines, but handle folded headers (RFC 5322)
+  const headerLines: string[] = [];
+  const lines = headerSection.split(/(?<=\r?\n)/);
+
+  let currentHeader = '';
+
+  for (const line of lines) {
+    // Check if line starts with whitespace (folded header continuation)
+    if (line.match(/^[\t ]/)) {
+      // This is a continuation of the previous header
+      currentHeader += line;
+    } else {
+      // This is a new header, save the previous one
+      if (currentHeader) {
+        headerLines.push(currentHeader);
+      }
+      currentHeader = line;
+    }
+  }
+
+  // Don't forget the last header
+  if (currentHeader) {
+    headerLines.push(currentHeader);
+  }
+
+  // Parse each header line into [name, value] pairs
+  const headers: [string, string][] = [];
+
+  for (const headerLine of headerLines) {
+    const colonIndex = headerLine.indexOf(':');
+    if (colonIndex === -1) continue; // Skip malformed headers
+
+    const name = headerLine.substring(0, colonIndex);
+    const value = headerLine.substring(colonIndex + 1);
+
+    headers.push([name, value]);
+  }
+  return headers;
+}
+
+// Extract all DKIM-Signature blocks and return [rawHeader].
+// Note: Multiple signatures may exist and can share the same {domain, selector}.
+export function getDkimSigsArray(rawEmail: string): string[] {
+  const blocks: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = DKIM_HEADER_REGEX.exec(rawEmail))) {
+    const rawHeader = match[0];
+    blocks.push(rawHeader);
+  }
+  return blocks;
+}
+
+export function parseDkimTagListV2(rawHeader: string): Record<string, string> {
+  const unfoldedSignature = rawHeader
+    .replace(/\r?\n\s+/g, ' ')
+    .replace(/^DKIM-Signature\s*:\s*/i, '');
+  return Object.fromEntries(
+    unfoldedSignature
+      .trim()
+      .split(';')
+      .map((part) => {
+        const [k, v] = part.split('=', 2).map((x) => x.trim());
+        return [k, v];
+      })
+  );
 }
