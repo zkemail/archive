@@ -2,7 +2,7 @@
 
 ## 🎯 Project: Archive
 
-**DKIM email archive & search engine** - Next.js 15 app for discovering and verifying email authentication keys.
+**DKIM archive & search engine** - Next.js 15 app for discovering and verifying email authentication keys.
 
 ## 🚀 Quick Start
 
