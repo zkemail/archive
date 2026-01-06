@@ -5,7 +5,7 @@ import { RateLimiterMemory } from 'rate-limiter-flexible';
 import { rateLimited, serverError } from '@/lib/api-response';
 import { getJWKeySetRecord } from '@/lib/db';
 import { logger } from '@/lib/logger';
-import { checkRateLimiter } from '@/lib/utils_server';
+import { checkRateLimiter } from '@/lib/utilsServer';
 
 const rateLimiter = new RateLimiterMemory({ points: 5, duration: 10 });
 

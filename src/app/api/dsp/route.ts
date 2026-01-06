@@ -13,7 +13,7 @@ import {
   addDomainSelectorPair,
   type AddResult,
   checkRateLimiter,
-} from '@/lib/utils_server';
+} from '@/lib/utilsServer';
 import { type DspBody, dspBodySchema } from '@/lib/validation';
 
 export type AddDspResponse = {

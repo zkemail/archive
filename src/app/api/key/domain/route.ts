@@ -10,7 +10,7 @@ import {
   addDomainSelectorPair,
   checkRateLimiter,
   fetchDkimDnsRecord,
-} from '@/lib/utils_server';
+} from '@/lib/utilsServer';
 import { dspQuerySchema } from '@/lib/validation';
 
 const rateLimiter = new RateLimiterMemory({ points: 2000, duration: 1 });

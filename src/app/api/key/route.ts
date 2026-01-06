@@ -5,7 +5,7 @@ import { RateLimiterMemory } from 'rate-limiter-flexible';
 import { rateLimited, serverError, validationError } from '@/lib/api-response';
 import { findRecords } from '@/lib/db';
 import { logger } from '@/lib/logger';
-import { checkRateLimiter } from '@/lib/utils_server';
+import { checkRateLimiter } from '@/lib/utilsServer';
 import { dspQuerySchema } from '@/lib/validation';
 
 export type DomainSearchResults = {
