@@ -3,6 +3,7 @@
 
 import { EnvelopeIcon, QuestionIcon, SignOutIcon } from '@phosphor-icons/react';
 import Image from 'next/image';
+import { signIn, signOut, useSession } from 'next-auth/react';
 import { Dispatch, SetStateAction, useEffect, useRef, useState } from 'react';
 
 import {
@@ -14,13 +15,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Loader from '@/components/ui/loader';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { RawEmailResponse } from '@/hooks/useGmailClient';
 import { fetchEmailList, fetchEmailsRaw } from '@/hooks/useGmailClient';
-import useGoogleAuth from '@/hooks/useGoogleAuth';
 import { analytics } from '@/lib/analytics';
-import { decodeMimeEncodedText, formatDate, getFileContent } from '@/lib/utils';
+import { getFileContent } from '@/lib/utils';
 
 import Calendar from '../search/Calendar';
 import logResults from './contributeData.json';
@@ -48,7 +47,10 @@ const EmailUploader = ({
   const [openItem, setOpenItem] = useState('');
   const emptyPageRetriesRef = useRef(0);
 
-  const { googleLogIn, googleAuthToken } = useGoogleAuth();
+  const { data: session, status } = useSession();
+  const isLoading = status === 'loading';
+  const isAuthenticated = status === 'authenticated';
+  const accessToken = session?.accessToken;
 
   useEffect(() => {
     const checkFileValidity = async (file: File | null) => {
@@ -83,25 +85,19 @@ const EmailUploader = ({
   }, [file]);
 
   const handleFetchEmails = async () => {
-    if (!googleAuthToken) return;
+    if (!accessToken) return;
 
     try {
       setIsFetchEmailLoading(true);
-      const emailListResponse = await fetchEmailList(
-        googleAuthToken?.access_token,
-        {
-          pageToken: pageToken || undefined,
-          q: emailQuery || undefined,
-        }
-      );
+      const emailListResponse = await fetchEmailList(accessToken, {
+        pageToken: pageToken || undefined,
+        q: emailQuery || undefined,
+      });
 
       const emailResponseMessages = emailListResponse.messages;
       if (emailResponseMessages?.length > 0) {
         const emailIds = emailResponseMessages.map((message) => message.id);
-        const emails = await fetchEmailsRaw(
-          googleAuthToken?.access_token,
-          emailIds
-        );
+        const emails = await fetchEmailsRaw(accessToken, emailIds);
 
         if (emails.length === 0 && emailListResponse.nextPageToken) {
           emptyPageRetriesRef.current += 1;
@@ -135,11 +131,11 @@ const EmailUploader = ({
   };
 
   useEffect(() => {
-    if (googleAuthToken?.access_token) {
+    if (accessToken) {
       handleFetchEmails();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [googleAuthToken]);
+  }, [accessToken]);
 
   const emailUploadOptions = (
     <div className='flex w-full flex-col items-center justify-center gap-6'>
@@ -148,18 +144,9 @@ const EmailUploader = ({
           className='flex w-max items-center gap-2 px-6 text-base leading-none font-semibold'
           onClick={() => {
             analytics.capture('gmail_connect');
-            // TODO: it is temporary setup just to navigate
-            const exampleRawEmail: RawEmailResponse = {
-              emailMessageId: '1234567890',
-              subject: 'Hello World',
-              internalDate: '1680000000000',
-              decodedContents: 'This is the decoded email content.',
-            };
-            setFetchedEmails([exampleRawEmail]);
-            googleLogIn(() => {
-              setIsFetchEmailLoading(true);
-              setFile(null);
-            });
+            setIsFetchEmailLoading(true);
+            setFile(null);
+            signIn('google');
           }}
         >
           <Image
@@ -255,10 +242,13 @@ const EmailUploader = ({
           </span>
           <span className='text-base leading-tight font-normal tracking-tight text-secondary'>
             {' '}
-            as prakharsingh0908@gmail.com
+            as {session?.user?.email ?? 'Unknown'}
           </span>
         </div>
-        <Button className='flex h-auto items-center justify-between gap-1 rounded-md border-0 bg-accent-background-red px-2 py-1.5 leading-2 sm:bg-destructive'>
+        <Button
+          onClick={() => signOut()}
+          className='flex h-auto items-center justify-between gap-1 rounded-md border-0 bg-accent-background-red px-2 py-1.5 leading-2 sm:bg-destructive'
+        >
           <SignOutIcon size={16} className='text-destructive sm:text-white' />
           <div className='hidden justify-start text-sm leading-2 font-medium text-white sm:flex'>
             Sign Out
@@ -355,10 +345,13 @@ const EmailUploader = ({
           </span>
           <span className='text-base leading-tight font-normal tracking-tight text-secondary'>
             {' '}
-            as prakharsingh0908@gmail.com
+            as {session?.user?.email ?? 'Unknown'}
           </span>
         </div>
-        <Button className='flex h-auto items-center justify-between gap-1 rounded-md border-0 bg-accent-background-red px-2 py-1.5 leading-2 sm:bg-destructive'>
+        <Button
+          onClick={() => signOut()}
+          className='flex h-auto items-center justify-between gap-1 rounded-md border-0 bg-accent-background-red px-2 py-1.5 leading-2 sm:bg-destructive'
+        >
           <SignOutIcon size={16} className='text-destructive sm:text-white' />
           <div className='hidden justify-start text-sm leading-2 font-medium text-white sm:flex'>
             Sign Out
@@ -371,12 +364,19 @@ const EmailUploader = ({
     </div>
   );
 
+  // Show loading while session is being fetched
+  if (isLoading) {
+    return (
+      <div className='w-full'>
+        <Loader />
+      </div>
+    );
+  }
+
   return (
     <div className='w-full'>
       {isFetchEmailLoading && !fetchedEmails.length ? (
-        <div>
-          <Loader />
-        </div>
+        <Loader />
       ) : fetchedEmails.length === 0 ? (
         emailUploadOptions
       ) : fetchedEmails.length === 1 ? (
