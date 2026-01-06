@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { signIn, signOut, useSession } from 'next-auth/react';
 import { Dispatch, SetStateAction, useEffect, useRef, useState } from 'react';
 
+import type { GmailResponse } from '@/app/api/gmail/route';
 import {
   Accordion,
   AccordionContent,
@@ -22,9 +23,8 @@ import { analytics } from '@/lib/analytics';
 import { getFileContent } from '@/lib/utils';
 
 import Calendar from '../search/Calendar';
-import logResults from './contributeData.json';
 import DragAndDropFile from './DragAndDropFile';
-import ProcessedLogs from './ProcessedLogs';
+import ProcessedLogs, { type LogResultItem } from './ProcessedLogs';
 
 const MAX_EMPTY_PAGE_RETRIES = 5;
 
@@ -47,10 +47,27 @@ const EmailUploader = ({
   const [openItem, setOpenItem] = useState('');
   const emptyPageRetriesRef = useRef(0);
 
+  // API fetching state
+  const [logResults, setLogResults] = useState<LogResultItem[]>([]);
+  const [isProcessingEmails, setIsProcessingEmails] = useState(false);
+  const [apiPageToken, setApiPageToken] = useState<string | null>(null);
+  const [processedCount, setProcessedCount] = useState(0);
+  const [totalMessages, setTotalMessages] = useState<number | null>(null);
+  const [addedCount, setAddedCount] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
+  const isPausedRef = useRef(false);
+
   const { data: session, status } = useSession();
   const isLoading = status === 'loading';
   const isAuthenticated = status === 'authenticated';
   const accessToken = session?.accessToken;
+  const hasGmailScope = session?.hasGmailScope;
+
+  // Filter state
+  const [domainFilter, setDomainFilter] = useState<string>('');
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
 
   useEffect(() => {
     const checkFileValidity = async (file: File | null) => {
@@ -136,6 +153,132 @@ const EmailUploader = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken]);
+
+  // Construct Gmail query from filters
+  const constructGmailQuery = () => {
+    const queryParts: string[] = [];
+
+    if (startDate) {
+      const formatted = `${startDate.getFullYear()}/${String(startDate.getMonth() + 1).padStart(2, '0')}/${String(startDate.getDate()).padStart(2, '0')}`;
+      queryParts.push(`after:${formatted}`);
+    }
+
+    if (endDate) {
+      const formatted = `${endDate.getFullYear()}/${String(endDate.getMonth() + 1).padStart(2, '0')}/${String(endDate.getDate()).padStart(2, '0')}`;
+      queryParts.push(`before:${formatted}`);
+    }
+
+    if (domainFilter.trim()) {
+      queryParts.push(`from:${domainFilter.trim()}`);
+    }
+
+    return queryParts.join(' ');
+  };
+
+  const handleStartUpload = () => {
+    analytics.capture('email_process_start', { source: 'gmail' });
+
+    // Validate date range
+    if (startDate && endDate && endDate < startDate) {
+      setUploadError('End date must be after start date');
+      return;
+    }
+
+    const query = constructGmailQuery();
+    setEmailQuery(query || null);
+
+    setIsProcessingEmails(true);
+    setIsPaused(false);
+    isPausedRef.current = false;
+    setIsDataFetching(true);
+
+    // Pass query directly since setEmailQuery is async
+    fetchFromGmailApiWithQuery(query || null);
+  };
+
+  // Separate function to pass query directly
+  const fetchFromGmailApiWithQuery = async (
+    gmailQuery: string | null,
+    pageToken?: string | null
+  ) => {
+    if (isPausedRef.current) return;
+
+    try {
+      setUploadError(null);
+      const params = new URLSearchParams();
+      if (pageToken) params.set('pageToken', pageToken);
+      if (gmailQuery) params.set('gmailQuery', gmailQuery);
+
+      const response = await fetch(`/api/gmail?${params.toString()}`);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to fetch emails');
+      }
+
+      const data: GmailResponse = await response.json();
+
+      // Set total messages on first page
+      if (data.messagesTotal && !totalMessages) {
+        setTotalMessages(data.messagesTotal);
+      }
+
+      // Transform addDspResults to log format
+      const newLogItems: LogResultItem[] = data.addDspResults.map(
+        (result, index) => ({
+          id: `${Date.now()}-${index}-${result.domainSelectorPair.domain}-${result.domainSelectorPair.selector}`,
+          domain: result.domainSelectorPair.domain,
+          selector: result.domainSelectorPair.selector,
+          timestamp: result.mailTimestamp || new Date().toISOString(),
+          isAdded: result.addResult.added,
+          isUpdated: result.addResult.already_in_db && !result.addResult.added,
+        })
+      );
+
+      setLogResults((prev) => [...prev, ...newLogItems]);
+      setProcessedCount((prev) => prev + data.messagesProcessed);
+      setAddedCount(
+        (prev) =>
+          prev + data.addDspResults.filter((r) => r.addResult.added).length
+      );
+
+      // Continue fetching if there's more
+      if (data.nextPageToken && !isPausedRef.current) {
+        setApiPageToken(data.nextPageToken);
+        // Small delay to avoid rate limiting
+        setTimeout(
+          () => fetchFromGmailApiWithQuery(gmailQuery, data.nextPageToken),
+          500
+        );
+      } else {
+        setIsProcessingEmails(false);
+        setApiPageToken(null);
+      }
+    } catch (error) {
+      console.error('Error fetching from Gmail API:', error);
+      setUploadError(
+        error instanceof Error ? error.message : 'An error occurred'
+      );
+      setIsProcessingEmails(false);
+    }
+  };
+
+  const handlePauseUpload = () => {
+    setIsPaused(true);
+    isPausedRef.current = true;
+    setIsProcessingEmails(false);
+  };
+
+  const handleResumeUpload = () => {
+    setIsPaused(false);
+    isPausedRef.current = false;
+    setIsProcessingEmails(true);
+    fetchFromGmailApiWithQuery(emailQuery, apiPageToken);
+  };
+
+  const handleClearLog = () => {
+    setLogResults([]);
+  };
 
   const emailUploadOptions = (
     <div className='flex w-full flex-col items-center justify-center gap-6'>
@@ -233,6 +376,48 @@ const EmailUploader = ({
     </div>
   );
 
+  // Show insufficient permissions message
+  const insufficientPermissions = (
+    <div className='flex w-full flex-col items-center justify-center gap-6'>
+      <div className='inline-flex items-center justify-between self-stretch'>
+        <div className='flex-1 justify-start'>
+          <span className='text-base leading-tight font-normal tracking-tight text-primary'>
+            Signed in
+          </span>
+          <span className='text-base leading-tight font-normal tracking-tight text-secondary'>
+            {' '}
+            as {session?.user?.email ?? 'Unknown'}
+          </span>
+        </div>
+        <Button
+          onClick={() => signOut()}
+          className='flex h-auto items-center justify-between gap-1 rounded-md border-0 bg-accent-background-red px-2 py-1.5 leading-2 sm:bg-destructive'
+        >
+          <SignOutIcon size={16} className='text-destructive sm:text-white' />
+          <div className='hidden justify-start text-sm leading-2 font-medium text-white sm:flex'>
+            Sign Out
+          </div>
+        </Button>
+      </div>
+      <div className='rounded-lg border border-destructive bg-destructive/10 p-4'>
+        <div className='text-base font-medium text-destructive'>
+          Insufficient permissions
+        </div>
+        <div className='mt-2 text-sm text-secondary'>
+          To use this feature, you need to grant permission to access email
+          messages. Please{' '}
+          <button
+            onClick={() => signOut()}
+            className='text-primary underline hover:no-underline'
+          >
+            sign out
+          </button>{' '}
+          and sign in again, granting the Gmail access permission.
+        </div>
+      </div>
+    </div>
+  );
+
   const emailFetchFilter = (
     <div className='flex w-full flex-col items-center justify-center gap-6'>
       <div className='inline-flex items-center justify-between self-stretch'>
@@ -267,6 +452,8 @@ const EmailUploader = ({
           </div>
           <Input
             placeholder='zkemail.com'
+            value={domainFilter}
+            onChange={(e) => setDomainFilter(e.target.value)}
             className='flex w-full items-center justify-center gap-2 self-stretch rounded-lg border-border px-3 py-2'
           />
         </div>
@@ -275,30 +462,28 @@ const EmailUploader = ({
             <div className='self-stretch leading-tight tracking-tight text-primary'>
               Start Date
             </div>
-            <Calendar />
+            <Calendar
+              date={startDate ?? undefined}
+              onChange={(date) => setStartDate(date ?? null)}
+            />
           </div>
           <div className='flex w-full flex-col self-stretch'>
             <div className='self-stretch leading-tight tracking-tight text-primary'>
               End Date
             </div>
-            <Calendar />
+            <Calendar
+              date={endDate ?? undefined}
+              onChange={(date) => setEndDate(date ?? null)}
+            />
           </div>
         </div>
       </div>
+      {uploadError && (
+        <div className='w-full text-sm text-destructive'>{uploadError}</div>
+      )}
       <div className='flex flex-col items-center justify-center gap-2 self-stretch'>
         <Button
-          onClick={() => {
-            analytics.capture('email_process_start', { source: 'gmail' });
-            // TODO: it is temporary setup just to navigate
-            const exampleRawEmail: RawEmailResponse = {
-              emailMessageId: '1234567890',
-              subject: 'Hello World',
-              internalDate: '1680000000000',
-              decodedContents: 'This is the decoded email content.',
-            };
-            setFetchedEmails([exampleRawEmail, exampleRawEmail]);
-            setIsDataFetching(true);
-          }}
+          onClick={handleStartUpload}
           className='inline-flex items-center justify-center gap-2 overflow-hidden rounded-lg px-6 py-3'
         >
           <div className='flex w-auto items-center justify-center gap-2'>
@@ -318,7 +503,7 @@ const EmailUploader = ({
             Domain/selector-pairs added
           </div>
           <div className='text-base leading-tight font-normal tracking-tight'>
-            5
+            {addedCount}
           </div>
         </div>
         <div className='flex w-full items-center justify-between'>
@@ -326,7 +511,7 @@ const EmailUploader = ({
             Pairs uploaded
           </div>
           <div className='justify-start text-right text-base leading-tight font-normal tracking-tight'>
-            138
+            {logResults.length}
           </div>
         </div>
         <div className='flex w-full items-center justify-between'>
@@ -334,9 +519,13 @@ const EmailUploader = ({
             Emails Processed
           </div>
           <div className='justify-start text-right text-base leading-tight font-normal tracking-tight'>
-            580 of 13405
+            {processedCount}
+            {totalMessages ? ` of ${totalMessages}` : ''}
           </div>
         </div>
+        {uploadError && (
+          <div className='w-full text-sm text-destructive'>{uploadError}</div>
+        )}
       </div>
       <div className='flex items-center justify-between self-stretch'>
         <div className='flex-1 justify-start'>
@@ -359,7 +548,14 @@ const EmailUploader = ({
         </Button>
       </div>
       <div className='flex h-auto flex-col items-start justify-start gap-4 self-stretch overflow-hidden'>
-        <ProcessedLogs logResults={logResults} />
+        <ProcessedLogs
+          logResults={logResults}
+          isProcessing={isProcessingEmails}
+          isPaused={isPaused}
+          onPause={handlePauseUpload}
+          onResume={handleResumeUpload}
+          onClearLog={handleClearLog}
+        />
       </div>
     </div>
   );
@@ -373,17 +569,23 @@ const EmailUploader = ({
     );
   }
 
+  // Determine which view to show based on state
+  const hasStartedUpload =
+    isProcessingEmails || isPaused || logResults.length > 0;
+
   return (
     <div className='w-full'>
-      {isFetchEmailLoading && !fetchedEmails.length ? (
-        <Loader />
-      ) : fetchedEmails.length === 0 ? (
-        emailUploadOptions
-      ) : fetchedEmails.length === 1 ? (
-        emailFetchFilter
-      ) : (
-        emailFetchData
-      )}
+      {!isAuthenticated
+        ? // Not signed in - show Gmail connect + file upload options
+          emailUploadOptions
+        : hasGmailScope === false
+          ? // Signed in but no Gmail scope - show error
+            insufficientPermissions
+          : hasStartedUpload
+            ? // Upload in progress or completed - show logs
+              emailFetchData
+            : // Signed in but not started - show filters + upload button
+              emailFetchFilter}
     </div>
   );
 };
