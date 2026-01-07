@@ -1,11 +1,17 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 'use client';
 
-import { EnvelopeIcon, QuestionIcon, SignOutIcon } from '@phosphor-icons/react';
+import {
+  ArrowCounterClockwiseIcon,
+  EnvelopeIcon,
+  QuestionIcon,
+  SignOutIcon,
+} from '@phosphor-icons/react';
 import Image from 'next/image';
 import { signIn, signOut, useSession } from 'next-auth/react';
 import { Dispatch, SetStateAction, useEffect, useRef, useState } from 'react';
 
+import type { AddDspResponse } from '@/app/api/dsp/route';
 import type { GmailResponse } from '@/app/api/gmail/route';
 import {
   Accordion,
@@ -20,7 +26,11 @@ import { Separator } from '@/components/ui/separator';
 import { RawEmailResponse } from '@/hooks/useGmailClient';
 import { fetchEmailList, fetchEmailsRaw } from '@/hooks/useGmailClient';
 import { analytics } from '@/lib/analytics';
-import { getFileContent } from '@/lib/utils';
+import {
+  getDkimSigsArray,
+  getFileContent,
+  parseDkimTagListV2,
+} from '@/lib/utils';
 
 import Calendar from '../search/Calendar';
 import DragAndDropFile from './DragAndDropFile';
@@ -29,10 +39,8 @@ import ProcessedLogs, { type LogResultItem } from './ProcessedLogs';
 const MAX_EMPTY_PAGE_RETRIES = 5;
 
 const EmailUploader = ({
-  onFileUpload,
   setIsDataFetching,
 }: {
-  onFileUpload: (file: File) => void;
   setIsDataFetching: Dispatch<SetStateAction<boolean>>;
 }) => {
   const [file, setFile] = useState<File | null>(null);
@@ -57,6 +65,8 @@ const EmailUploader = ({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState(false);
   const isPausedRef = useRef(false);
+  // Persists true once upload starts - prevents reverting to filter screen on error
+  const [uploadStarted, setUploadStarted] = useState(false);
 
   const { data: session, status } = useSession();
   const isLoading = status === 'loading';
@@ -101,6 +111,7 @@ const EmailUploader = ({
     checkFileValidity(file);
   }, [file]);
 
+  //TODO: currently it is not used, we are still using /api/gmail as used in older archive, but this need to come to client side.
   const handleFetchEmails = async () => {
     if (!accessToken) return;
 
@@ -187,6 +198,7 @@ const EmailUploader = ({
     const query = constructGmailQuery();
     setEmailQuery(query || null);
 
+    setUploadStarted(true); // Persist view transition
     setIsProcessingEmails(true);
     setIsPaused(false);
     isPausedRef.current = false;
@@ -280,6 +292,103 @@ const EmailUploader = ({
     setLogResults([]);
   };
 
+  // Reset to start a new upload session
+  const handleNewUpload = () => {
+    setUploadStarted(false);
+    setIsProcessingEmails(false);
+    setIsPaused(false);
+    isPausedRef.current = false;
+    setLogResults([]);
+    setProcessedCount(0);
+    setTotalMessages(null);
+    setAddedCount(0);
+    setUploadError(null);
+    setApiPageToken(null);
+    setIsDataFetching(false);
+    setFile(null);
+  };
+
+  // Process uploaded .eml file - extract DKIM and call /api/dsp
+  const handleProcessFile = async () => {
+    if (!file) return;
+
+    analytics.capture('file_process_start', { source: 'file_upload' });
+    setUploadStarted(true);
+    setIsProcessingEmails(true);
+    setUploadError(null);
+    setLogResults([]);
+    setAddedCount(0);
+    setProcessedCount(0);
+
+    try {
+      const content = await getFileContent(file);
+      if (!content) {
+        throw new Error('Could not read file content');
+      }
+
+      // Extract DKIM signatures from email
+      const dkimSigs = getDkimSigsArray(content);
+      if (dkimSigs.length === 0) {
+        throw new Error('No DKIM signatures found in email');
+      }
+
+      setTotalMessages(dkimSigs.length);
+
+      // Process each DKIM signature
+      for (let i = 0; i < dkimSigs.length; i++) {
+        const sig = dkimSigs[i];
+        const parsed = parseDkimTagListV2(sig);
+        const domain = parsed['d'];
+        const selector = parsed['s'];
+
+        if (!domain || !selector) {
+          console.warn('Missing domain or selector in DKIM signature:', sig);
+          continue;
+        }
+
+        setProcessedCount(i + 1);
+
+        try {
+          const response = await fetch('/api/dsp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ domain, selector }),
+          });
+
+          const data: AddDspResponse = await response.json();
+
+          const logItem: LogResultItem = {
+            id: `file-${Date.now()}-${i}-${domain}-${selector}`,
+            domain,
+            selector,
+            timestamp: new Date().toISOString(),
+            isAdded: data.addResult?.added ?? false,
+            isUpdated:
+              (data.addResult?.already_in_db ?? false) &&
+              !(data.addResult?.added ?? false),
+          };
+
+          setLogResults((prev) => [...prev, logItem]);
+
+          if (data.addResult?.added) {
+            setAddedCount((prev) => prev + 1);
+          }
+        } catch (err) {
+          console.error(`Error adding ${domain}/${selector}:`, err);
+          // Continue with next signature
+        }
+      }
+
+      setIsProcessingEmails(false);
+    } catch (error) {
+      console.error('Error processing file:', error);
+      setUploadError(
+        error instanceof Error ? error.message : 'Failed to process file'
+      );
+      setIsProcessingEmails(false);
+    }
+  };
+
   const emailUploadOptions = (
     <div className='flex w-full flex-col items-center justify-center gap-6'>
       <div className='flex w-full flex-col items-center justify-center gap-3'>
@@ -328,15 +437,26 @@ const EmailUploader = ({
               </p>
             </div>
           }
-          setFile={async (e) => {
+          setFile={(e) => {
             if (!e) return;
             analytics.capture('file_upload_start', {
               fileType: e.name.split('.').pop(),
             });
             setFile(e);
-            onFileUpload(e);
           }}
         />
+        {/* Process File button - shown after file is uploaded */}
+        {file && (
+          <Button
+            onClick={handleProcessFile}
+            className='mt-4 inline-flex items-center justify-center gap-2 overflow-hidden rounded-lg px-6 py-3'
+          >
+            <div className='flex w-auto items-center justify-center gap-2'>
+              <EnvelopeIcon size={16} weight='bold' />
+              <div>Process Email File</div>
+            </div>
+          </Button>
+        )}
       </div>
       <Accordion
         type='single'
@@ -557,6 +677,19 @@ const EmailUploader = ({
           onClearLog={handleClearLog}
         />
       </div>
+      {/* Show "Start New Upload" when upload is completed (not processing/paused) */}
+      {!isProcessingEmails && !isPaused && logResults.length > 0 && (
+        <div className='flex justify-center self-stretch pt-2'>
+          <Button
+            onClick={handleNewUpload}
+            variant='outline'
+            className='flex items-center gap-2'
+          >
+            <ArrowCounterClockwiseIcon size={16} weight='bold' />
+            Start New Upload
+          </Button>
+        </div>
+      )}
     </div>
   );
 
@@ -570,20 +703,22 @@ const EmailUploader = ({
   }
 
   // Determine which view to show based on state
+  // uploadStarted persists even after errors/completion to prevent reverting to filter
   const hasStartedUpload =
-    isProcessingEmails || isPaused || logResults.length > 0;
+    uploadStarted || isProcessingEmails || isPaused || logResults.length > 0;
 
   return (
     <div className='w-full'>
-      {!isAuthenticated
-        ? // Not signed in - show Gmail connect + file upload options
-          emailUploadOptions
-        : hasGmailScope === false
-          ? // Signed in but no Gmail scope - show error
-            insufficientPermissions
-          : hasStartedUpload
-            ? // Upload in progress or completed - show logs
-              emailFetchData
+      {/* Check hasStartedUpload FIRST - applies to both file and Gmail uploads */}
+      {hasStartedUpload
+        ? // Upload in progress or completed - show logs
+          emailFetchData
+        : !isAuthenticated
+          ? // Not signed in - show Gmail connect + file upload options
+            emailUploadOptions
+          : hasGmailScope === false
+            ? // Signed in but no Gmail scope - show error
+              insufficientPermissions
             : // Signed in but not started - show filters + upload button
               emailFetchFilter}
     </div>
