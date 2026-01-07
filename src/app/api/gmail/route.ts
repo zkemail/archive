@@ -27,7 +27,7 @@ const queryParamsSchema = z.object({
   gmailQuery: z
     .string()
     .max(200)
-    .regex(/^[a-zA-Z0-9@.:\-_\s]*$/, 'Invalid characters in query')
+    .regex(/^[a-zA-Z0-9@.:\-_/\s]*$/, 'Invalid characters in query')
     .optional(),
 });
 
