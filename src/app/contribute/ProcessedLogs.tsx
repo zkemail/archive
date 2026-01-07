@@ -1,9 +1,4 @@
-import {
-  MinusIcon,
-  PauseCircleIcon,
-  PlayIcon,
-  TrashIcon,
-} from '@phosphor-icons/react';
+import { PauseCircleIcon, PlayIcon, TrashIcon } from '@phosphor-icons/react';
 import React from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -27,7 +22,6 @@ interface ProcessedLogsProps {
   onPause?: () => void;
   onResume?: () => void;
   onClearLog?: () => void;
-  onCollapse?: () => void;
 }
 
 const LogItem = ({ item }: any) => {
@@ -58,7 +52,7 @@ const LogItem = ({ item }: any) => {
         <div className='min-w-0 pr-2 text-base leading-tight font-normal tracking-tight text-ring dark:text-secondary'>
           Domain
         </div>
-        <div className='col-span-4 col-start-2 min-w-0 text-base leading-tight font-normal tracking-tight break-words sm:col-span-3'>
+        <div className='warp-break-words col-span-4 col-start-2 min-w-0 text-base leading-tight font-normal tracking-tight sm:col-span-3'>
           {item.domain}
         </div>
         <div className='hidden min-w-0 pr-2 text-right text-base leading-tight font-normal tracking-tight text-ring sm:flex'>
@@ -69,7 +63,7 @@ const LogItem = ({ item }: any) => {
         <div className='min-w-0 pr-2 text-base leading-tight font-normal tracking-tight text-ring dark:text-secondary'>
           Selector
         </div>
-        <div className='col-span-4 col-start-2 min-w-0 truncate font-mono text-base leading-tight font-normal tracking-tight break-words overflow-ellipsis sm:col-span-3'>
+        <div className='warp-break-words col-span-4 col-start-2 min-w-0 truncate font-mono text-base leading-tight font-normal tracking-tight overflow-ellipsis sm:col-span-3'>
           {item.selector}
         </div>
         <div className='col-span-1 hidden min-w-0 pr-2 text-right text-xs leading-tight font-normal tracking-tight text-ring sm:flex dark:text-secondary'>
@@ -95,7 +89,6 @@ const ProcessedLogs = ({
   onPause,
   onResume,
   onClearLog,
-  onCollapse,
 }: ProcessedLogsProps) => {
   const statusText = isProcessing
     ? 'Uploading emails...'
@@ -144,16 +137,6 @@ const ProcessedLogs = ({
           >
             <TrashIcon size={16} weight='bold' aria-hidden='true' />
             Clear Log
-          </Button>
-          <Button
-            type='button'
-            variant='ghost'
-            size='sm'
-            className='hidden bg-foreground p-2 text-ring ring ring-[#606060]/50 sm:flex dark:text-secondary'
-            onClick={onCollapse}
-            aria-label='Collapse log panel'
-          >
-            <MinusIcon size={16} weight='bold' aria-hidden='true' />
           </Button>
         </div>
       </div>

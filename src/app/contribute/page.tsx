@@ -33,10 +33,7 @@ export default function Home() {
         />
       </div>
       <div className='flex w-14/15 max-w-[720px] flex-col items-start justify-start gap-6 rounded-br-3xl rounded-bl-3xl border-r border-b border-l border-border bg-foreground p-6'>
-        <EmailUploader
-          setIsDataFetching={setIsDataFetching}
-          onFileUpload={() => {}}
-        />
+        <EmailUploader setIsDataFetching={setIsDataFetching} />
       </div>
     </div>
   );
