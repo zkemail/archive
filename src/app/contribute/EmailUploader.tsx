@@ -315,6 +315,7 @@ const EmailUploader = ({
     analytics.capture('file_process_start', { source: 'file_upload' });
     setUploadStarted(true);
     setIsProcessingEmails(true);
+    setIsDataFetching(true);
     setUploadError(null);
     setLogResults([]);
     setAddedCount(0);
