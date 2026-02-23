@@ -1,6 +1,5 @@
 import { headers } from 'next/headers';
 import { type NextRequest, NextResponse } from 'next/server';
-import { RateLimiterMemory } from 'rate-limiter-flexible';
 
 import {
   badRequest,
@@ -8,12 +7,12 @@ import {
   serverError,
   validationError,
 } from '@/lib/api-response';
-import { logger } from '@/lib/logger';
 import {
-  addDomainSelectorPair,
-  type AddResult,
-  checkRateLimiter,
-} from '@/lib/utils_server';
+  checkClientRateLimit,
+  resolveClientIdentity,
+} from '@/lib/client-identity';
+import { logger } from '@/lib/logger';
+import { addDomainSelectorPair, type AddResult } from '@/lib/utils_server';
 import { type DspBody, dspBodySchema } from '@/lib/validation';
 
 export type AddDspResponse = {
@@ -21,11 +20,12 @@ export type AddDspResponse = {
   addResult?: AddResult;
 };
 
-const rateLimiter = new RateLimiterMemory({ points: 1200, duration: 360 });
-
 export async function POST(request: NextRequest) {
+  const hdrs = await headers();
+  const identity = await resolveClientIdentity(hdrs);
+
   try {
-    await checkRateLimiter(rateLimiter, await headers(), 1);
+    await checkClientRateLimit(identity);
   } catch {
     return rateLimited();
   }
@@ -43,6 +43,13 @@ export async function POST(request: NextRequest) {
   }
 
   const { domain, selector } = parsed.data;
+
+  logger.info('api_request', {
+    clientType: identity.type,
+    clientId: identity.identifier,
+    endpoint: 'dsp',
+    domain: domain ?? undefined,
+  });
 
   try {
     const addResult = await addDomainSelectorPair(domain, selector, 'api');
