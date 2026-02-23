@@ -81,6 +81,16 @@ model StatsCache {
   updatedAt           DateTime @updatedAt
 }
 
+model ApiKey {
+  id         Int       @id @default(autoincrement())
+  keyHash    String    @unique // SHA-256 hash of the raw key (never store raw)
+  name       String    @unique // human label e.g. "kapwing"
+  rateLimit  Int       @default(1000) // requests per second
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+}
+
 enum KeyType {
   RSA
   Ed25519
