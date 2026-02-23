@@ -1,23 +1,23 @@
 import { headers } from 'next/headers';
 import { type NextRequest, NextResponse } from 'next/server';
-import { RateLimiterMemory } from 'rate-limiter-flexible';
 
 import { type DomainSearchResults } from '@/app/api/key/route';
 import { rateLimited, serverError, validationError } from '@/lib/api-response';
+import {
+  checkClientRateLimit,
+  resolveClientIdentity,
+} from '@/lib/client-identity';
 import { findRecordsWithCache, type RecordWithSelector } from '@/lib/db';
 import { logger } from '@/lib/logger';
-import {
-  addDomainSelectorPair,
-  checkRateLimiter,
-  fetchDkimDnsRecord,
-} from '@/lib/utils_server';
+import { addDomainSelectorPair, fetchDkimDnsRecord } from '@/lib/utils_server';
 import { dspQuerySchema } from '@/lib/validation';
 
-const rateLimiter = new RateLimiterMemory({ points: 2000, duration: 1 });
-
 export async function GET(request: NextRequest) {
+  const hdrs = await headers();
+  const identity = await resolveClientIdentity(hdrs);
+
   try {
-    await checkRateLimiter(rateLimiter, await headers(), 1);
+    await checkClientRateLimit(identity);
   } catch {
     return rateLimited();
   }
@@ -30,6 +30,13 @@ export async function GET(request: NextRequest) {
   }
 
   const { domain, selector } = parsed.data;
+
+  logger.info('api_request', {
+    clientType: identity.type,
+    clientId: identity.identifier,
+    endpoint: 'key/domain',
+    domain: domain ?? undefined,
+  });
 
   try {
     // Fetch from database
