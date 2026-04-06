@@ -1,4 +1,19 @@
-project_id                   = "your-project-id"
-region                       = "us-central1"
-environment                  = "dev"
-archive_service_account_email = ""
+project_id   = "zkemail"
+region       = "us-central1"
+environment  = "prod"
+image_tag    = "latest"   # overridden by CI with the git SHA
+
+cloud_sql_instance = "zkemail:us-central1:dkimregistry"
+cloud_sql_db_user  = "render"
+cloud_sql_db_name  = "dkimdb"
+
+next_public_google_client_id = "your-google-oauth-client-id.apps.googleusercontent.com"
+
+# Secrets — never commit real values; set via CI env vars or a local terraform.tfvars
+db_password        = ""
+auth_google_id     = ""   # same as next_public_google_client_id
+auth_google_secret = ""
+auth_secret        = ""   # openssl rand -base64 32
+cron_secret        = ""   # openssl rand -base64 32
+witness_api_key    = ""   # optional
+posthog_key        = ""   # optional

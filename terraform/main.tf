@@ -16,6 +16,10 @@ terraform {
       source  = "hashicorp/archive"
       version = "~> 2.4"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
   }
 }
 
@@ -59,7 +63,10 @@ resource "google_project_service" "required_apis" {
     "artifactregistry.googleapis.com",
     "run.googleapis.com",
     "eventarc.googleapis.com",
-    "pubsub.googleapis.com"
+    "pubsub.googleapis.com",
+    "secretmanager.googleapis.com",
+    "cloudscheduler.googleapis.com",
+    "sqladmin.googleapis.com",
   ])
 
   service                    = each.value
@@ -239,4 +246,246 @@ resource "google_cloud_run_service_iam_member" "function_run_invoker" {
   service  = data.google_cloud_run_service.function_service.name
   role     = "roles/run.invoker"
   member   = "serviceAccount:${google_service_account.tasks_sa.email}"
+}
+
+# ── Artifact Registry ─────────────────────────────────────────────────────────
+
+resource "google_artifact_registry_repository" "archive" {
+  project       = var.project_id
+  location      = var.region
+  repository_id = "archive"
+  description   = "Docker images for archive.zk.email"
+  format        = "DOCKER"
+
+  depends_on = [google_project_service.required_apis]
+}
+
+# ── Service account for the Next.js Cloud Run service ─────────────────────────
+
+resource "google_service_account" "archive_app_sa" {
+  account_id   = "archive-app-${local.suffix}"
+  display_name = "Archive Next.js App (${terraform.workspace})"
+  project      = var.project_id
+}
+
+resource "google_project_iam_member" "archive_app_sa_roles" {
+  for_each = toset([
+    "roles/cloudsql.client",
+    "roles/cloudtasks.enqueuer",
+    "roles/secretmanager.secretAccessor",
+    "roles/logging.logWriter",
+    "roles/monitoring.metricWriter",
+  ])
+
+  project = var.project_id
+  role    = each.value
+  member  = "serviceAccount:${google_service_account.archive_app_sa.email}"
+}
+
+# ── Secret Manager ────────────────────────────────────────────────────────────
+
+locals {
+  secrets = {
+    DATABASE_URL                 = "postgresql://${var.cloud_sql_db_user}:${var.db_password}@/${var.cloud_sql_db_name}?host=/cloudsql/${var.cloud_sql_instance}"
+    AUTH_GOOGLE_ID               = var.auth_google_id
+    AUTH_GOOGLE_SECRET           = var.auth_google_secret
+    AUTH_SECRET                  = var.auth_secret
+    CRON_SECRET                  = var.cron_secret
+    WITNESS_API_KEY              = var.witness_api_key
+    NEXT_PUBLIC_POSTHOG_KEY      = var.posthog_key
+    GOOGLE_CLOUD_PROJECT_ID      = var.project_id
+    GOOGLE_CLOUD_REGION          = var.region
+    CLOUD_TASKS_QUEUE_NAME       = google_cloud_tasks_queue.gcd_calculator_queue.name
+    CLOUD_FUNCTION_URL           = google_cloudfunctions2_function.gcd_calculator.service_config[0].uri
+    TASKS_SERVICE_ACCOUNT_EMAIL  = google_service_account.tasks_sa.email
+  }
+}
+
+resource "google_secret_manager_secret" "archive_secrets" {
+  for_each  = local.secrets
+  project   = var.project_id
+  secret_id = "archive-${lower(replace(each.key, "_", "-"))}-${local.suffix}"
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [google_project_service.required_apis]
+}
+
+resource "google_secret_manager_secret_version" "archive_secrets" {
+  for_each    = local.secrets
+  secret      = google_secret_manager_secret.archive_secrets[each.key].id
+  secret_data = each.value
+}
+
+# ── Cloud Run (Next.js app) ───────────────────────────────────────────────────
+
+locals {
+  image = "${var.region}-docker.pkg.dev/${var.project_id}/archive/archive:${var.image_tag}"
+
+  # Build env list from secrets for Cloud Run
+  secret_env_vars = [
+    for k, v in local.secrets : {
+      name = k
+      value_source = {
+        secret_key_ref = {
+          secret  = google_secret_manager_secret.archive_secrets[k].secret_id
+          version = "latest"
+        }
+      }
+    }
+  ]
+}
+
+resource "google_cloud_run_v2_service" "archive" {
+  name     = "archive-${local.suffix}"
+  location = var.region
+  project  = var.project_id
+
+  deletion_protection = false
+
+  template {
+    service_account = google_service_account.archive_app_sa.email
+
+    scaling {
+      min_instance_count = 1
+      max_instance_count = 10
+    }
+
+    containers {
+      image = local.image
+
+      resources {
+        limits = {
+          cpu    = "1"
+          memory = "1Gi"
+        }
+        startup_cpu_boost = true
+      }
+
+      # Cloud SQL socket mount
+      volume_mounts {
+        name       = "cloudsql"
+        mount_path = "/cloudsql"
+      }
+
+      # Public build-time env vars (not secrets)
+      env {
+        name  = "NODE_ENV"
+        value = "production"
+      }
+      env {
+        name  = "NEXT_PUBLIC_GOOGLE_CLIENT_ID"
+        value = var.next_public_google_client_id
+      }
+      env {
+        name  = "NEXT_PUBLIC_POSTHOG_HOST"
+        value = "https://us.i.posthog.com"
+      }
+      env {
+        name  = "NEXTAUTH_URL"
+        value = local.suffix == "prod" ? "https://archive.zk.email" : "https://staging.archive.zk.email"
+      }
+
+      # All secrets injected as env vars
+      dynamic "env" {
+        for_each = local.secrets
+        content {
+          name = env.key
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.archive_secrets[env.key].secret_id
+              version = "latest"
+            }
+          }
+        }
+      }
+
+      liveness_probe {
+        http_get {
+          path = "/api/health"
+        }
+        initial_delay_seconds = 10
+        period_seconds        = 30
+      }
+
+      startup_probe {
+        http_get {
+          path = "/api/health"
+        }
+        initial_delay_seconds = 5
+        period_seconds        = 5
+        failure_threshold     = 10
+      }
+    }
+
+    volumes {
+      name = "cloudsql"
+      cloud_sql_instance {
+        instances = [var.cloud_sql_instance]
+      }
+    }
+  }
+
+  depends_on = [
+    google_project_service.required_apis,
+    google_secret_manager_secret_version.archive_secrets,
+    google_artifact_registry_repository.archive,
+    google_project_iam_member.archive_app_sa_roles,
+  ]
+}
+
+# Allow unauthenticated traffic to Cloud Run
+resource "google_cloud_run_v2_service_iam_member" "archive_public" {
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_service.archive.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+# ── Cloud Scheduler (stats cache refresh) ─────────────────────────────────────
+
+resource "google_service_account" "scheduler_sa" {
+  account_id   = "scheduler-${local.suffix}"
+  display_name = "Cloud Scheduler for archive stats (${terraform.workspace})"
+  project      = var.project_id
+}
+
+resource "google_cloud_run_v2_service_iam_member" "scheduler_invoker" {
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_service.archive.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.scheduler_sa.email}"
+}
+
+resource "google_cloud_scheduler_job" "refresh_stats" {
+  name             = "archive-refresh-stats-${local.suffix}"
+  description      = "Refresh StatsCache every 6 hours"
+  schedule         = "0 */6 * * *"
+  time_zone        = "UTC"
+  project          = var.project_id
+  region           = var.region
+  attempt_deadline = "320s"
+
+  http_target {
+    http_method = "POST"
+    uri         = "${google_cloud_run_v2_service.archive.uri}/api/stats"
+
+    headers = {
+      "Authorization" = "Bearer ${var.cron_secret}"
+      "Content-Type"  = "application/json"
+    }
+
+    oidc_token {
+      service_account_email = google_service_account.scheduler_sa.email
+    }
+  }
+
+  depends_on = [
+    google_project_service.required_apis,
+    google_cloud_run_v2_service.archive,
+  ]
 }
