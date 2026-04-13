@@ -6,7 +6,7 @@ import {
   checkClientRateLimit,
   resolveClientIdentity,
 } from '@/lib/client-identity';
-import { findRecords } from '@/lib/db';
+import { findRecordsWithCache } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { dspQuerySchema } from '@/lib/validation';
 
@@ -45,14 +45,7 @@ export async function GET(request: NextRequest) {
   });
 
   try {
-    let records = await findRecords(domain);
-
-    // Filter by selector if provided
-    if (selector) {
-      records = records.filter(
-        (record) => record.domainSelectorPair.selector === selector
-      );
-    }
+    const records = await findRecordsWithCache(domain, selector || undefined);
 
     const result: DomainSearchResults[] = records.map((record) => ({
       domain: record.domainSelectorPair.domain,

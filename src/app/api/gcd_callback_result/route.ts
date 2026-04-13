@@ -1,7 +1,6 @@
 import forge from 'node-forge';
 
 import { prisma } from '@/lib/db';
-import { generateWitness } from '@/lib/generateWitness';
 import { logger } from '@/lib/logger';
 import { encodeRsaPkcs1Digest, pubKeyLength } from '@/lib/utilsServer';
 
@@ -246,8 +245,6 @@ async function storeCalculationResult(data: {
         selector: data.metadata.selector,
       });
     }
-
-    generateWitness(domainSelectorPair, dkimRecord);
 
     // Find the email signature entries
     const emailSignatureA = await prisma.emailSignature.findFirst({

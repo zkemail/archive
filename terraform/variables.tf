@@ -1,5 +1,5 @@
 variable "project_id" {
-  description = "The GCP project ID"
+  description = "The GCP project ID (zkairdrop)"
   type        = string
 }
 
@@ -10,20 +10,14 @@ variable "region" {
 }
 
 variable "environment" {
-  description = "Environment (dev, staging, prod)"
+  description = "Environment (staging, prod)"
   type        = string
-  default     = "dev"
+  default     = "prod"
 
   validation {
-    condition     = contains(["dev", "staging", "prod"], var.environment)
-    error_message = "Environment must be one of: dev, staging, prod."
+    condition     = contains(["staging", "prod"], var.environment)
+    error_message = "Environment must be one of: staging, prod."
   }
-}
-
-variable "archive_service_account_email" {
-  description = "Service account email for the Next.js application (leave empty to create a new one)"
-  type        = string
-  default     = ""
 }
 
 variable "cloud_sql_instance" {
@@ -41,18 +35,18 @@ variable "cloud_sql_db_user" {
 variable "cloud_sql_db_name" {
   description = "Cloud SQL database name"
   type        = string
-  default     = "dkimdb"
+  default     = "prodduplicate_new_archive"
 }
 
 variable "image_tag" {
-  description = "Docker image tag to deploy"
+  description = "Docker image tag to deploy (overridden by CI with git SHA)"
   type        = string
   default     = "latest"
 }
 
-# Secrets - passed in via tfvars or CI environment, never committed
+# Secrets — never commit real values; pass via CI env vars or local terraform.tfvars
 variable "db_password" {
-  description = "Cloud SQL database password"
+  description = "Cloud SQL database password for the render user"
   type        = string
   sensitive   = true
 }
@@ -70,22 +64,15 @@ variable "auth_google_secret" {
 }
 
 variable "auth_secret" {
-  description = "NextAuth secret (AUTH_SECRET)"
+  description = "NextAuth secret (AUTH_SECRET) — generate with: openssl rand -base64 32"
   type        = string
   sensitive   = true
 }
 
 variable "cron_secret" {
-  description = "Bearer token for POST /api/stats (CRON_SECRET)"
+  description = "Bearer token for POST /api/stats (CRON_SECRET) — generate with: openssl rand -base64 32"
   type        = string
   sensitive   = true
-}
-
-variable "witness_api_key" {
-  description = "Witness.co API key (WITNESS_API_KEY)"
-  type        = string
-  sensitive   = true
-  default     = ""
 }
 
 variable "posthog_key" {
@@ -99,4 +86,20 @@ variable "next_public_google_client_id" {
   description = "Google OAuth client ID for client-side use (NEXT_PUBLIC_GOOGLE_CLIENT_ID)"
   type        = string
   default     = ""
+}
+
+# Existing Cloud Tasks / Cloud Functions infra (already deployed in zkairdrop)
+variable "cloud_tasks_queue_name" {
+  description = "Existing Cloud Tasks queue name for GCD calculator"
+  type        = string
+}
+
+variable "cloud_function_url" {
+  description = "Existing GCD calculator Cloud Function v2 URL"
+  type        = string
+}
+
+variable "tasks_service_account_email" {
+  description = "Service account email used by Cloud Tasks to invoke the GCD function"
+  type        = string
 }
