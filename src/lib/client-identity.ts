@@ -6,7 +6,7 @@ import { RateLimiterMemory } from 'rate-limiter-flexible';
 import type { ApiKey } from '@/generated/prisma/client';
 
 import { prisma } from './db';
-import { getClientIp } from './utils_server';
+import { getClientIp } from './utilsServer';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
