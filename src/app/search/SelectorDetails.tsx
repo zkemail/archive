@@ -42,6 +42,7 @@ const SelectorDetails = ({ data }: SelectorDetailsProps) => {
   const [openItems, setOpenItems] = useState<{ [key: string]: boolean }>({});
   const [activeDomain, setActiveDomain] = useState<string>('all');
   const domainRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const stickyHeaderRef = useRef<HTMLDivElement | null>(null);
 
   const DetailRow: React.FC<DetailRowProps> = ({
     label,
@@ -81,14 +82,19 @@ const SelectorDetails = ({ data }: SelectorDetailsProps) => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
-    const element = domainRefs.current[domain];
-    if (element) {
-      element.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
-        inline: 'nearest',
-      });
-    }
+    setTimeout(() => {
+      const element = domainRefs.current[domain];
+      if (element) {
+        const stickyHeight =
+          stickyHeaderRef.current?.getBoundingClientRect().height ?? 0;
+        const y =
+          element.getBoundingClientRect().top +
+          window.scrollY -
+          stickyHeight -
+          16;
+        window.scrollTo({ top: y, behavior: 'smooth' });
+      }
+    }, 100);
   };
 
   if (!data?.searchResults || !Array.isArray(data.searchResults)) {
@@ -110,7 +116,7 @@ const SelectorDetails = ({ data }: SelectorDetailsProps) => {
 
   return (
     <div className='flex w-full flex-col gap-6'>
-      <div className='sticky top-0 z-10 bg-foreground'>
+      <div ref={stickyHeaderRef} className='sticky top-0 z-10 bg-foreground'>
         <div className='flex flex-col flex-wrap gap-2'>
           <div className='flex flex-wrap gap-2'>
             <Button
@@ -161,7 +167,7 @@ const SelectorDetails = ({ data }: SelectorDetailsProps) => {
           ref={(el) => {
             domainRefs.current[domain] = el;
           }}
-          className='scroll-mt-24 rounded-lg border border-border'
+          className='scroll-mt-6 rounded-lg border border-border'
         >
           <div className='flex flex-col gap-1 border-border p-4'>
             <h3 className='text-xl leading-7 font-medium tracking-tight'>

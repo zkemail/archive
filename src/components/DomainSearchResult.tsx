@@ -163,7 +163,7 @@ export function DomainSearchResults({ domainQuery, filters = {} }: Props) {
     return <div className='text-secondary'>Enter a domain to search</div>;
   }
 
-  if (loading && !data) {
+  if (loading || (!data && !error)) {
     return (
       <div className='flex items-center justify-center py-8'>
         <div className='text-secondary'>Loading...</div>
