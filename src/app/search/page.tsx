@@ -55,7 +55,7 @@ export default function Home() {
   );
 
   return (
-    <div className='my-8 flex flex-col items-center justify-center'>
+    <div className='my-8 flex flex-1 flex-col items-center'>
       <div className='relative mx-auto aspect-12/5 w-14/15 max-w-[720px] overflow-clip rounded-t-3xl border border-border md:aspect-9/2'>
         <div className='absolute bottom-0 z-40 inline-flex flex-col items-start justify-start p-6'>
           <div className='flex justify-start text-[clamp(2rem,3.34vw,3rem)] font-bold text-white capitalize'>
