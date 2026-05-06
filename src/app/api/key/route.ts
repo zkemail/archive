@@ -1,0 +1,64 @@
+import { headers } from 'next/headers';
+import { type NextRequest, NextResponse } from 'next/server';
+import { RateLimiterMemory } from 'rate-limiter-flexible';
+
+import { rateLimited, serverError, validationError } from '@/lib/api-response';
+import { findRecords } from '@/lib/db';
+import { logger } from '@/lib/logger';
+import { checkRateLimiter } from '@/lib/utilsServer';
+import { dspQuerySchema } from '@/lib/validation';
+
+export type DomainSearchResults = {
+  domain: string;
+  selector: string;
+  firstSeenAt: Date | null;
+  lastSeenAt: Date | null;
+  value: string;
+};
+
+const rateLimiter = new RateLimiterMemory({ points: 1000, duration: 1 });
+
+export async function GET(request: NextRequest) {
+  try {
+    await checkRateLimiter(rateLimiter, await headers(), 1);
+  } catch {
+    return rateLimited();
+  }
+
+  const params = Object.fromEntries(request.nextUrl.searchParams.entries());
+  const parsed = dspQuerySchema.safeParse(params);
+
+  if (!parsed.success) {
+    return validationError(parsed.error);
+  }
+
+  const { domain, selector } = parsed.data;
+
+  try {
+    let records = await findRecords(domain);
+
+    // Filter by selector if provided
+    if (selector) {
+      records = records.filter(
+        (record) => record.domainSelectorPair.selector === selector
+      );
+    }
+
+    const result: DomainSearchResults[] = records.map((record) => ({
+      domain: record.domainSelectorPair.domain,
+      selector: record.domainSelectorPair.selector,
+      firstSeenAt: record.firstSeenAt,
+      lastSeenAt: record.lastSeenAt,
+      value: record.value,
+    }));
+
+    return NextResponse.json(result, { status: 200 });
+  } catch (error) {
+    logger.error('key_route_error', {
+      error: error instanceof Error ? error.message : String(error),
+      domain,
+      selector,
+    });
+    return serverError();
+  }
+}

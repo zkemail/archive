@@ -3,6 +3,7 @@ import { PostHog } from 'posthog-node';
 const isDev = process.env.NODE_ENV === 'development';
 
 // Lazy-init PostHog client for production (singleton)
+// server side analytics
 let posthogClient: PostHog | null = null;
 
 function getPostHog(): PostHog | null {

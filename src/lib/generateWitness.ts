@@ -1,3 +1,4 @@
+// Remove all the related to witness co.
 import { WitnessClient } from '@witnessco/client';
 
 import type { DkimRecord, DomainSelectorPair } from '@/generated/prisma/client';

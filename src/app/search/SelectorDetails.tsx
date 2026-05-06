@@ -6,6 +6,7 @@ import {
 } from '@phosphor-icons/react';
 import React, { useRef, useState } from 'react';
 
+import { type SearchResponse, type SearchResult } from '@/app/actions';
 import {
   Accordion,
   AccordionContent,
@@ -27,7 +28,11 @@ const isExpired = (lastActive: string) => {
   return daysDiff > 365;
 };
 
-const SelectorDetails = ({ data }: any) => {
+interface SelectorDetailsProps {
+  data: SearchResponse;
+}
+
+const SelectorDetails = ({ data }: SelectorDetailsProps) => {
   type DetailRowProps = {
     label: React.ReactNode;
     children: React.ReactNode;
@@ -90,13 +95,16 @@ const SelectorDetails = ({ data }: any) => {
     return <div className='text-red-500'>No data available</div>;
   }
 
-  const groupedByDomain = data.searchResults.reduce((acc: any, item: any) => {
-    if (!acc[item.domain]) {
-      acc[item.domain] = [];
-    }
-    acc[item.domain].push(item);
-    return acc;
-  }, {});
+  const groupedByDomain = data.searchResults.reduce(
+    (acc: Record<string, SearchResult[]>, item: SearchResult) => {
+      if (!acc[item.domain]) {
+        acc[item.domain] = [];
+      }
+      acc[item.domain].push(item);
+      return acc;
+    },
+    {}
+  );
 
   const domains = Object.keys(groupedByDomain).sort();
 
@@ -134,8 +142,15 @@ const SelectorDetails = ({ data }: any) => {
           </div>
           <div>
             <div className='text-base leading-tight tracking-tight text-secondary'>
-              <span className='text-primary'>2 domains</span> found for
-              coinbase.com
+              <span className='text-primary'>
+                {domains.length} domain{domains.length !== 1 ? 's' : ''}
+              </span>{' '}
+              found
+              {data.totalCount !== undefined && (
+                <span className='ml-1'>
+                  ({data.totalCount} total selectors)
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -159,7 +174,7 @@ const SelectorDetails = ({ data }: any) => {
             </p>
           </div>
           <div>
-            {groupedByDomain[domain].map((item: any, index: number) => (
+            {groupedByDomain[domain].map((item: SearchResult) => (
               <div key={item.id} className='border-t border-border'>
                 <div className='flex flex-col gap-4 px-4 py-3'>
                   <DetailRow label='Selector'>
@@ -227,14 +242,20 @@ const SelectorDetails = ({ data }: any) => {
                   type='single'
                   collapsible
                   className='w-full'
-                  value={openItems[item.id] ? `selector-detail-${item.id}` : ''}
+                  value={
+                    openItems[String(item.id)]
+                      ? `selector-detail-${item.id}`
+                      : ''
+                  }
                   onValueChange={() =>
-                    toggleAccordion(item.id, domain, item.selector)
+                    toggleAccordion(String(item.id), domain, item.selector)
                   }
                 >
                   <AccordionItem value={`selector-detail-${item.id}`}>
                     <AccordionTrigger className='p-4 font-normal tracking-tight text-secondary hover:no-underline'>
-                      {openItems[item.id] ? 'Hide details' : 'More Details'}
+                      {openItems[String(item.id)]
+                        ? 'Hide details'
+                        : 'More Details'}
                     </AccordionTrigger>
                     <AccordionContent className='flex flex-col gap-4 px-4 pt-2'>
                       <div className='max-w-4xl'>

@@ -1,13 +1,13 @@
 import './globals.css';
 
-import { GoogleOAuthProvider } from '@react-oauth/google';
 import type { Metadata } from 'next';
 import { Fustat } from 'next/font/google';
 import { ThemeProvider } from 'next-themes';
 
 import Footer from '@/components/Footer';
 import Navbar from '@/components/Navbar';
-import ToastProvider from '@/contexts/ToastProvider';
+
+import { NextAuthProvider } from './session-provider';
 
 const fustat = Fustat({ subsets: ['latin'] });
 
@@ -36,13 +36,15 @@ export default function RootLayout({
   return (
     <html lang='en' suppressHydrationWarning>
       <body className={`${fustat.className} transition-theme antialiased`}>
-        <ThemeProvider attribute='class' enableSystem defaultTheme='system'>
-          <div className='transition-theme flex h-screen flex-col justify-between'>
-            <Navbar />
-            {children}
-            <Footer />
-          </div>
-        </ThemeProvider>
+        <NextAuthProvider>
+          <ThemeProvider attribute='class' enableSystem defaultTheme='system'>
+            <div className='transition-theme flex h-screen flex-col justify-between'>
+              <Navbar />
+              {children}
+              <Footer />
+            </div>
+          </ThemeProvider>
+        </NextAuthProvider>
       </body>
     </html>
   );

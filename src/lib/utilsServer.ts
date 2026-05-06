@@ -1,6 +1,9 @@
 import { execFileSync } from 'node:child_process';
 
+import * as crypto from 'crypto';
 import dns from 'dns';
+import type { ReadonlyHeaders } from 'next/dist/server/web/spec-extension/adapters/headers';
+import type { RateLimiterMemory } from 'rate-limiter-flexible';
 
 import type { DomainSelectorPair, KeyType } from '@/generated/prisma/client';
 
@@ -13,6 +16,12 @@ import {
   kValueToKeyType,
   parseDkimTagList,
 } from './utils';
+
+export const DIGEST_INFO: Record<string, Buffer> = {
+  'rsa-sha1': Buffer.from('3021300906052b0e03021a05000414', 'hex'),
+  'rsa-sha256': Buffer.from('3031300d060960864801650304020105000420', 'hex'),
+  'rsa-sha512': Buffer.from('3051300d060960864801650304020305000440', 'hex'),
+};
 
 async function refreshKeysFromDns(dsp: DomainSelectorPair) {
   const now = new Date();
@@ -242,4 +251,179 @@ export function pubKeyLength(signature: any) {
     }
   }
   return minBytes;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Rate Limiting Helper
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function getClientIp(headers: ReadonlyHeaders): string {
+  const forwardedFor = headers.get('x-forwarded-for');
+  if (forwardedFor) {
+    return forwardedFor.split(',')[0].trim();
+  }
+
+  const realIp = headers.get('x-real-ip');
+  if (realIp) {
+    return realIp.trim();
+  }
+
+  // Fallback: use a global key to still enforce rate limiting
+  return 'unknown-ip';
+}
+
+export async function checkRateLimiter(
+  rateLimiter: RateLimiterMemory,
+  headers: ReadonlyHeaders,
+  consumePoints: number
+) {
+  const clientIp = getClientIp(headers);
+  await rateLimiter.consume(clientIp, consumePoints);
+}
+
+// Function to parse DKIM header into [[header_name, header_value]] format
+// Preserves all whitespace and line endings for simple canonicalization
+// we use double array [[]] here to make the outputs compatable with canonicalization function
+// for reference :- https://datatracker.ietf.org/doc/html/rfc6376#section-3.4.1
+export function parseDkimSignature(dkimHeader: string): [[string, string]] {
+  // Find the first colon to separate header name from value
+  const colonIndex = dkimHeader.indexOf(':');
+  if (colonIndex === -1) {
+    throw new Error('Invalid header format: no colon found');
+  }
+
+  // Extract header name (everything before the colon, trimmed)
+  const headerName = dkimHeader.substring(0, colonIndex).trim();
+
+  // Extract header value (everything after the colon, preserving all whitespace)
+  const headerValue = dkimHeader
+    .substring(colonIndex + 1)
+    .replace(/b\s*=\s*([^;]*)/, 'b=');
+
+  return [[headerName, headerValue]];
+}
+
+// Select signed header included in block hash
+// the selected signed header is selectd according to rfc:-
+// RFC 6376 - https://datatracker.ietf.org/doc/html/rfc6376#section-5.4.2
+export function selectSignedHeadersNew(
+  allHeaders: string[][],
+  wantedHeaders: string[]
+): string[][] {
+  const signHeaders: string[][] = [];
+  const lastIndex: Record<string, number> = {};
+
+  // Process each wanted header in order
+  for (const headerName of wantedHeaders) {
+    const lowerHeaderName = headerName.toLowerCase().trim();
+
+    // Start scanning from the last matched position (or from end if first time) RFC 6376 section-5.4.2
+    let i = lastIndex[lowerHeaderName] ?? allHeaders.length;
+
+    while (i > 0) {
+      i--;
+      if (allHeaders[i] && allHeaders[i][0].toLowerCase() === lowerHeaderName) {
+        signHeaders.push(allHeaders[i]);
+        break;
+      }
+    }
+
+    // Update last index for this header name
+    lastIndex[lowerHeaderName] = i;
+  }
+
+  return signHeaders;
+}
+
+/**
+ * DKIM Header Canonicalization Functions
+ * Based on RFC 6376 (formerly RFC 4871)
+ * https://datatracker.ietf.org/doc/html/rfc6376#section-3.4
+ * Supports both "simple" and "relaxed" canonicalization algorithms
+ * for email headers used in DKIM email signatures.
+ */
+export function canonicalizeHeaders(headers: any, algorithm: string) {
+  if (algorithm === 'simple') {
+    return canonicalizeHeadersSimple(headers);
+  } else if (algorithm === 'relaxed') {
+    return canonicalizeHeadersRelaxed(headers);
+  } else {
+    throw new Error(`Invalid canonicalization algorithm: ${algorithm}`);
+  }
+}
+
+function canonicalizeHeadersSimple(headers: [any, any][]) {
+  // RFC 6376: Simple canonicalization makes no changes to headers
+  return headers.map(([name, value]) => [name, value]);
+}
+
+// RFC 6376: relaxed canonicalization
+function canonicalizeHeadersRelaxed(headers: [any, any][]) {
+  return headers.map(([name, value]) => {
+    // 1. Convert header field names to lowercase
+    const lowerName = name.toLowerCase().trim();
+
+    // 2. Unfold header field continuation lines (remove CRLF followed by WSP)
+    let unfoldedValue = unfoldHeaderValue(value);
+
+    // 3. Compress sequences of WSP to single space
+    unfoldedValue = compressWhitespace(unfoldedValue);
+
+    // 4. Remove WSP at start and end of field value
+    unfoldedValue = unfoldedValue.trim();
+
+    // 5. Add CRLF at end
+    return [lowerName, unfoldedValue + '\r\n'];
+  });
+}
+
+function compressWhitespace(content: string) {
+  return content.replace(/[\t ]+/g, ' ');
+}
+
+function unfoldHeaderValue(content: string) {
+  // Remove CRLF followed by WSP (folding whitespace)
+  return content.replace(/\r?\n[\t ]/g, ' ');
+}
+
+// This computes a cryptographic hash of email headers using either "simple" or "relaxed" DKIM canonicalization methods.
+export function computeCanonicalizedHeaderHash(
+  hash: crypto.Hash,
+  headers: Array<Array<any>>,
+  sigHdr: Array<Array<any>>,
+  canon: string
+) {
+  for (const hdr of headers) {
+    hash.update(Buffer.from(hdr[0]));
+    hash.update(Buffer.from(':'));
+    hash.update(Buffer.from(hdr[1]));
+  }
+
+  // console.log("\nsigHdr[0], sigHdr[1]",sigHdr[0])
+
+  hash.update(Buffer.from(sigHdr[0][0]));
+  hash.update(Buffer.from(':'));
+  // This is because relaxed canon have \r\n at end of every header value except signature
+  if (canon == 'relaxed')
+    hash.update(Buffer.from(sigHdr[0][1].replace(/\s+$/gm, '')));
+  else hash.update(Buffer.from(sigHdr[0][1]));
+}
+
+// Build EMSA-PKCS#1 v1.5 block: ASN.1 prefix + __0xff__ padding + framing (__0x0001…00__).
+export function encodeRsaPkcs1Digest(
+  digest: Buffer,
+  algName: string,
+  keySize: number
+): bigint {
+  const prefix = DIGEST_INFO[algName] || Buffer.alloc(0);
+  const t = Buffer.concat([prefix, digest]);
+  const psLen = keySize - t.length - 3;
+  const padding = Buffer.alloc(psLen, 0xff);
+  const em = Buffer.concat([
+    Buffer.from([0x00, 0x01]),
+    padding,
+    Buffer.from([0x00]),
+    t,
+  ]);
+  return BigInt(`0x${em.toString('hex')}`);
 }
