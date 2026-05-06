@@ -1,20 +1,29 @@
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { RateLimiterMemory } from 'rate-limiter-flexible';
 
 import { rateLimited, serverError } from '@/lib/api-response';
+import {
+  checkClientRateLimit,
+  resolveClientIdentity,
+} from '@/lib/client-identity';
 import { getJWKeySetRecord } from '@/lib/db';
 import { logger } from '@/lib/logger';
-import { checkRateLimiter } from '@/lib/utilsServer';
-
-const rateLimiter = new RateLimiterMemory({ points: 5, duration: 10 });
 
 export async function GET() {
+  const hdrs = await headers();
+  const identity = await resolveClientIdentity(hdrs);
+
   try {
-    await checkRateLimiter(rateLimiter, await headers(), 1);
+    await checkClientRateLimit(identity);
   } catch {
     return rateLimited();
   }
+
+  logger.info('api_request', {
+    clientType: identity.type,
+    clientId: identity.identifier,
+    endpoint: 'jwk_set',
+  });
 
   try {
     const JwkSet = await getJWKeySetRecord();

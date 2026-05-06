@@ -1,7 +1,6 @@
 terraform {
   required_version = ">= 1.0"
 
-  # Add remote state backend with workspace support
   backend "gcs" {
     bucket = "terraform-state-archive"
     prefix = "terraform/state"
@@ -12,54 +11,41 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 5.0"
     }
-    archive = {
-      source  = "hashicorp/archive"
-      version = "~> 2.4"
-    }
   }
 }
 
-# Local values for workspace-specific configurations
+# Workspace-specific config — use `terraform workspace select main` for prod
 locals {
-  # Map workspace names to environment configurations
   workspace_config = {
     "pr-validation" = {
       environment = "staging"
-      suffix      = "pr"
+      suffix      = "pr-validation"
     }
     "main" = {
       environment = "prod"
-      suffix      = "prod"
+      suffix      = "main"
     }
   }
 
-  # Get current workspace config
   current_config = local.workspace_config[terraform.workspace]
-
-  # Use workspace-specific environment or fall back to var.environment
-  environment = local.current_config != null ? local.current_config.environment : var.environment
-  suffix      = local.current_config != null ? local.current_config.suffix : "dev"
-
-  # Workspace-specific resource naming
-  resource_suffix = "${local.environment}-${local.suffix}"
+  environment    = local.current_config.environment
+  # suffix matches workspace name so secret IDs align with what CI passes to gcloud
+  suffix = local.current_config.suffix
 }
 
-# Provider configuration
 provider "google" {
   project = var.project_id
   region  = var.region
 }
 
-# Enable required APIs
+# Enable only the APIs this terraform actually manages
 resource "google_project_service" "required_apis" {
   for_each = toset([
-    "cloudfunctions.googleapis.com",
-    "cloudtasks.googleapis.com",
-    "cloudbuild.googleapis.com",
     "artifactregistry.googleapis.com",
     "run.googleapis.com",
-    "eventarc.googleapis.com",
-    "pubsub.googleapis.com"
+    "secretmanager.googleapis.com",
+    "cloudscheduler.googleapis.com",
+    "sqladmin.googleapis.com",
   ])
 
   service                    = each.value
@@ -67,176 +53,234 @@ resource "google_project_service" "required_apis" {
   disable_on_destroy         = false
 }
 
-# Create service account for Cloud Function
-resource "google_service_account" "function_sa" {
-  account_id   = "fn-${local.resource_suffix}"
-  display_name = "gcd Calculator Cloud Function Service Account (${terraform.workspace})"
-  description  = "Service account for gcd calculator cloud function in ${terraform.workspace} workspace"
+# ── Reference existing service accounts (no creation) ─────────────────────────
+# archive-sa@zkairdrop — the Cloud Run app identity (has cloudsql.client, cloudtasks.enqueuer, etc.)
+data "google_service_account" "archive_app_sa" {
+  account_id = "archive-sa"
+  project    = var.project_id
 }
 
-# Create service account for Cloud Tasks
-resource "google_service_account" "tasks_sa" {
-  account_id   = "tasks-${local.resource_suffix}"
-  display_name = "gcd Calculator Cloud Tasks Service Account (${terraform.workspace})"
-  description  = "Service account for Cloud Tasks to invoke cloud function in ${terraform.workspace} workspace"
+# ── Artifact Registry ─────────────────────────────────────────────────────────
+# Creates the 'archive' repository in the project if it doesn't exist.
+# CI pushes to: {region}-docker.pkg.dev/{project}/archive/archive
+resource "google_artifact_registry_repository" "archive" {
+  project       = var.project_id
+  location      = var.region
+  repository_id = "archive"
+  description   = "Docker images for archive.zk.email"
+  format        = "DOCKER"
+
+  depends_on = [google_project_service.required_apis]
 }
 
-# IAM bindings for function service account
-resource "google_project_iam_member" "function_sa_roles" {
-  for_each = toset([
-    "roles/logging.logWriter",
-    "roles/monitoring.metricWriter",
-    "roles/cloudtrace.agent"
-  ])
-
-  project = var.project_id
-  role    = each.value
-  member  = "serviceAccount:${google_service_account.function_sa.email}"
-}
-
-# IAM binding for tasks service account to invoke functions
-resource "google_project_iam_member" "tasks_function_invoker" {
-  project = var.project_id
-  role    = "roles/cloudfunctions.invoker"
-  member  = "serviceAccount:${google_service_account.tasks_sa.email}"
-}
-
-# IAM binding for Next.js service account to create tasks
-resource "google_project_iam_member" "nextjs_tasks_enqueuer" {
-  project = var.project_id
-  role    = "roles/cloudtasks.enqueuer"
-  member  = "serviceAccount:${var.archive_service_account_email}"
-}
-
-# Create Cloud Storage bucket for function source
-resource "google_storage_bucket" "function_source" {
-  name                        = "${var.project_id}-gcd-calculator-source-${local.resource_suffix}"
-  location                    = var.region
-  force_destroy               = true
-  uniform_bucket_level_access = true
-
-  versioning {
-    enabled = true
-  }
-
-  lifecycle_rule {
-    condition {
-      age = 30
-    }
-    action {
-      type = "Delete"
-    }
+# ── Secret Manager ────────────────────────────────────────────────────────────
+# Secret IDs must match what deploy.yml passes via --update-secrets:
+#   archive-database-url-{workspace}, archive-auth-google-id-{workspace}, …
+locals {
+  secrets = {
+    "archive-database-url-${local.suffix}"                = "postgresql://${var.cloud_sql_db_user}:${var.db_password}@/${var.cloud_sql_db_name}?host=/cloudsql/${var.cloud_sql_instance}"
+    "archive-auth-google-id-${local.suffix}"              = var.auth_google_id
+    "archive-auth-google-secret-${local.suffix}"          = var.auth_google_secret
+    "archive-auth-secret-${local.suffix}"                 = var.auth_secret
+    "archive-cron-secret-${local.suffix}"                 = var.cron_secret
+    "archive-cloud-tasks-queue-name-${local.suffix}"      = var.cloud_tasks_queue_name
+    "archive-cloud-function-url-${local.suffix}"          = var.cloud_function_url
+    "archive-tasks-service-account-email-${local.suffix}" = var.tasks_service_account_email
   }
 }
 
-# Create archive of cloud function source
-data "archive_file" "function_source" {
-  type        = "zip"
-  output_path = "/tmp/gcd-calculator-function-${terraform.workspace}.zip"
-  source_dir  = "../cloudFunctions/calculate_gcd"
-  excludes = [
-    "__pycache__",
-    "*.pyc",
-    ".git",
-  ]
-}
+resource "google_secret_manager_secret" "archive_secrets" {
+  for_each  = local.secrets
+  project   = var.project_id
+  secret_id = each.key
 
-# Upload function source to bucket
-resource "google_storage_bucket_object" "function_source" {
-  name   = "gcd-calculator-function-${terraform.workspace}-${data.archive_file.function_source.output_md5}.zip"
-  bucket = google_storage_bucket.function_source.name
-  source = data.archive_file.function_source.output_path
-
-  depends_on = [data.archive_file.function_source]
-}
-
-# Create the Cloud Function
-resource "google_cloudfunctions2_function" "gcd_calculator" {
-  name        = "gcd-calculator-${local.resource_suffix}"
-  location    = var.region
-  description = "gcd modulus calculator function for ${terraform.workspace} workspace"
-
-  build_config {
-    runtime     = "python311"
-    entry_point = "calculate_gcd"
-    source {
-      storage_source {
-        bucket = google_storage_bucket.function_source.name
-        object = google_storage_bucket_object.function_source.name
-      }
-    }
-  }
-
-  service_config {
-    max_instance_count               = 100
-    min_instance_count               = 1
-    available_memory                 = "1Gi"
-    timeout_seconds                  = 300
-    max_instance_request_concurrency = 80
-    available_cpu                    = "1"
-
-    environment_variables = {
-      ENVIRONMENT         = local.environment
-      TERRAFORM_WORKSPACE = terraform.workspace
-    }
-
-    ingress_settings               = "ALLOW_INTERNAL_AND_GCLB"
-    all_traffic_on_latest_revision = true
-    service_account_email          = google_service_account.function_sa.email
-  }
-
-  depends_on = [
-    google_project_service.required_apis,
-    google_storage_bucket_object.function_source
-  ]
-}
-
-resource "random_id" "queue_suffix" {
-  byte_length = 2
-}
-
-# Create Cloud Tasks queue
-resource "google_cloud_tasks_queue" "gcd_calculator_queue" {
-  name     = "gcd-calculator-queue-${local.resource_suffix}-${random_id.queue_suffix.hex}"
-  location = var.region
-
-  rate_limits {
-    max_concurrent_dispatches = 100
-    max_dispatches_per_second = 10
-  }
-
-  retry_config {
-    max_attempts       = 3
-    max_retry_duration = "300s"
-    max_backoff        = "60s"
-    min_backoff        = "5s"
-    max_doublings      = 3
+  replication {
+    auto {}
   }
 
   depends_on = [google_project_service.required_apis]
 }
 
-# IAM policy to allow tasks service account to invoke the function
-resource "google_cloudfunctions2_function_iam_member" "tasks_invoker" {
-  project        = var.project_id
-  location       = google_cloudfunctions2_function.gcd_calculator.location
-  cloud_function = google_cloudfunctions2_function.gcd_calculator.name
-  role           = "roles/cloudfunctions.invoker"
-  member         = "serviceAccount:${google_service_account.tasks_sa.email}"
+resource "google_secret_manager_secret_version" "archive_secrets" {
+  for_each    = local.secrets
+  secret      = google_secret_manager_secret.archive_secrets[each.key].id
+  secret_data = each.value
 }
 
-data "google_cloud_run_service" "function_service" {
-  name     = google_cloudfunctions2_function.gcd_calculator.name
-  location = google_cloudfunctions2_function.gcd_calculator.location
+# ── Cloud Run (Next.js app) ───────────────────────────────────────────────────
+locals {
+  image = "${var.region}-docker.pkg.dev/${var.project_id}/archive/archive:${var.image_tag}"
 
-  depends_on = [google_cloudfunctions2_function.gcd_calculator]
+  service_name = "archive-${local.suffix == "main" ? "prod" : "pr"}"
+  nextauth_url = local.suffix == "main" ? "https://archive.zk.email" : "https://staging.archive.zk.email"
 }
 
-# Grant Cloud Run invoker permission to the underlying Cloud Run service
-resource "google_cloud_run_service_iam_member" "function_run_invoker" {
-  location = data.google_cloud_run_service.function_service.location
+resource "google_cloud_run_v2_service" "archive" {
+  name     = local.service_name
+  location = var.region
   project  = var.project_id
-  service  = data.google_cloud_run_service.function_service.name
+
+  deletion_protection = false
+
+  template {
+    service_account = data.google_service_account.archive_app_sa.email
+
+    scaling {
+      min_instance_count = 1
+      max_instance_count = 10
+    }
+
+    containers {
+      image = local.image
+
+      resources {
+        limits = {
+          cpu    = "1"
+          memory = "1Gi"
+        }
+        startup_cpu_boost = true
+      }
+
+      # Cloud SQL socket mount
+      volume_mounts {
+        name       = "cloudsql"
+        mount_path = "/cloudsql"
+      }
+
+      # Non-secret env vars
+      env {
+        name  = "NODE_ENV"
+        value = "production"
+      }
+      env {
+        name  = "AUTH_TRUST_HOST"
+        value = "true"
+      }
+      env {
+        name  = "AUTH_URL"
+        value = local.nextauth_url
+      }
+      env {
+        name  = "NEXT_PUBLIC_GOOGLE_CLIENT_ID"
+        value = var.next_public_google_client_id
+      }
+      env {
+        name  = "NEXT_PUBLIC_POSTHOG_HOST"
+        value = "https://us.i.posthog.com"
+      }
+      env {
+        name  = "GOOGLE_CLOUD_PROJECT_ID"
+        value = var.project_id
+      }
+      env {
+        name  = "GOOGLE_CLOUD_REGION"
+        value = var.region
+      }
+
+      # Secrets injected by name — must match local.secrets keys above
+      dynamic "env" {
+        for_each = {
+          DATABASE_URL                 = "archive-database-url-${local.suffix}"
+          AUTH_GOOGLE_ID               = "archive-auth-google-id-${local.suffix}"
+          AUTH_GOOGLE_SECRET           = "archive-auth-google-secret-${local.suffix}"
+          AUTH_SECRET                  = "archive-auth-secret-${local.suffix}"
+          CRON_SECRET                  = "archive-cron-secret-${local.suffix}"
+          CLOUD_TASKS_QUEUE_NAME       = "archive-cloud-tasks-queue-name-${local.suffix}"
+          CLOUD_FUNCTION_URL           = "archive-cloud-function-url-${local.suffix}"
+          TASKS_SERVICE_ACCOUNT_EMAIL  = "archive-tasks-service-account-email-${local.suffix}"
+        }
+        content {
+          name = env.key
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.archive_secrets[env.value].secret_id
+              version = "latest"
+            }
+          }
+        }
+      }
+
+      liveness_probe {
+        http_get {
+          path = "/api/health"
+        }
+        initial_delay_seconds = 10
+        period_seconds        = 30
+      }
+
+      startup_probe {
+        http_get {
+          path = "/api/health"
+        }
+        initial_delay_seconds = 5
+        period_seconds        = 5
+        failure_threshold     = 10
+      }
+    }
+
+    volumes {
+      name = "cloudsql"
+      cloud_sql_instance {
+        instances = [var.cloud_sql_instance]
+      }
+    }
+  }
+
+  depends_on = [
+    google_project_service.required_apis,
+    google_secret_manager_secret_version.archive_secrets,
+    google_artifact_registry_repository.archive,
+  ]
+}
+
+# Allow unauthenticated traffic
+resource "google_cloud_run_v2_service_iam_member" "archive_public" {
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_service.archive.name
   role     = "roles/run.invoker"
-  member   = "serviceAccount:${google_service_account.tasks_sa.email}"
+  member   = "allUsers"
+}
+
+# ── Cloud Scheduler (stats cache refresh every 6 h) ──────────────────────────
+resource "google_service_account" "scheduler_sa" {
+  account_id   = "archive-scheduler-${local.suffix}"
+  display_name = "Cloud Scheduler → archive stats (${terraform.workspace})"
+  project      = var.project_id
+}
+
+resource "google_cloud_run_v2_service_iam_member" "scheduler_invoker" {
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_service.archive.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.scheduler_sa.email}"
+}
+
+resource "google_cloud_scheduler_job" "refresh_stats" {
+  name             = "archive-refresh-stats-${local.suffix}"
+  description      = "Refresh StatsCache every 6 hours"
+  schedule         = "0 */6 * * *"
+  time_zone        = "UTC"
+  project          = var.project_id
+  region           = var.region
+  attempt_deadline = "320s"
+
+  http_target {
+    http_method = "POST"
+    uri         = "${google_cloud_run_v2_service.archive.uri}/api/stats"
+
+    headers = {
+      "Content-Type" = "application/json"
+    }
+
+    oidc_token {
+      service_account_email = google_service_account.scheduler_sa.email
+    }
+  }
+
+  depends_on = [
+    google_project_service.required_apis,
+    google_cloud_run_v2_service.archive,
+  ]
 }

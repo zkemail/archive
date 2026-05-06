@@ -8,7 +8,6 @@ import type { RateLimiterMemory } from 'rate-limiter-flexible';
 import type { DomainSelectorPair, KeyType } from '@/generated/prisma/client';
 
 import { createDkimRecord, prisma, updateDspTimestamp } from './db';
-import { generateWitness } from './generateWitness';
 import { logger } from './logger';
 import {
   type DnsDkimFetchResult,
@@ -97,9 +96,6 @@ export async function addDomainSelectorPair(
     include: {
       records: true,
     },
-  });
-  newDsp.records.forEach((record) => {
-    generateWitness(newDsp, record);
   });
   return { already_in_db: false, added: true };
 }
@@ -234,10 +230,6 @@ export async function fetchAndStoreDkimDnsRecord(dsp: DomainSelectorPair) {
       });
     } else {
       dbRecord = await createDkimRecord(dsp, dnsRecord);
-    }
-
-    if (!dbRecord.provenanceVerified) {
-      generateWitness(dsp, dbRecord);
     }
   }
 }
