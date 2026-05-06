@@ -15,10 +15,19 @@ interface HomeClientProps {
 }
 
 export default function HomeClient({ stats }: HomeClientProps) {
+  const [searchQuery, setSearchQuery] = useState('');
   const [uniqueDomains, setUniqueDomains] = useState(0);
   const [uniqueSelectors, setUniqueSelectors] = useState(0);
   const [DSP, setDSP] = useState(0);
   const [DKIMkey, setDKIMkey] = useState(0);
+
+  const handleSearch = () => {
+    const value = searchQuery.trim();
+    if (value) {
+      analytics.capture('search', { query: value, source: 'homepage' });
+      window.location.href = `/search?q=${encodeURIComponent(value)}`;
+    }
+  };
 
   useEffect(() => {
     const timeoutIds: ReturnType<typeof setTimeout>[] = [];
@@ -119,21 +128,20 @@ export default function HomeClient({ stats }: HomeClientProps) {
               <Input
                 placeholder='Domain name'
                 size='search'
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 className='flex-1 border-0 text-base leading-tight tracking-tight text-secondary outline-0'
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    const value = e.currentTarget.value.trim();
-                    if (value) {
-                      analytics.capture('search', {
-                        query: value,
-                        source: 'homepage',
-                      });
-                      window.location.href = `/search?q=${encodeURIComponent(value)}`;
-                    }
-                  }
+                  if (e.key === 'Enter') handleSearch();
                 }}
               />
             </div>
+            <button
+              onClick={handleSearch}
+              className='flex items-center rounded-md bg-primary px-3 py-1 text-sm text-background transition-opacity hover:opacity-80'
+            >
+              Search
+            </button>
           </div>
         </div>
         <div className='flex w-full flex-col items-start justify-start gap-3'>
