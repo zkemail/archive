@@ -27,6 +27,7 @@ pnpm run lint --fix  # Fix code issues
 
 - **Next.js 15.3.2** + React 19 + TypeScript (strict)
 - **Tailwind CSS v4** + shadcn/ui components
+- **Prisma 7** (ORM) - see breaking changes below
 - **Google OAuth** for Gmail integration
 - **@zk-email/relayer-utils** for DKIM processing
 
@@ -82,6 +83,46 @@ className={cn("base-class", conditional && "extra-class")}
 3. **Direct DOM manipulation** → Use React state instead
 4. **Inline styles** → Use Tailwind classes
 5. **localStorage in SSR** → Check `typeof window !== 'undefined'`
+
+## 🔴 Prisma 7 Breaking Changes
+
+**This project uses Prisma 7** which has significant breaking changes from v6:
+
+### Import Changes (ESM)
+
+```typescript
+// ❌ Old (Prisma 6)
+import { PrismaClient } from '@prisma/client';
+
+// ✅ New (Prisma 7) - ESM requires explicit path
+import { PrismaClient } from '@prisma/client/index.js';
+```
+
+### Query API Changes
+
+- `findUnique()` no longer accepts `null` for unique fields → use `findFirst()` instead
+- `findUnique({ where: { id: null } })` now throws an error
+- Raw query results: `$queryRaw` returns `BigInt` for large numbers (use `JSON.stringify` or convert)
+
+### Schema & Migration
+
+- `prisma generate` may require explicit `--schema` path
+- `@default(autoincrement())` behavior changed for some databases
+- Run `prisma migrate reset` if encountering migration drift issues
+
+### Removed/Changed Features
+
+- `rejectOnNotFound` option removed → use `findUniqueOrThrow()` / `findFirstOrThrow()`
+- `connectOrCreate` stricter type checking
+- Interactive transactions have new timeout defaults
+
+### Quick Migration Checklist
+
+1. Update imports if using ESM
+2. Replace `findUnique` with `null` checks → `findFirst`
+3. Replace `rejectOnNotFound` → `*OrThrow` methods
+4. Regenerate client: `pnpm prisma generate`
+5. Test all database queries thoroughly
 
 ## 🔗 External Services
 

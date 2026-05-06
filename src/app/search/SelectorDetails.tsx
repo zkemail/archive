@@ -13,6 +13,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
+import { analytics } from '@/lib/analytics';
 import { formatDate } from '@/lib/utils';
 
 import { Badge } from '../../components/ui/badge';
@@ -54,11 +55,19 @@ const SelectorDetails = ({ data }: any) => {
     </div>
   );
 
-  const toggleAccordion = (itemId: string) => {
+  const toggleAccordion = (
+    itemId: string,
+    domain: string,
+    selector: string
+  ) => {
+    const isOpening = !openItems[itemId];
     setOpenItems((prev) => ({
       ...prev,
       [itemId]: !prev[itemId],
     }));
+    if (isOpening) {
+      analytics.capture('selector_expanded', { domain, selector });
+    }
   };
 
   const scrollToDomain = (domain: string) => {
@@ -219,7 +228,9 @@ const SelectorDetails = ({ data }: any) => {
                   collapsible
                   className='w-full'
                   value={openItems[item.id] ? `selector-detail-${item.id}` : ''}
-                  onValueChange={() => toggleAccordion(item.id)}
+                  onValueChange={() =>
+                    toggleAccordion(item.id, domain, item.selector)
+                  }
                 >
                   <AccordionItem value={`selector-detail-${item.id}`}>
                     <AccordionTrigger className='p-4 font-normal tracking-tight text-secondary hover:no-underline'>

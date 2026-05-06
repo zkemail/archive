@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model DkimRecord {
+  id                   Int                  @id @default(autoincrement())
+  firstSeenAt          DateTime
+  value                String
+  domainSelectorPairId Int
+  provenanceVerified   Boolean?
+  lastSeenAt           DateTime?
+  keyData              String?
+  keyType              KeyType?
+  source               String?
+  domainSelectorPair   DomainSelectorPair   @relation(fields: [domainSelectorPairId], references: [id])
+  emailPairGcdResults  EmailPairGcdResult[]
+
+  @@index([domainSelectorPairId])
+}
+
+model DomainSelectorPair {
+  id               Int          @id @default(autoincrement())
+  domain           String
+  lastRecordUpdate DateTime?
+  selector         String
+  sourceIdentifier String
+  records          DkimRecord[]
+
+  @@index([domain, selector])
+}
+
+model EmailPairGcdResult {
+  emailSignatureA_id Int
+  emailSignatureB_id Int
+  foundGcd           Boolean
+  timestamp          DateTime
+  dkimRecordId       Int?
+  dkimRecord         DkimRecord?    @relation(fields: [dkimRecordId], references: [id])
+  emailSignatureA    EmailSignature @relation(name: "gcdPairAsA", fields: [emailSignatureA_id], references: [id])
+  emailSignatureB    EmailSignature @relation(name: "gcdPairAsB", fields: [emailSignatureB_id], references: [id])
+
+  @@id([emailSignatureA_id, emailSignatureB_id])
+}
+
+model EmailSignature {
+  id                   Int                  @id @default(autoincrement())
+  domain               String
+  selector             String
+  headerHash           String
+  headerHashV2         String?
+  dkimSignature        String
+  timestamp            DateTime?
+  signingAlgorithm     String
+  canonInfo            String
+  email_A_in_gcd_pairs EmailPairGcdResult[] @relation(name: "gcdPairAsA")
+  email_B_in_gcd_pairs EmailPairGcdResult[] @relation(name: "gcdPairAsB")
+
+  @@unique([headerHashV2, dkimSignature])
+  @@index([domain, selector, timestamp])
+}
+
+model JsonWebKeySets {
+  id                 Int      @id @default(autoincrement())
+  x509Certificate    String
+  jwks               String
+  lastUpdated        DateTime @updatedAt
+  provenanceVerified Boolean?
+}
+
+enum KeyType {
+  RSA
+  Ed25519
+}

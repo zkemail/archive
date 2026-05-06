@@ -7,6 +7,7 @@ import { SetStateAction, useEffect, useState } from 'react';
 
 import { AnimatedNumber } from '@/components/ui/animated-number';
 import { Input } from '@/components/ui/input';
+import { analytics } from '@/lib/analytics';
 
 export default function Home() {
   const [uniqueDomains, setUniqueDomains] = useState(0);
@@ -117,6 +118,10 @@ export default function Home() {
                   if (e.key === 'Enter') {
                     const value = e.currentTarget.value.trim();
                     if (value) {
+                      analytics.capture('search', {
+                        query: value,
+                        source: 'homepage',
+                      });
                       window.location.href = `/search?q=${encodeURIComponent(value)}`;
                     }
                   }

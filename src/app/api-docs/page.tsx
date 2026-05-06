@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { CodeBlock } from '@/components/ui/code-block';
 import { CopyButton } from '@/components/ui/copy-button';
 import { Input } from '@/components/ui/input';
+import { analytics } from '@/lib/analytics';
 
 interface DkimKey {
   domain: string;
@@ -56,6 +57,7 @@ export default function ApiDocsPage() {
       return;
     }
 
+    analytics.capture('api_test', { domain: domainInput });
     setIsLoading(true);
     setError(null);
     setApiResults(null);
@@ -71,8 +73,18 @@ export default function ApiDocsPage() {
 
       const data = await response.json();
       setApiResults(data);
+      analytics.capture('api_test_success', {
+        domain: domainInput,
+        resultCount: data.length,
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch keys');
+      const errorMessage =
+        err instanceof Error ? err.message : 'Failed to fetch keys';
+      setError(errorMessage);
+      analytics.capture('api_test_error', {
+        domain: domainInput,
+        error: errorMessage,
+      });
     } finally {
       setIsLoading(false);
     }
