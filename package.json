@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "pnpm run lint --fix && pnpm run prettier && next dev",
-    "build": "next build",
+    "build": "prisma generate && prisma migrate deploy && NODE_OPTIONS='--max-old-space-size=4096' next build",
     "start": "next start",
     "lint": "next lint",
     "clean": "rm -rf node_modules && rm -rf .next",

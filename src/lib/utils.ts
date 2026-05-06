@@ -1,4 +1,4 @@
-import { ParsedEmail } from '@zk-email/sdk';
+import type { ParsedEmail } from '@zk-email/sdk';
 // import { parseEmail as parseEmailUtils } from '@zk-email/sdk';
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';

@@ -28,87 +28,102 @@ export async function generateWitness(
   dsp: DomainSelectorPair,
   dkimRecord: DkimRecord
 ) {
-  const canonicalRecordString = getCanonicalRecordString(dsp, dkimRecord.value);
-  const witness = new WitnessClient(process.env.WITNESS_API_KEY);
-  const leafHash = witness.hash(canonicalRecordString);
-  let timestamp;
-  let attempts = 0;
-  let currentDelay = defaultOpts.initialDelay;
-  while (attempts < defaultOpts.maxRetries) {
-    try {
-      attempts++;
-      timestamp = await witness.postLeafAndGetTimestamp(leafHash);
-      break;
-    } catch (error: any) {
-      console.error(
-        `Attempt witness.postLeafAndGetTimestamp failed for ${recordToString(
-          dkimRecord
-        )}, leafHash ${leafHash}: ${error}`
-      );
-      if (attempts === defaultOpts.maxRetries) {
-        console.error(
-          `Maximum retries reached.Witness.postLeafAndGetTimestamp failed for ${recordToString(
+  try {
+    const canonicalRecordString = getCanonicalRecordString(
+      dsp,
+      dkimRecord.value
+    );
+    const witness = new WitnessClient(process.env.WITNESS_API_KEY);
+    const leafHash = witness.hash(canonicalRecordString);
+    let timestamp;
+    let attempts = 0;
+    let currentDelay = defaultOpts.initialDelay;
+    while (attempts < defaultOpts.maxRetries) {
+      try {
+        attempts++;
+        timestamp = await witness.postLeafAndGetTimestamp(leafHash);
+        break;
+      } catch (error: any) {
+        console.warn(
+          `[Witness] postLeafAndGetTimestamp attempt ${attempts} failed for ${recordToString(
             dkimRecord
-          )}, leafHash ${leafHash}: ${error}`
+          )}: ${error?.message || error}`
         );
-        return;
+        if (attempts === defaultOpts.maxRetries) {
+          console.warn(
+            `[Witness] Max retries reached for ${recordToString(dkimRecord)} - witness service unavailable`
+          );
+          return;
+        }
+        currentDelay = Math.min(
+          currentDelay * defaultOpts.backoffFactor,
+          defaultOpts.maxDelay
+        );
+        await new Promise((resolve) => setTimeout(resolve, currentDelay));
       }
-      currentDelay = Math.min(
-        currentDelay * defaultOpts.backoffFactor,
-        defaultOpts.maxDelay
-      );
-      await new Promise((resolve) => setTimeout(resolve, currentDelay));
     }
+    console.log(`[Witness] leaf ${leafHash} timestamped at ${timestamp}`);
+    const proof = await witness.getProofForLeafHash(leafHash);
+    const verified = await witness.verifyProofChain(proof);
+    if (!verified) {
+      console.warn('[Witness] proof chain verification failed');
+      return;
+    }
+    console.log(
+      `[Witness] proof verified, setting provenanceVerified for ${recordToString(
+        dkimRecord
+      )}`
+    );
+    await prisma.dkimRecord.update({
+      where: {
+        id: dkimRecord.id,
+      },
+      data: {
+        provenanceVerified: true,
+      },
+    });
+  } catch (error: any) {
+    console.warn(
+      `[Witness] Service unavailable for ${recordToString(dkimRecord)}: ${error?.message || error}`
+    );
   }
-  console.log(`leaf ${leafHash} was timestamped at ${timestamp}`);
-  const proof = await witness.getProofForLeafHash(leafHash);
-  const verified = await witness.verifyProofChain(proof);
-  if (!verified) {
-    console.error('proof chain verification failed');
-    return;
-  }
-  console.log(
-    `proof chain verified, setting provenanceVerified for ${recordToString(
-      dkimRecord
-    )}`
-  );
-  await prisma.dkimRecord.update({
-    where: {
-      id: dkimRecord.id,
-    },
-    data: {
-      provenanceVerified: true,
-    },
-  });
 }
 
 export async function generateJWKWitness(JwkSet: jwkSet) {
-  const canonicalRecordString = getCanonicalJWKRecordString(JwkSet);
-  const witness = new WitnessClient(process.env.WITNESS_API_KEY);
-  const leafHash = witness.hash(canonicalRecordString);
-  let timestamp;
   try {
-    timestamp = await witness.postLeafAndGetTimestamp(leafHash);
-  } catch (error: any) {
-    console.error(
-      `witness.postLeafAndGetTimestamp failed for ${JwkSet}, leafHash ${leafHash}: ${error}`
+    const canonicalRecordString = getCanonicalJWKRecordString(JwkSet);
+    const witness = new WitnessClient(process.env.WITNESS_API_KEY);
+    const leafHash = witness.hash(canonicalRecordString);
+    let timestamp;
+    try {
+      timestamp = await witness.postLeafAndGetTimestamp(leafHash);
+    } catch (error: any) {
+      console.warn(
+        `[Witness] postLeafAndGetTimestamp failed for JWKSet ${JwkSet.id}: ${error?.message || error}`
+      );
+      return;
+    }
+    console.log(`[Witness] leaf ${leafHash} timestamped at ${timestamp}`);
+    const proof = await witness.getProofForLeafHash(leafHash);
+    const verified = await witness.verifyProofChain(proof);
+    if (!verified) {
+      console.warn('[Witness] JWK proof chain verification failed');
+      return;
+    }
+    console.log(
+      `[Witness] JWK proof verified, setting provenanceVerified for ${JwkSet.id}`
     );
-    return;
+    await prisma.jsonWebKeySets.update({
+      where: {
+        id: JwkSet.id,
+      },
+      data: {
+        provenanceVerified: true,
+      },
+    });
+  } catch (error: any) {
+    console.warn(
+      `[Witness] Service unavailable for JWKSet ${JwkSet.id}: ${error?.message || error}`
+    );
   }
-  console.log(`leaf ${leafHash} was timestamped at ${timestamp}`);
-  const proof = await witness.getProofForLeafHash(leafHash);
-  const verified = await witness.verifyProofChain(proof);
-  if (!verified) {
-    console.error('proof chain verification failed');
-    return;
-  }
-  console.log(`proof chain verified, setting provenanceVerified for ${JwkSet}`);
-  await prisma.jsonWebKeySets.update({
-    where: {
-      id: JwkSet.id,
-    },
-    data: {
-      provenanceVerified: true,
-    },
-  });
 }

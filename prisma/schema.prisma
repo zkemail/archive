@@ -72,6 +72,15 @@ model JsonWebKeySets {
   provenanceVerified Boolean?
 }
 
+model StatsCache {
+  id                  Int      @id @default(1)
+  uniqueDomains       Int      @default(0)
+  uniqueSelectors     Int      @default(0)
+  domainSelectorPairs Int      @default(0)
+  dkimKeys            Int      @default(0)
+  updatedAt           DateTime @updatedAt
+}
+
 enum KeyType {
   RSA
   Ed25519

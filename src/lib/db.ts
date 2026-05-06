@@ -34,6 +34,19 @@ const dspIdCache = new LRUCache<string, number>({
   ttl: DSP_ID_CACHE_TTL,
 });
 
+// Stats cache (10 min TTL)
+export type ArchiveStats = {
+  uniqueDomains: number;
+  uniqueSelectors: number;
+  domainSelectorPairs: number;
+  dkimKeys: number;
+};
+const STATS_CACHE_TTL = 10 * 60 * 1000;
+const statsCache = new LRUCache<string, ArchiveStats>({
+  max: 1,
+  ttl: STATS_CACHE_TTL,
+});
+
 const createPrismaClient = () => {
   // Create a pg Pool with optimized connection settings
   const pool = new Pool({
@@ -346,4 +359,76 @@ export function clearRecordsCache(domain?: string, selector?: string) {
     domainSelectorCache.clear();
     dspIdCache.clear();
   }
+}
+
+// Read pre-computed stats from DB (instant)
+export async function getArchiveStats(): Promise<ArchiveStats> {
+  const cached = statsCache.get('stats');
+  if (cached) return cached;
+
+  const record = await prisma.statsCache.findFirst({ where: { id: 1 } });
+
+  const stats: ArchiveStats = record
+    ? {
+        uniqueDomains: record.uniqueDomains,
+        uniqueSelectors: record.uniqueSelectors,
+        domainSelectorPairs: record.domainSelectorPairs,
+        dkimKeys: record.dkimKeys,
+      }
+    : {
+        uniqueDomains: 0,
+        uniqueSelectors: 0,
+        domainSelectorPairs: 0,
+        dkimKeys: 0,
+      };
+
+  statsCache.set('stats', stats);
+  return stats;
+}
+
+// Heavy computation - call via cron/API, not on page load
+export async function refreshArchiveStats(): Promise<ArchiveStats> {
+  // Use pg_class reltuples for fast approximate counts (updated by ANALYZE/VACUUM)
+  const result = await prisma.$queryRaw<
+    [
+      {
+        unique_domains: number | null;
+        unique_selectors: number | null;
+        dsp_count: number | null;
+        dkim_count: number | null;
+      },
+    ]
+  >`
+    SELECT
+      (SELECT CASE
+        WHEN n_distinct < 0 THEN (reltuples * ABS(n_distinct))::int
+        ELSE n_distinct::int
+       END
+       FROM pg_stats ps JOIN pg_class pc ON ps.tablename = pc.relname
+       WHERE ps.tablename = 'DomainSelectorPair' AND ps.attname = 'domain') as unique_domains,
+      (SELECT CASE
+        WHEN n_distinct < 0 THEN (reltuples * ABS(n_distinct))::int
+        ELSE n_distinct::int
+       END
+       FROM pg_stats ps JOIN pg_class pc ON ps.tablename = pc.relname
+       WHERE ps.tablename = 'DomainSelectorPair' AND ps.attname = 'selector') as unique_selectors,
+      (SELECT reltuples::int FROM pg_class WHERE relname = 'DomainSelectorPair') as dsp_count,
+      (SELECT reltuples::int FROM pg_class WHERE relname = 'DkimRecord') as dkim_count
+  `;
+
+  const stats: ArchiveStats = {
+    uniqueDomains: Number(result[0].unique_domains) || 0,
+    uniqueSelectors: Number(result[0].unique_selectors) || 0,
+    domainSelectorPairs: Number(result[0].dsp_count) || 0,
+    dkimKeys: Number(result[0].dkim_count) || 0,
+  };
+
+  await prisma.statsCache.upsert({
+    where: { id: 1 },
+    update: { ...stats },
+    create: { id: 1, ...stats },
+  });
+
+  statsCache.delete('stats');
+  return stats;
 }
