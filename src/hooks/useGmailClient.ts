@@ -52,7 +52,7 @@ export async function fetchEmailList(
   // Remove null and undefined values from query parameters
   const cleanedParams = Object.fromEntries(
     Object.entries(finalQueryParams)
-      .filter(([_, value]) => value != null)
+      .filter(([, value]) => value != null)
       .map(([key, value]) => [key, String(value)])
   );
 

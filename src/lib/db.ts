@@ -123,7 +123,7 @@ export async function updateDspTimestamp(
   dsp: DomainSelectorPair,
   timestamp: Date
 ) {
-  const updatedSelector = await prisma.domainSelectorPair.update({
+  await prisma.domainSelectorPair.update({
     where: {
       id: dsp.id,
     },
