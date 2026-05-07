@@ -1,4 +1,3 @@
-
 ![DKIM Archive Logo](./public/Vector.png)
 
 **Public archive and search engine for DKIM (DomainKeys Identified Mail) records. This is designed to help users discover, contribute, and verify email authentication keys with web UI and over API.**
@@ -6,6 +5,7 @@
 ## **Overview**
 
 `archive` provides a comprehensive solution for managing DKIM records. Users can:
+
 - **Discover DKIM public keys:** Access a searchable database of DKIM keys for various domains via a web interface and a programmatic API.
 - **Contribute DKIM signatures:** Submit DKIM signatures from multiple sources, including integrated Gmail accounts or by uploading mailbox files (`.mbox`/`.pst`).
 - **Verify Authenticity:** Ensure the integrity and active timeframe of DKIM keys, with records timestamped on-chain using TLSNotary for robust verification.
@@ -35,8 +35,10 @@ These instructions will guide you through setting up the project on your local m
    # or npm install
    # or yarn install
    ```
+
 3. Set up environment variables:
    Copy the example environment file and customize it with your configurations:
+
    ```
    cp .env.example .env
    ```
@@ -48,12 +50,14 @@ These instructions will guide you through setting up the project on your local m
    - `NEXTAUTH_URL`: The canonical URL of your deployment (e.g., `http://localhost:3000` for local development).
    - `NEXTAUTH_SECRET`: A secret key for NextAuth.js session encryption.
    - API keys or endpoint URLs for GCP Cloud Functions and other external services, if applicable.
+
 4. **Run Prisma migrations** to initialize your database schema:
 
    ```
    pnpm prisma migrate dev
    # or npx prisma migrate dev
    ```
+
 5. **(Optional) Seed the database** with initial data if a seed script is available:
 
    ```
@@ -71,25 +75,25 @@ pnpm run dev
 # or yarn dev
 ```
 
-The application will typically be available at [http://localhost:3000](http://localhost:3000/ "null") (or your configured port).
+The application will typically be available at [http://localhost:3000](http://localhost:3000/ 'null') (or your configured port).
 
 ## **Tech Stack**
 
-- **Framework:** [Next.js](https://nextjs.org/ "null") (with App Router)
-- **Language:** [TypeScript](https://www.typescriptlang.org/ "null")
-- **UI Components:** [Shadcn/ui](https://shadcn.com/ui "null")
-- **Styling:** [Tailwind CSS](https://tailwindcss.com/ "null")
-- **Database:** [PostgreSQL](https://www.postgresql.org/ "null")
-- **ORM:** [Prisma](https://www.prisma.io/ "null")
-- **Authentication:** [NextAuth.js](https://next-auth.js.org/ "null") (for Gmail integration)
+- **Framework:** [Next.js](https://nextjs.org/ 'null') (with App Router)
+- **Language:** [TypeScript](https://www.typescriptlang.org/ 'null')
+- **UI Components:** [Shadcn/ui](https://shadcn.com/ui 'null')
+- **Styling:** [Tailwind CSS](https://tailwindcss.com/ 'null')
+- **Database:** [PostgreSQL](https://www.postgresql.org/ 'null')
+- **ORM:** [Prisma](https://www.prisma.io/ 'null')
+- **Authentication:** [NextAuth.js](https://next-auth.js.org/ 'null') (for Gmail integration)
 - **Serverless Functions:** GCP Cloud Functions (e.g., for Python/C++ based GCD)
 - **Linting/Formatting:** ESLint, Prettier
 - **Git Hooks:** Husky
 
-
 ## **High-Level Architecture**
 
 The system is structured as follows:
+
 1. **Next.js Application:**
    - **Frontend:** User interface built with React/Next.js and Shadcn/ui components.
    - **API Routes:** Backend logic handling DKIM lookups, submissions, Gmail integration, and communication with the GCP Cloud Function.
@@ -98,4 +102,3 @@ The system is structured as follows:
    - **Prisma:** ORM for database interactions.
 3. **GCP Cloud Function:**
    - A serverless function dedicated to computationally intensive tasks, such as GCD calculations for DKIM key recovery.
-
