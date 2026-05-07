@@ -33,8 +33,7 @@ const ActivityChart = ({
     };
 
     const availableTimeframes = Object.keys(timeframeDays).filter(
-      (tf) =>
-        totalDays >= timeframeDays[tf as keyof typeof timeframeDays] * 0.5
+      (tf) => totalDays >= timeframeDays[tf as keyof typeof timeframeDays] * 0.5
     );
 
     const currentTimeframe = availableTimeframes.includes(selectedTimeframe)
@@ -70,8 +69,7 @@ const ActivityChart = ({
       const currentMonth = current.getFullYear() * 12 + current.getMonth();
       const firstMonth =
         firstActive.getFullYear() * 12 + firstActive.getMonth();
-      const lastMonth =
-        lastActive.getFullYear() * 12 + lastActive.getMonth();
+      const lastMonth = lastActive.getFullYear() * 12 + lastActive.getMonth();
       const isInActivePeriod =
         currentMonth >= firstMonth && currentMonth <= lastMonth;
 
@@ -102,10 +100,7 @@ const ActivityChart = ({
     else if (currentTimeframe === '5Y') minWidthPerPoint = 50;
     else if (currentTimeframe === '10Y') minWidthPerPoint = 45;
 
-    const calculatedWidth = Math.max(
-      600,
-      dataPoints.length * minWidthPerPoint
-    );
+    const calculatedWidth = Math.max(600, dataPoints.length * minWidthPerPoint);
 
     return {
       availableTimeframes,
@@ -158,10 +153,7 @@ const ActivityChart = ({
         </div>
       </div>
       <div className='w-full overflow-x-auto'>
-        <div
-          className={`h-16 min-w-full`}
-          style={{ width: `${chartWidth}px` }}
-        >
+        <div className={`h-16 min-w-full`} style={{ width: `${chartWidth}px` }}>
           <ResponsiveContainer width='100%' height='100%'>
             <AreaChart
               data={data}
