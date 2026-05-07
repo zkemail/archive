@@ -43,9 +43,9 @@ const ActivityChart = ({
     // Use month-based stepping to avoid duplicate labels
     let stepMonths = 1;
     if (currentTimeframe === '12M') stepMonths = 1;
-    else if (currentTimeframe === '3Y') stepMonths = 4;
-    else if (currentTimeframe === '5Y') stepMonths = 6;
-    else if (currentTimeframe === '10Y') stepMonths = 12;
+    else if (currentTimeframe === '3Y') stepMonths = 2;
+    else if (currentTimeframe === '5Y') stepMonths = 3;
+    else if (currentTimeframe === '10Y') stepMonths = 6;
 
     const timeframeDuration =
       timeframeDays[currentTimeframe as keyof typeof timeframeDays];
