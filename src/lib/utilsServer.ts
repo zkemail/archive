@@ -74,7 +74,7 @@ export async function addDomainSelectorPair(
     return { already_in_db: false, added: false };
   }
 
-  const newDsp = await prisma.domainSelectorPair.create({
+  await prisma.domainSelectorPair.create({
     data: {
       domain,
       selector,

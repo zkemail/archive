@@ -1,10 +1,21 @@
 'use client';
 
-import { ArrowRightIcon, MagnifyingGlassIcon } from '@phosphor-icons/react';
+import {
+  ArrowRightIcon,
+  MagnifyingGlassIcon,
+  XIcon,
+} from '@phosphor-icons/react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { SetStateAction, useEffect, useState } from 'react';
+import {
+  SetStateAction,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
+import { autocomplete } from '@/app/actions';
 import { AnimatedNumber } from '@/components/ui/animated-number';
 import { Input } from '@/components/ui/input';
 import { analytics } from '@/lib/analytics';
@@ -15,10 +26,95 @@ interface HomeClientProps {
 }
 
 export default function HomeClient({ stats }: HomeClientProps) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [uniqueDomains, setUniqueDomains] = useState(0);
   const [uniqueSelectors, setUniqueSelectors] = useState(0);
   const [DSP, setDSP] = useState(0);
   const [DKIMkey, setDKIMkey] = useState(0);
+
+  const handleSearch = (query?: string) => {
+    const value = (query ?? searchQuery).trim();
+    if (value) {
+      analytics.capture('search', { query: value, source: 'homepage' });
+      window.location.href = `/search?q=${encodeURIComponent(value)}`;
+    }
+  };
+
+  const fetchSuggestions = useCallback(async (query: string) => {
+    if (!query || query.length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    try {
+      const results = await autocomplete(query);
+      setSuggestions(results);
+      setShowSuggestions(results.length > 0);
+    } catch {
+      setSuggestions([]);
+    }
+  }, []);
+
+  const handleInputChange = (value: string) => {
+    setSearchQuery(value);
+    setSelectedIndex(-1);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchSuggestions(value), 200);
+  };
+
+  const handleSuggestionClick = (suggestion: string) => {
+    setSearchQuery(suggestion);
+    setShowSuggestions(false);
+    handleSearch(suggestion);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (showSuggestions && suggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedIndex((prev) =>
+          prev < suggestions.length - 1 ? prev + 1 : prev
+        );
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedIndex((prev) => (prev > 0 ? prev - 1 : -1));
+        return;
+      }
+      if (e.key === 'Enter' && selectedIndex >= 0) {
+        e.preventDefault();
+        handleSuggestionClick(suggestions[selectedIndex]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setShowSuggestions(false);
+        return;
+      }
+    }
+    if (e.key === 'Enter') handleSearch();
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(e.target as Node) &&
+        inputRef.current &&
+        !inputRef.current.contains(e.target as Node)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const timeoutIds: ReturnType<typeof setTimeout>[] = [];
@@ -78,15 +174,7 @@ export default function HomeClient({ stats }: HomeClientProps) {
           </div>
           <div className='flex justify-start text-[clamp(1rem,1.39vw,1.25rem)] leading-5 font-semibold tracking-tight text-white'>
             <span className='whitespace-normal'>
-              Building the largest open-sourced directory of DKIM pairs.&nbsp;
-              <Link
-                href='https://archive.zk.email/about'
-                className='underline hover:opacity-80'
-                target='_blank'
-                rel='noreferrer noopener'
-              >
-                Read More
-              </Link>
+              Building the largest open-sourced directory of DKIM pairs.
             </span>
           </div>
         </div>
@@ -103,37 +191,66 @@ export default function HomeClient({ stats }: HomeClientProps) {
           <div className='justify-start self-stretch text-base leading-tight tracking-tight text-primary'>
             Search Domain
           </div>
-          <div className='my-0.25 flex w-full items-center gap-2 rounded-lg border border-border px-3 py-2'>
-            <div
-              data-name='MagnifyingGlass'
-              className='relative my-0.5 h-4 w-4 overflow-hidden'
-            >
-              <MagnifyingGlassIcon
-                size={16}
-                color='var(--secondary)'
-                weight='bold'
-                className='absolute'
-              />
-            </div>
-            <div className='min-w-0 flex-1'>
+          <div className='relative my-0.25 flex w-full items-center gap-2 rounded-lg border border-border px-3 py-2'>
+            <MagnifyingGlassIcon
+              size={16}
+              color='var(--secondary)'
+              weight='bold'
+            />
+            <div className='relative min-w-0 flex-1'>
               <Input
+                ref={inputRef}
                 placeholder='Domain name'
                 size='search'
+                value={searchQuery}
+                onChange={(e) => handleInputChange(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onFocus={() =>
+                  suggestions.length > 0 && setShowSuggestions(true)
+                }
                 className='flex-1 border-0 text-base leading-tight tracking-tight text-secondary outline-0'
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    const value = e.currentTarget.value.trim();
-                    if (value) {
-                      analytics.capture('search', {
-                        query: value,
-                        source: 'homepage',
-                      });
-                      window.location.href = `/search?q=${encodeURIComponent(value)}`;
-                    }
-                  }
-                }}
               />
+              {searchQuery && (
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSuggestions([]);
+                    setShowSuggestions(false);
+                  }}
+                  className='absolute top-1/2 right-0 -translate-y-1/2 hover:text-secondary focus:outline-none'
+                  aria-label='Clear search'
+                >
+                  <XIcon size={20} weight='bold' color='#606060' />
+                </button>
+              )}
             </div>
+            <button
+              onClick={() => handleSearch()}
+              className='flex items-center rounded-md bg-primary px-3 py-1 text-sm text-background transition-opacity hover:opacity-80'
+            >
+              Search
+            </button>
+
+            {showSuggestions && suggestions.length > 0 && (
+              <div
+                ref={suggestionsRef}
+                className='absolute top-full left-0 z-50 mt-1 w-full rounded-lg border border-border bg-foreground shadow-lg'
+              >
+                {suggestions.map((suggestion, index) => (
+                  <button
+                    key={suggestion}
+                    onClick={() => handleSuggestionClick(suggestion)}
+                    className={`hover:bg-muted w-full px-3 py-2 text-left text-sm ${
+                      index === selectedIndex ? 'bg-muted' : ''
+                    } ${index === 0 ? 'rounded-t-lg' : ''} ${
+                      index === suggestions.length - 1 ? 'rounded-b-lg' : ''
+                    }`}
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
         <div className='flex w-full flex-col items-start justify-start gap-3'>

@@ -73,7 +73,7 @@ function CollapsibleItem({
       {isOpen && (
         <div className='relative border-t border-border bg-background'>
           <CopyButton text={content} />
-          <pre className='max-h-[300px] overflow-x-auto overflow-y-auto p-4 pr-12 font-mono text-xs break-all whitespace-pre-wrap'>
+          <pre className='max-h-[300px] overflow-x-auto overflow-y-auto p-4 pr-12 font-mono text-xs whitespace-pre'>
             {content}
           </pre>
         </div>
