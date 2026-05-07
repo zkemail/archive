@@ -63,8 +63,7 @@ export default function Home() {
           </div>
           <div className='flex justify-start text-[clamp(1rem,1.39vw,1.25rem)] leading-5 font-semibold tracking-tight text-white'>
             <span className='whitespace-normal'>
-              Building the largest open-sourced directory of DKIM pairs.&nbsp;
-              <span className='underline'>Read More</span>
+              Building the largest open-sourced directory of DKIM pairs.
             </span>
           </div>
         </div>

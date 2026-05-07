@@ -174,15 +174,7 @@ export default function HomeClient({ stats }: HomeClientProps) {
           </div>
           <div className='flex justify-start text-[clamp(1rem,1.39vw,1.25rem)] leading-5 font-semibold tracking-tight text-white'>
             <span className='whitespace-normal'>
-              Building the largest open-sourced directory of DKIM pairs.&nbsp;
-              <Link
-                href='https://archive.zk.email/about'
-                className='underline hover:opacity-80'
-                target='_blank'
-                rel='noreferrer noopener'
-              >
-                Read More
-              </Link>
+              Building the largest open-sourced directory of DKIM pairs.
             </span>
           </div>
         </div>
