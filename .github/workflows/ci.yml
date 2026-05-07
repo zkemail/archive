@@ -18,8 +18,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm prisma generate
-        env:
-          DATABASE_URL: postgresql://unused:unused@localhost/unused
       - name: Check formatting
         run: pnpm prettier:check
       - name: Check linting
@@ -36,10 +34,5 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm prisma generate
-        env:
-          DATABASE_URL: postgresql://unused:unused@localhost/unused
       - name: Run build
-        run: pnpm next build
-        env:
-          DATABASE_URL: postgresql://unused:unused@localhost/unused
+        run: pnpm build
