@@ -4,7 +4,8 @@
   "private": true,
   "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "build": "prisma generate && prisma migrate deploy && NODE_OPTIONS='--max-old-space-size=4096' next build",
+    "build": "prisma generate && next build",
+    "build:deploy": "prisma generate && prisma migrate deploy && NODE_OPTIONS='--max-old-space-size=4096' next build",
     "clean": "rm -rf node_modules && rm -rf .next",
     "dev": "pnpm run lint --fix && pnpm run prettier && next dev",
     "lint": "next lint --fix",
