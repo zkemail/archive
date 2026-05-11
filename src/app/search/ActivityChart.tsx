@@ -207,7 +207,7 @@ const ActivityChart = ({
                   cy?: number;
                   index?: number;
                   payload?: { activity: number | null };
-                  key?: string | number;
+                  key?: React.Key | null;
                 }) => {
                   const { cx, cy, payload, index, key } = dotProps;
                   if (
