@@ -112,7 +112,9 @@ const SelectorDetails = ({ data }: SelectorDetailsProps) => {
     {}
   );
 
-  const domains = Object.keys(groupedByDomain).sort();
+  // Preserve server order (exact-match domain first, then alphabetical)
+  // rather than re-sorting alphabetically and burying the exact match.
+  const domains = Object.keys(groupedByDomain);
 
   return (
     <div className='flex w-full flex-col gap-6'>

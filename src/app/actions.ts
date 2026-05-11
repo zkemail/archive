@@ -29,8 +29,32 @@ function buildDomainFilter(query: string): Prisma.DomainSelectorPairWhereInput {
 
 export type AutocompleteResults = string[];
 
+const AUTOCOMPLETE_LIMIT = 8;
+
 export async function autocomplete(query: string): Promise<string[]> {
   if (!query) return [];
+
+  // Always look up the exact match first. Without this, short domains
+  // like "x.com" get buried under the top-N alphabetical substring matches
+  // ("101x.com", "1031ex.com", ...) and never appear in the dropdown even
+  // though the API returns them.
+  const exactMatch = await prisma.domainSelectorPair.findFirst({
+    where: {
+      domain: { equals: query, mode: Prisma.QueryMode.insensitive },
+    },
+    select: { domain: true },
+  });
+
+  const remainingSlots = exactMatch
+    ? AUTOCOMPLETE_LIMIT - 1
+    : AUTOCOMPLETE_LIMIT;
+
+  const prependExact = (results: string[]): string[] => {
+    if (!exactMatch) return results;
+    const lowered = exactMatch.domain.toLowerCase();
+    const deduped = results.filter((d) => d.toLowerCase() !== lowered);
+    return [exactMatch.domain, ...deduped].slice(0, AUTOCOMPLETE_LIMIT);
+  };
 
   // Simple prefix search for short queries
   if (!query.includes('.') && !query.includes('-')) {
@@ -40,10 +64,10 @@ export async function autocomplete(query: string): Promise<string[]> {
         domain: { startsWith: query, mode: Prisma.QueryMode.insensitive },
       },
       orderBy: { domain: 'asc' },
-      take: 8,
+      take: remainingSlots,
       select: { domain: true },
     });
-    return dsps.map((d) => d.domain);
+    return prependExact(dsps.map((d) => d.domain));
   }
 
   // Multi-strategy search for queries with dots/dashes
@@ -51,12 +75,12 @@ export async function autocomplete(query: string): Promise<string[]> {
     distinct: ['domain'],
     where: buildDomainFilter(query),
     orderBy: { domain: 'asc' },
-    take: 8,
+    take: remainingSlots,
     select: { domain: true },
   });
 
   // Prioritize results that start with the query
-  return dsps
+  const sorted = dsps
     .map((d) => d.domain)
     .sort((a, b) => {
       const aStarts = a.toLowerCase().startsWith(query.toLowerCase());
@@ -65,6 +89,8 @@ export async function autocomplete(query: string): Promise<string[]> {
       if (!aStarts && bStarts) return 1;
       return a.localeCompare(b);
     });
+
+  return prependExact(sorted);
 }
 
 export type RecordWithSelector = DkimRecord & {
@@ -112,6 +138,7 @@ function transformToSearchResult(record: RecordWithSelector): SearchResult {
 }
 
 const SEARCH_PAGE_SIZE = 50;
+const EXACT_MATCH_PRIORITY_LIMIT = 10;
 
 // Main search function for frontend - returns all data (filtering done client-side)
 export async function searchDomain(
@@ -124,15 +151,43 @@ export async function searchDomain(
 
   const domainFilter = buildDomainFilter(domainQuery);
 
-  const records = await prisma.dkimRecord.findMany({
+  // On the first page, surface up to EXACT_MATCH_PRIORITY_LIMIT records
+  // for the exact-match domain. Without this, short domains like "x.com"
+  // are completely missing from results because the first 50 alphabetical
+  // substring matches ("101x.com", "1031ex.com", ...) consume the page
+  // before their own records ever appear.
+  const exactRecords =
+    cursorIndex === null
+      ? await prisma.dkimRecord.findMany({
+          where: {
+            domainSelectorPair: {
+              domain: {
+                equals: domainQuery,
+                mode: Prisma.QueryMode.insensitive,
+              },
+            },
+          },
+          include: { domainSelectorPair: true },
+          orderBy: { id: 'asc' },
+          take: EXACT_MATCH_PRIORITY_LIMIT,
+        })
+      : [];
+
+  const exactIds = exactRecords.map((r) => r.id);
+  const remainingSlots = SEARCH_PAGE_SIZE - exactRecords.length;
+
+  const otherRecords = await prisma.dkimRecord.findMany({
     where: {
       domainSelectorPair: domainFilter,
+      ...(exactIds.length > 0 ? { id: { notIn: exactIds } } : {}),
     },
     include: { domainSelectorPair: true },
     orderBy: { domainSelectorPair: { domain: 'asc' } },
-    take: SEARCH_PAGE_SIZE,
+    take: remainingSlots,
     ...(cursorIndex ? { cursor: { id: cursorIndex }, skip: 1 } : {}),
   });
+
+  const records = [...exactRecords, ...otherRecords];
 
   // Filter for records with public key (p= tag present and not empty)
   const filteredRecords = records.filter((r) => {
@@ -141,10 +196,13 @@ export async function searchDomain(
   });
 
   const searchResults = filteredRecords.map(transformToSearchResult);
-  // Only signal "load more" when the page was actually full — otherwise the
+  // Pagination cursor tracks the alphabetical (non-exact) stream. Only
+  // signal "load more" when that stream was actually full — otherwise the
   // client wastes a roundtrip fetching an empty next page.
   const nextCursor =
-    records.length === SEARCH_PAGE_SIZE ? records[records.length - 1].id : null;
+    otherRecords.length === remainingSlots && remainingSlots > 0
+      ? otherRecords[otherRecords.length - 1].id
+      : null;
 
   // Get total count
   const totalCount = await prisma.dkimRecord.count({
