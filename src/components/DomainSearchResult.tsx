@@ -12,6 +12,7 @@ import SelectorDetails from '@/app/search/SelectorDetails';
 interface Props {
   domainQuery: string | undefined;
   filters?: SearchFilters;
+  onLoadingChange?: (loading: boolean) => void;
 }
 
 // Check if a record is expired (last seen > 365 days ago)
@@ -53,53 +54,88 @@ function applyFilters(
   });
 }
 
-export function DomainSearchResults({ domainQuery, filters = {} }: Props) {
+export function DomainSearchResults({
+  domainQuery,
+  filters = {},
+  onLoadingChange,
+}: Props) {
   const [data, setData] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  // Use refs to prevent race conditions
   const loadingMoreRef = useRef(false);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  // Serialize searches: at most one request in flight at a time. While one
+  // is running, the latest query is stashed in pendingQueryRef and fired
+  // when the current request settles. Server actions can't be aborted, so
+  // this is how we prevent the backend from being hammered by per-keystroke
+  // requests during slow typing.
+  const inFlightRef = useRef(false);
+  const pendingQueryRef = useRef<string | null>(null);
+  const requestIdRef = useRef(0);
 
-  const loadRecords = useCallback(async () => {
-    if (!domainQuery) {
-      setData(null);
+  const runSearchQueue = useCallback(async (initialQuery: string) => {
+    if (inFlightRef.current) {
+      pendingQueryRef.current = initialQuery;
       return;
     }
 
-    // Cancel any in-flight request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    abortControllerRef.current = new AbortController();
-
-    setLoading(true);
-    setError(null);
+    inFlightRef.current = true;
+    let current = initialQuery;
 
     try {
-      const response = await searchDomain(domainQuery, null);
-      setData(response);
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return;
-      setError('Failed to load search results');
-      console.error('Search error:', err);
+      while (current) {
+        const requestId = ++requestIdRef.current;
+        try {
+          const response = await searchDomain(current, null);
+          if (requestId === requestIdRef.current) {
+            // Guard against the server returning undefined (e.g. dev-mode
+            // stale-server-action errors) — keep data null in that case.
+            setData(response ?? null);
+            setError(null);
+          }
+        } catch (err) {
+          if (requestId === requestIdRef.current) {
+            setError('Failed to load search results');
+            console.error('Search error:', err);
+          }
+        }
+
+        const next = pendingQueryRef.current;
+        pendingQueryRef.current = null;
+        if (!next || next === current) break;
+        current = next;
+      }
     } finally {
+      inFlightRef.current = false;
       setLoading(false);
     }
-  }, [domainQuery]);
+  }, []);
+
+  const loadRecords = useCallback(() => {
+    if (!domainQuery) {
+      requestIdRef.current += 1;
+      pendingQueryRef.current = null;
+      setData(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    runSearchQueue(domainQuery);
+  }, [domainQuery, runSearchQueue]);
 
   useEffect(() => {
     loadRecords();
-    // Cleanup on unmount
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
   }, [loadRecords]);
+
+  // Mirror the committed-search loading state up to the parent so the
+  // SearchAndFilterSection magnifier button can show a spinner while the
+  // user-initiated search is in flight.
+  useEffect(() => {
+    onLoadingChange?.(loading);
+  }, [loading, onLoadingChange]);
 
   const loadMore = useCallback(async () => {
     // Use ref to prevent multiple concurrent calls

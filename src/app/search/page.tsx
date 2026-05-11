@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
 import { type SearchFilters } from '@/app/actions';
@@ -10,11 +10,11 @@ import { DomainSearchResults } from '@/components/DomainSearchResult';
 import { SearchAndFilterSection } from './SearchAndFilterSection';
 
 export default function Home() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q') ?? '';
 
   const [searchQuery, setSearchQuery] = useState(initialQuery);
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<
     'all' | 'active' | 'expired'
   >('all');
@@ -23,14 +23,15 @@ export default function Home() {
 
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
-    // Update URL without page reload
+    // Keep URL in sync without triggering an RSC navigation per keystroke.
     const params = new URLSearchParams(searchParams.toString());
     if (value) {
       params.set('q', value);
     } else {
       params.delete('q');
     }
-    router.replace(`/search?${params.toString()}`);
+    const qs = params.toString();
+    window.history.replaceState(null, '', qs ? `/search?${qs}` : '/search');
   };
 
   const handleFilterChange = (value: string) => {
@@ -82,10 +83,15 @@ export default function Home() {
             onSearchChange={handleSearchChange}
             onFilterChange={handleFilterChange}
             onDateRangeChange={handleDateRangeChange}
+            isSearchLoading={isSearchLoading}
           />
         </div>
         <div className='flex flex-col items-start justify-start gap-2 self-stretch'>
-          <DomainSearchResults domainQuery={searchQuery} filters={filters} />
+          <DomainSearchResults
+            domainQuery={searchQuery}
+            filters={filters}
+            onLoadingChange={setIsSearchLoading}
+          />
         </div>
       </div>
     </div>

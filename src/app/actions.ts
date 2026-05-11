@@ -111,6 +111,8 @@ function transformToSearchResult(record: RecordWithSelector): SearchResult {
   };
 }
 
+const SEARCH_PAGE_SIZE = 50;
+
 // Main search function for frontend - returns all data (filtering done client-side)
 export async function searchDomain(
   domainQuery: string,
@@ -128,7 +130,7 @@ export async function searchDomain(
     },
     include: { domainSelectorPair: true },
     orderBy: { domainSelectorPair: { domain: 'asc' } },
-    take: 50,
+    take: SEARCH_PAGE_SIZE,
     ...(cursorIndex ? { cursor: { id: cursorIndex }, skip: 1 } : {}),
   });
 
@@ -139,7 +141,10 @@ export async function searchDomain(
   });
 
   const searchResults = filteredRecords.map(transformToSearchResult);
-  const nextCursor = records.length > 0 ? records[records.length - 1].id : null;
+  // Only signal "load more" when the page was actually full — otherwise the
+  // client wastes a roundtrip fetching an empty next page.
+  const nextCursor =
+    records.length === SEARCH_PAGE_SIZE ? records[records.length - 1].id : null;
 
   // Get total count
   const totalCount = await prisma.dkimRecord.count({
