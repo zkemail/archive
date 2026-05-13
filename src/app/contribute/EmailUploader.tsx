@@ -495,6 +495,12 @@ const EmailUploader = ({
           setFile={handleFileSelect('mailbox')}
         />
 
+        <div className='flex w-full items-center gap-3'>
+          <Separator className='flex-1' />
+          <span className='text-base font-semibold text-secondary'>OR</span>
+          <Separator className='flex-1 rotate-180' />
+        </div>
+
         {/* TSV upload — pre-extracted pairs (e.g. from the legacy scraper). */}
         {uploadSectionLabel(
           'Upload TSV file (pre-extracted pairs)',
