@@ -23,13 +23,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Loader from '@/components/ui/loader';
 import { Separator } from '@/components/ui/separator';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { RawEmailResponse } from '@/hooks/useGmailClient';
 import { fetchEmailList, fetchEmailsRaw } from '@/hooks/useGmailClient';
 import { analytics } from '@/lib/analytics';
 import {
-  getDkimSigsArray,
+  type DomainSelectorPair,
   getFileContent,
-  parseDkimTagListV2,
+  parseMailboxPairs,
+  parseTsvPairs,
 } from '@/lib/utils';
 
 import Calendar from '../search/Calendar';
@@ -38,12 +45,18 @@ import ProcessedLogs, { type LogResultItem } from './ProcessedLogs';
 
 const MAX_EMPTY_PAGE_RETRIES = 5;
 
+const SCRAPER_README_URL =
+  'https://github.com/zkemail/archive.zk.email?tab=readme-ov-file#mailbox_scraper';
+
+type UploadMode = 'mailbox' | 'tsv';
+
 const EmailUploader = ({
   setIsDataFetching,
 }: {
   setIsDataFetching: Dispatch<SetStateAction<boolean>>;
 }) => {
   const [file, setFile] = useState<File | null>(null);
+  const [uploadMode, setUploadMode] = useState<UploadMode | null>(null);
   const [fetchedEmails, setFetchedEmails] = useState<RawEmailResponse[]>([]);
   const [isFetchEmailLoading, setIsFetchEmailLoading] = useState(false);
   const [pageToken, setPageToken] = useState<string | null>(null);
@@ -306,13 +319,53 @@ const EmailUploader = ({
     setApiPageToken(null);
     setIsDataFetching(false);
     setFile(null);
+    setUploadMode(null);
   };
 
-  // Process uploaded .eml file - extract DKIM and call /api/dsp
-  const handleProcessFile = async () => {
-    if (!file) return;
+  // Submit a list of pre-extracted {domain, selector} pairs to /api/dsp,
+  // streaming the log + count UI as each one resolves. Shared between the
+  // mailbox (.mbox / .eml) and TSV upload paths — the only difference is
+  // which parser produced the list.
+  const submitPairs = async (
+    pairs: DomainSelectorPair[],
+    source: UploadMode
+  ) => {
+    setTotalMessages(pairs.length);
+    for (let i = 0; i < pairs.length; i++) {
+      const { domain, selector } = pairs[i];
+      setProcessedCount(i + 1);
+      try {
+        const response = await fetch('/api/dsp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ domain, selector }),
+        });
+        const data: AddDspResponse = await response.json();
+        const logItem: LogResultItem = {
+          id: `${source}-${Date.now()}-${i}-${domain}-${selector}`,
+          domain,
+          selector,
+          timestamp: new Date().toISOString(),
+          isAdded: data.addResult?.added ?? false,
+          isUpdated:
+            (data.addResult?.already_in_db ?? false) &&
+            !(data.addResult?.added ?? false),
+        };
+        setLogResults((prev) => [...prev, logItem]);
+        if (data.addResult?.added) {
+          setAddedCount((prev) => prev + 1);
+        }
+      } catch (err) {
+        console.error(`Error adding ${domain}/${selector}:`, err);
+        // Continue with next pair
+      }
+    }
+  };
 
-    analytics.capture('file_process_start', { source: 'file_upload' });
+  const handleProcessFile = async () => {
+    if (!file || !uploadMode) return;
+
+    analytics.capture('file_process_start', { source: uploadMode });
     setUploadStarted(true);
     setIsProcessingEmails(true);
     setIsDataFetching(true);
@@ -327,59 +380,20 @@ const EmailUploader = ({
         throw new Error('Could not read file content');
       }
 
-      // Extract DKIM signatures from email
-      const dkimSigs = getDkimSigsArray(content);
-      if (dkimSigs.length === 0) {
-        throw new Error('No DKIM signatures found in email');
+      const pairs =
+        uploadMode === 'tsv'
+          ? parseTsvPairs(content)
+          : parseMailboxPairs(content);
+
+      if (pairs.length === 0) {
+        throw new Error(
+          uploadMode === 'tsv'
+            ? 'No domain/selector pairs found in TSV file'
+            : 'No DKIM signatures found in mailbox file'
+        );
       }
 
-      setTotalMessages(dkimSigs.length);
-
-      // Process each DKIM signature
-      for (let i = 0; i < dkimSigs.length; i++) {
-        const sig = dkimSigs[i];
-        const parsed = parseDkimTagListV2(sig);
-        const domain = parsed['d'];
-        const selector = parsed['s'];
-
-        if (!domain || !selector) {
-          console.warn('Missing domain or selector in DKIM signature:', sig);
-          continue;
-        }
-
-        setProcessedCount(i + 1);
-
-        try {
-          const response = await fetch('/api/dsp', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ domain, selector }),
-          });
-
-          const data: AddDspResponse = await response.json();
-
-          const logItem: LogResultItem = {
-            id: `file-${Date.now()}-${i}-${domain}-${selector}`,
-            domain,
-            selector,
-            timestamp: new Date().toISOString(),
-            isAdded: data.addResult?.added ?? false,
-            isUpdated:
-              (data.addResult?.already_in_db ?? false) &&
-              !(data.addResult?.added ?? false),
-          };
-
-          setLogResults((prev) => [...prev, logItem]);
-
-          if (data.addResult?.added) {
-            setAddedCount((prev) => prev + 1);
-          }
-        } catch (err) {
-          console.error(`Error adding ${domain}/${selector}:`, err);
-          // Continue with next signature
-        }
-      }
-
+      await submitPairs(pairs, uploadMode);
       setIsProcessingEmails(false);
     } catch (error) {
       console.error('Error processing file:', error);
@@ -390,6 +404,57 @@ const EmailUploader = ({
     }
   };
 
+  const handleFileSelect = (mode: UploadMode) => (selected: File | null) => {
+    if (!selected) {
+      if (uploadMode === mode) {
+        setFile(null);
+        setUploadMode(null);
+      }
+      return;
+    }
+    analytics.capture('file_upload_start', {
+      fileType: selected.name.split('.').pop(),
+      mode,
+    });
+    setFile(selected);
+    setUploadMode(mode);
+  };
+
+  const uploadSectionLabel = (
+    label: string,
+    tooltip: string,
+    helpHref: string,
+    helpLabel: string
+  ) => (
+    <div className='flex w-full flex-col gap-1'>
+      <div className='inline-flex items-center gap-2 self-start text-base leading-tight font-medium text-primary'>
+        <span>{label}</span>
+        <TooltipProvider delayDuration={0}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type='button'
+                aria-label='Help'
+                className='cursor-help text-secondary'
+              >
+                <QuestionIcon size={16} color='#606060' />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent className='max-w-xs'>{tooltip}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+      <a
+        href={helpHref}
+        target='_blank'
+        rel='noreferrer noopener'
+        className='self-start text-sm text-accent-foreground-blue underline'
+      >
+        {helpLabel}
+      </a>
+    </div>
+  );
+
   const emailUploadOptions = (
     <div className='flex w-full flex-col items-center justify-center gap-6'>
       <div className='flex w-full flex-col items-center justify-center gap-3'>
@@ -399,6 +464,7 @@ const EmailUploader = ({
             analytics.capture('gmail_connect');
             setIsFetchEmailLoading(true);
             setFile(null);
+            setUploadMode(null);
             signIn('google');
           }}
         >
@@ -415,37 +481,33 @@ const EmailUploader = ({
           <span className='text-base font-semibold text-secondary'>OR</span>
           <Separator className='flex-1 rotate-180' />
         </div>
-        <div className='inline-flex gap-2 self-start text-base leading-tight font-medium text-primary'>
-          <div>Upload PST/MBOX file</div>
-          <QuestionIcon size={16} color='#606060' />
-        </div>
+
+        {/* Mailbox upload — we extract DKIM pairs from each message. */}
+        {uploadSectionLabel(
+          'Upload mailbox file (.mbox or .eml)',
+          'Drop a Gmail Takeout / Apple Mail / Thunderbird export (.mbox) or a single saved email (.eml). We read each message and extract its DKIM domain + selector pairs locally before uploading them.',
+          SCRAPER_README_URL,
+          'How to export your mailbox?'
+        )}
         <DragAndDropFile
-          accept='.eml'
-          file={file}
-          tooltipComponent={
-            <div className='border-grey-500 w-[380px] rounded-2xl border bg-white p-2'>
-              <Image
-                src='/assets/emlInfo.svg'
-                alt='emlInfo'
-                width={360}
-                height={80}
-              />
-              <p className='text-grey-700 mt-3 text-base font-medium'>
-                The test .eml file is a sample email used to check if all the
-                provided patterns (regex) work correctly. This helps confirm
-                everything is set up properly before blueprint creation. We
-                always store this file locally and never send it to our server.
-              </p>
-            </div>
-          }
-          setFile={(e) => {
-            if (!e) return;
-            analytics.capture('file_upload_start', {
-              fileType: e.name.split('.').pop(),
-            });
-            setFile(e);
-          }}
+          accept='.mbox,.eml'
+          file={uploadMode === 'mailbox' ? file : null}
+          setFile={handleFileSelect('mailbox')}
         />
+
+        {/* TSV upload — pre-extracted pairs (e.g. from the legacy scraper). */}
+        {uploadSectionLabel(
+          'Upload TSV file (pre-extracted pairs)',
+          "A TSV file with two columns: domain and selector. This is what the old archive's mbox_scraper.py / pst_scraper.py scripts produce locally — useful if you want to keep your mailbox off our servers.",
+          SCRAPER_README_URL,
+          'How to produce the TSV?'
+        )}
+        <DragAndDropFile
+          accept='.tsv'
+          file={uploadMode === 'tsv' ? file : null}
+          setFile={handleFileSelect('tsv')}
+        />
+
         {/* Process File button - shown after file is uploaded */}
         {file && (
           <Button
@@ -454,7 +516,7 @@ const EmailUploader = ({
           >
             <div className='flex w-auto items-center justify-center gap-2'>
               <EnvelopeIcon size={16} weight='bold' />
-              <div>Process Email File</div>
+              <div>Process {uploadMode === 'tsv' ? 'TSV' : 'Mailbox'} File</div>
             </div>
           </Button>
         )}
@@ -472,12 +534,13 @@ const EmailUploader = ({
           </AccordionTrigger>
           <AccordionContent className='flex flex-col gap-4 px-4 pt-2'>
             <div className='text-base leading-tight font-medium text-secondary'>
-              When you sign in with your Gmail account and press Start, the site
-              will extract the DKIM-Signature field from each email message in
-              your Gmail account. A signature can look something like this:
+              When you sign in with your Gmail account or upload a mailbox file,
+              the site reads the DKIM-Signature header from each email message
+              and extracts only the domain and selector. A signature can look
+              something like this:
             </div>
             <div className='rounded-lg border border-border p-4 text-xs leading-none font-light'>
-              DKIM-Signature: v=1; a=rsa-sha256; d=australia.net; s=brisbane;
+              DKIM-Signature: v=1; a=rsa-sha256; d=example.net; s=brisbane;
               c=relaxed/simple; q=dns/txt; i=foo@eng.example.net; t=1117574938;
               x=1118006938; l=200; h=from:to:subject:date:keywords:keywords;
               z=From:foo@eng.example.net|To:joe@example.com|
@@ -487,7 +550,7 @@ const EmailUploader = ({
               VoG4ZHRNiYzR
             </div>
             <div className='text-base leading-tight font-medium text-secondary'>
-              In the example above, the domain is australianet and the selector
+              In the example above, the domain is example.net and the selector
               is brisbane. These are the values that will be extracted and
               uploaded to the archive.
             </div>
