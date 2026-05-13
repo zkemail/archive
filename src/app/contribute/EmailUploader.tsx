@@ -523,6 +523,10 @@ const EmailUploader = ({
           setFile={handleFileSelect('tsv')}
         />
 
+        {uploadError && !file && (
+          <div className='w-full text-sm text-destructive'>{uploadError}</div>
+        )}
+
         {/* Process File button - shown after file is uploaded */}
         {file && (
           <Button
