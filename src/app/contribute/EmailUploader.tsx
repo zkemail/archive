@@ -404,6 +404,8 @@ const EmailUploader = ({
     }
   };
 
+  const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+
   const handleFileSelect = (mode: UploadMode) => (selected: File | null) => {
     if (!selected) {
       if (uploadMode === mode) {
@@ -412,6 +414,13 @@ const EmailUploader = ({
       }
       return;
     }
+    if (selected.size > MAX_UPLOAD_BYTES) {
+      setUploadError(
+        `File is larger than ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB. Please split it into smaller files.`
+      );
+      return;
+    }
+    setUploadError(null);
     analytics.capture('file_upload_start', {
       fileType: selected.name.split('.').pop(),
       mode,

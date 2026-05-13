@@ -410,6 +410,11 @@ export function parseDkimTagListV2(rawHeader: string): Record<string, string> {
 
 export type DomainSelectorPair = { domain: string; selector: string };
 
+// Soft cap on pairs accepted from a single uploaded file. Each pair fires
+// one sequential POST /api/dsp, so even at 5k rows that's ~minutes of
+// processing — anything larger should be split or batched.
+export const MAX_UPLOAD_PAIRS = 5000;
+
 // Parse a TSV file of pre-extracted domain/selector pairs.
 // Format: one row per line, tab-separated, first two columns are
 // `domain` and `selector`. The selector column may include a date suffix
@@ -428,6 +433,11 @@ export function parseTsvPairs(content: string): DomainSelectorPair[] {
     const selector = rawSelector.split(':')[0].trim();
     if (!domain || !selector) continue;
     out.push({ domain, selector });
+    if (out.length >= MAX_UPLOAD_PAIRS) {
+      throw new Error(
+        `TSV file has more than ${MAX_UPLOAD_PAIRS} rows — please split it into smaller files.`
+      );
+    }
   }
   return out;
 }
@@ -459,6 +469,11 @@ export function parseMailboxPairs(content: string): DomainSelectorPair[] {
       if (seen.has(key)) continue;
       seen.add(key);
       out.push({ domain, selector });
+      if (out.length >= MAX_UPLOAD_PAIRS) {
+        throw new Error(
+          `Mailbox produced more than ${MAX_UPLOAD_PAIRS} unique pairs — please split it into smaller files.`
+        );
+      }
     }
   }
   return out;
