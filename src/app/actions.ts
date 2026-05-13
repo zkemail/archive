@@ -173,13 +173,24 @@ export async function searchDomain(
         })
       : [];
 
-  const exactIds = exactRecords.map((r) => r.id);
   const remainingSlots = SEARCH_PAGE_SIZE - exactRecords.length;
 
+  // Exclude the exact-match domain from the alphabetical stream on *every*
+  // page (not just the first). Without this, any exact-domain records that
+  // overflowed the priority cap on page 1 would reappear as duplicates on
+  // later pages — and totalCount would no longer match what's actually
+  // shown.
   const otherRecords = await prisma.dkimRecord.findMany({
     where: {
-      domainSelectorPair: domainFilter,
-      ...(exactIds.length > 0 ? { id: { notIn: exactIds } } : {}),
+      domainSelectorPair: {
+        ...domainFilter,
+        NOT: {
+          domain: {
+            equals: domainQuery,
+            mode: Prisma.QueryMode.insensitive,
+          },
+        },
+      },
     },
     include: { domainSelectorPair: true },
     orderBy: { domainSelectorPair: { domain: 'asc' } },
