@@ -50,6 +50,11 @@ const SCRAPER_README_URL =
 
 type UploadMode = 'mailbox' | 'tsv';
 
+const UPLOAD_TABS: { id: UploadMode; label: string }[] = [
+  { id: 'mailbox', label: 'Mailbox file' },
+  { id: 'tsv', label: 'TSV file' },
+];
+
 const EmailUploader = ({
   setIsDataFetching,
 }: {
@@ -57,6 +62,10 @@ const EmailUploader = ({
 }) => {
   const [file, setFile] = useState<File | null>(null);
   const [uploadMode, setUploadMode] = useState<UploadMode | null>(null);
+  // Which file-upload tab the user is currently looking at. Gmail isn't a
+  // tab — it's a distinct action button sitting next to the tabs that
+  // kicks off OAuth immediately.
+  const [activeTab, setActiveTab] = useState<UploadMode>('mailbox');
   const [fetchedEmails, setFetchedEmails] = useState<RawEmailResponse[]>([]);
   const [isFetchEmailLoading, setIsFetchEmailLoading] = useState(false);
   const [pageToken, setPageToken] = useState<string | null>(null);
@@ -406,6 +415,17 @@ const EmailUploader = ({
 
   const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 
+  const handleTabChange = (next: UploadMode) => {
+    if (next === activeTab) return;
+    setActiveTab(next);
+    // Switching tabs starts a fresh upload session in the new mode — the
+    // previous file would be misleading (and the Process button would
+    // mismatch its label).
+    setFile(null);
+    setUploadMode(null);
+    setUploadError(null);
+  };
+
   const handleFileSelect = (mode: UploadMode) => (selected: File | null) => {
     if (!selected) {
       if (uploadMode === mode) {
@@ -466,62 +486,76 @@ const EmailUploader = ({
 
   const emailUploadOptions = (
     <div className='flex w-full flex-col items-center justify-center gap-6'>
-      <div className='flex w-full flex-col items-center justify-center gap-3'>
-        <Button
-          className='flex w-max items-center gap-2 px-6 text-base leading-none font-semibold'
-          onClick={() => {
-            analytics.capture('gmail_connect');
-            setIsFetchEmailLoading(true);
-            setFile(null);
-            setUploadMode(null);
-            signIn('google');
-          }}
-        >
-          <Image
-            src='/assets/gmailIcon.png'
-            alt='Google Logo'
-            width={16}
-            height={16}
-          />
-          Connect Gmail Account
-        </Button>
-        <div className='flex w-full items-center gap-3'>
-          <Separator className='flex-1' />
-          <span className='text-base font-semibold text-secondary'>OR</span>
-          <Separator className='flex-1 rotate-180' />
+      <div className='flex w-full flex-col items-center justify-center gap-6'>
+        {/* Three contribution options side by side: Gmail kicks off OAuth
+            on click; Mailbox / TSV are tabs that swap the dropzone below.
+            Switching tabs clears any in-progress file selection (see
+            handleTabChange). */}
+        <div className='flex flex-row justify-center gap-2'>
+          <Button
+            onClick={() => {
+              analytics.capture('gmail_connect');
+              setIsFetchEmailLoading(true);
+              setFile(null);
+              setUploadMode(null);
+              signIn('google');
+            }}
+            className='flex h-auto cursor-pointer items-center gap-2 rounded-lg border-0 bg-background px-6 py-2 leading-tight font-normal tracking-tight text-primary hover:opacity-90'
+          >
+            <Image
+              src='/assets/gmailIcon.png'
+              alt='Google Logo'
+              width={16}
+              height={16}
+            />
+            Gmail
+          </Button>
+          {UPLOAD_TABS.map((tab) => (
+            <Button
+              key={tab.id}
+              onClick={() => handleTabChange(tab.id)}
+              className={`h-auto cursor-pointer rounded-lg border-0 px-6 py-2 leading-tight font-normal tracking-tight ${
+                activeTab === tab.id
+                  ? 'bg-selected text-background hover:opacity-90'
+                  : 'bg-background text-primary hover:opacity-90'
+              }`}
+            >
+              {tab.label}
+            </Button>
+          ))}
         </div>
 
-        {/* Mailbox upload — we extract DKIM pairs from each message. */}
-        {uploadSectionLabel(
-          'Upload mailbox file (.mbox or .eml)',
-          'Drop a Gmail Takeout / Apple Mail / Thunderbird export (.mbox) or a single saved email (.eml). We read each message and extract its DKIM domain + selector pairs locally before uploading them.',
-          SCRAPER_README_URL,
-          'How to export your mailbox?'
+        {activeTab === 'mailbox' && (
+          <>
+            {uploadSectionLabel(
+              'Upload mailbox file (.mbox or .eml)',
+              'Drop a Gmail Takeout / Apple Mail / Thunderbird export (.mbox) or a single saved email (.eml). We read each message and extract its DKIM domain + selector pairs locally before uploading them.',
+              SCRAPER_README_URL,
+              'How to export your mailbox?'
+            )}
+            <DragAndDropFile
+              accept='.mbox,.eml'
+              file={uploadMode === 'mailbox' ? file : null}
+              setFile={handleFileSelect('mailbox')}
+            />
+          </>
         )}
-        <DragAndDropFile
-          accept='.mbox,.eml'
-          file={uploadMode === 'mailbox' ? file : null}
-          setFile={handleFileSelect('mailbox')}
-        />
 
-        <div className='flex w-full items-center gap-3'>
-          <Separator className='flex-1' />
-          <span className='text-base font-semibold text-secondary'>OR</span>
-          <Separator className='flex-1 rotate-180' />
-        </div>
-
-        {/* TSV upload — pre-extracted pairs (e.g. from the legacy scraper). */}
-        {uploadSectionLabel(
-          'Upload TSV file (pre-extracted pairs)',
-          "A TSV file with two columns: domain and selector. This is what the old archive's mbox_scraper.py / pst_scraper.py scripts produce locally — useful if you want to keep your mailbox off our servers.",
-          SCRAPER_README_URL,
-          'How to produce the TSV?'
+        {activeTab === 'tsv' && (
+          <>
+            {uploadSectionLabel(
+              'Upload TSV file (pre-extracted pairs)',
+              "A TSV file with two columns: domain and selector. This is what the old archive's mbox_scraper.py / pst_scraper.py scripts produce locally — useful if you want to keep your mailbox off our servers.",
+              SCRAPER_README_URL,
+              'How to produce the TSV?'
+            )}
+            <DragAndDropFile
+              accept='.tsv'
+              file={uploadMode === 'tsv' ? file : null}
+              setFile={handleFileSelect('tsv')}
+            />
+          </>
         )}
-        <DragAndDropFile
-          accept='.tsv'
-          file={uploadMode === 'tsv' ? file : null}
-          setFile={handleFileSelect('tsv')}
-        />
 
         {uploadError && !file && (
           <div className='w-full text-sm text-destructive'>{uploadError}</div>
