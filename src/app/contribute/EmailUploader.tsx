@@ -760,8 +760,10 @@ const EmailUploader = ({
           onClearLog={handleClearLog}
         />
       </div>
-      {/* Show "Start New Upload" when upload is completed (not processing/paused) */}
-      {!isProcessingEmails && !isPaused && logResults.length > 0 && (
+      {/* Show a way back whenever we're idle inside the processed-view —
+          covers the completed case, the paused-then-stopped case, and the
+          immediate-parse-error case where logResults is still empty. */}
+      {!isProcessingEmails && !isPaused && (
         <div className='flex justify-center self-stretch pt-2'>
           <Button
             onClick={handleNewUpload}
@@ -769,7 +771,7 @@ const EmailUploader = ({
             className='flex items-center gap-2'
           >
             <ArrowCounterClockwiseIcon size={16} weight='bold' />
-            Start New Upload
+            {logResults.length > 0 ? 'Start New Upload' : 'Choose Another File'}
           </Button>
         </div>
       )}
