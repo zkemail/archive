@@ -196,7 +196,39 @@ const ActivityChart = ({
                 stroke='#22c55e'
                 strokeWidth={1}
                 fill='url(#activityGradient)'
-                dot={false}
+                // Recharts <Area> can't render a single isolated non-null
+                // point — for selectors with a sub-bucket activity window
+                // (e.g. first and last seen in the same month) the area
+                // would otherwise be completely invisible. Draw an explicit
+                // green dot in that case so short-lived selectors still
+                // show up on the chart.
+                dot={(dotProps: {
+                  cx?: number;
+                  cy?: number;
+                  index?: number;
+                  payload?: { activity: number | null };
+                  key?: React.Key | null;
+                }) => {
+                  const { cx, cy, payload, index, key } = dotProps;
+                  if (
+                    cx === undefined ||
+                    cy === undefined ||
+                    index === undefined ||
+                    !payload ||
+                    payload.activity === null
+                  ) {
+                    return <g key={key} />;
+                  }
+                  const prev = data[index - 1];
+                  const next = data[index + 1];
+                  const isIsolated =
+                    (!prev || prev.activity === null) &&
+                    (!next || next.activity === null);
+                  if (!isIsolated) return <g key={key} />;
+                  return (
+                    <circle key={key} cx={cx} cy={cy} r={4} fill='#22c55e' />
+                  );
+                }}
                 connectNulls={false}
               />
             </AreaChart>

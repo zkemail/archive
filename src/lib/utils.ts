@@ -407,3 +407,74 @@ export function parseDkimTagListV2(rawHeader: string): Record<string, string> {
       })
   );
 }
+
+export type DomainSelectorPair = { domain: string; selector: string };
+
+// Soft cap on pairs accepted from a single uploaded file. Each pair fires
+// one sequential POST /api/dsp, so even at 5k rows that's ~minutes of
+// processing — anything larger should be split or batched.
+export const MAX_UPLOAD_PAIRS = 5000;
+
+// Parse a TSV file of pre-extracted domain/selector pairs.
+// Format: one row per line, tab-separated, first two columns are
+// `domain` and `selector`. The selector column may include a date suffix
+// (e.g. "selector:2024-01-01") — that's the format the old archive's
+// mbox_scraper.py produces; we strip everything after the first `:`.
+export function parseTsvPairs(content: string): DomainSelectorPair[] {
+  const out: DomainSelectorPair[] = [];
+  const lines = content
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  for (const line of lines) {
+    const [rawDomain, rawSelector] = line.split('\t');
+    if (!rawDomain || !rawSelector) continue;
+    const domain = rawDomain.trim();
+    const selector = rawSelector.split(':')[0].trim();
+    if (!domain || !selector) continue;
+    out.push({ domain, selector });
+    if (out.length >= MAX_UPLOAD_PAIRS) {
+      throw new Error(
+        `TSV file has more than ${MAX_UPLOAD_PAIRS} rows — please split it into smaller files.`
+      );
+    }
+  }
+  return out;
+}
+
+// Split an mbox archive into individual raw email messages. Mbox uses
+// "From " (with trailing space) at the start of a line as the message
+// separator; a single .eml file is treated as an mbox with one message.
+export function splitMboxMessages(content: string): string[] {
+  const normalised = content.replace(/\r\n/g, '\n');
+  const parts = normalised.split(/(?:^|\n)From [^\n]*\n/);
+  const messages = parts.map((p) => p.trim()).filter(Boolean);
+  // No mbox separators present at all → treat the whole file as one
+  // message (covers raw .eml uploads).
+  return messages.length > 0 ? messages : [normalised.trim()].filter(Boolean);
+}
+
+// Walk an mbox/.eml file, extract every DKIM-Signature, and return the
+// deduplicated set of {domain, selector} pairs found.
+export function parseMailboxPairs(content: string): DomainSelectorPair[] {
+  const seen = new Set<string>();
+  const out: DomainSelectorPair[] = [];
+  for (const message of splitMboxMessages(content)) {
+    for (const rawHeader of getDkimSigsArray(message)) {
+      const tags = parseDkimTagListV2(rawHeader);
+      const domain = tags['d']?.trim();
+      const selector = tags['s']?.trim();
+      if (!domain || !selector) continue;
+      const key = `${domain}\t${selector}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ domain, selector });
+      if (out.length >= MAX_UPLOAD_PAIRS) {
+        throw new Error(
+          `Mailbox produced more than ${MAX_UPLOAD_PAIRS} unique pairs — please split it into smaller files.`
+        );
+      }
+    }
+  }
+  return out;
+}

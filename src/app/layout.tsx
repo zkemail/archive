@@ -12,7 +12,10 @@ import { NextAuthProvider } from './session-provider';
 const fustat = Fustat({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'ZK Email',
+  title: {
+    template: '%s | ZK Email',
+    default: 'ZK Email',
+  },
   description: '',
   icons: {
     icon: [

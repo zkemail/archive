@@ -19,8 +19,8 @@ export default function Home() {
           </div>
           <div className='flex justify-start text-[clamp(1rem,1.39vw,1.25rem)] leading-5 font-semibold tracking-tight text-white'>
             <span className='whitespace-normal'>
-              By uploading DKIM pairs from your Gmail account or from a TSV
-              file.
+              By uploading DKIM pairs from your Gmail account, a mailbox file,
+              or a TSV file.
             </span>
           </div>
         </div>
