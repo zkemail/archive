@@ -47,7 +47,13 @@ export function DomainSearchInput({
   const suppressAutocompleteRef = useRef(false);
 
   useEffect(() => {
+    // Keep the committed value in sync with the input when initialQuery
+    // changes (e.g. browser back/forward updates `?q=`). Without this,
+    // searchValue resets but committedValue lags, isDirty flips true, and
+    // the "Press Enter to search" hint appears even though the input
+    // matches the URL.
     setSearchValue(initialQuery);
+    setCommittedValue(initialQuery);
   }, [initialQuery]);
 
   // True when the visible input no longer matches the last committed
