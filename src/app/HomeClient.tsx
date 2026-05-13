@@ -19,11 +19,16 @@ export default function HomeClient({ stats }: HomeClientProps) {
   const [uniqueSelectors, setUniqueSelectors] = useState(0);
   const [DSP, setDSP] = useState(0);
   const [DKIMkey, setDKIMkey] = useState(0);
+  // True from the moment the user submits until the navigation to /search
+  // takes over. Drives the spinner inside the magnifier button so there's
+  // visible feedback during the brief "loading the search page" gap.
+  const [isNavigating, setIsNavigating] = useState(false);
 
   const handleSearch = (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return;
     analytics.capture('search', { query: trimmed, source: 'homepage' });
+    setIsNavigating(true);
     window.location.href = `/search?q=${encodeURIComponent(trimmed)}`;
   };
 
@@ -102,7 +107,10 @@ export default function HomeClient({ stats }: HomeClientProps) {
           <div className='justify-start self-stretch text-base leading-tight tracking-tight text-primary'>
             Search Domain
           </div>
-          <DomainSearchInput onSubmit={handleSearch} />
+          <DomainSearchInput
+            onSubmit={handleSearch}
+            isSearchLoading={isNavigating}
+          />
         </div>
         <div className='flex w-full flex-col items-start justify-start gap-3'>
           <div className='justify-start self-stretch leading-tight tracking-tight text-primary'>
