@@ -1,12 +1,36 @@
 'use server';
 import { domainToASCII, domainToUnicode } from 'node:url';
 
+import { LRUCache } from 'lru-cache';
+
 import {
   type DkimRecord,
   type DomainSelectorPair,
   Prisma,
 } from '@/generated/prisma/client';
 import { prisma } from '@/lib/db';
+
+// LRU caches for the user-facing hot paths (autocomplete + searchDomain
+// count). Most queries are repeats: typing-and-deleting the same prefix,
+// popular domains, etc. Cache hit returns in <1ms and obviates the
+// cross-cloud round trip + ILIKE seq scan entirely.
+//
+// Staleness window is bounded by TTL (5 min). New records added between
+// invalidations may be missing from suggestions and the count may be
+// off, both acceptable for autocomplete/count cosmetics. No explicit
+// invalidation from write paths (kept simple).
+const HOT_PATH_CACHE_TTL = 5 * 60 * 1000;
+const HOT_PATH_CACHE_MAX = 500;
+
+const autocompleteCache = new LRUCache<string, string[]>({
+  max: HOT_PATH_CACHE_MAX,
+  ttl: HOT_PATH_CACHE_TTL,
+});
+
+const searchCountCache = new LRUCache<string, number>({
+  max: HOT_PATH_CACHE_MAX,
+  ttl: HOT_PATH_CACHE_TTL,
+});
 
 // DKIM domains are stored in Punycode (xn--…) form in the DB, so any
 // IDN input must be encoded before lookup. ASCII queries pass through
@@ -55,6 +79,12 @@ export async function autocomplete(query: string): Promise<string[]> {
   // ASCII form stored in the DB.
   const asciiQuery = toPunycode(query);
 
+  // Cache hit fast-path. Cached value is the final Unicode-rendered
+  // suggestion list, so a hit obviates both the DB call and the
+  // post-processing.
+  const cached = autocompleteCache.get(asciiQuery);
+  if (cached !== undefined) return cached;
+
   // Always look up the exact match first. Without this, short domains
   // like "x.com" get buried under the top-N alphabetical substring matches
   // ("101x.com", "1031ex.com", ...) and never appear in the dropdown even
@@ -80,8 +110,9 @@ export async function autocomplete(query: string): Promise<string[]> {
     return [exactMatch.domain, ...deduped].slice(0, AUTOCOMPLETE_LIMIT);
   };
 
-  // Simple prefix search for short queries
+  let result: string[];
   if (!asciiQuery.includes('.') && !asciiQuery.includes('-')) {
+    // Simple prefix search for short queries
     const dsps = await prisma.domainSelectorPair.findMany({
       distinct: ['domain'],
       where: {
@@ -91,30 +122,33 @@ export async function autocomplete(query: string): Promise<string[]> {
       take: remainingSlots,
       select: { domain: true },
     });
-    return prependExact(dsps.map((d) => d.domain)).map(toUnicode);
-  }
-
-  // Multi-strategy search for queries with dots/dashes
-  const dsps = await prisma.domainSelectorPair.findMany({
-    distinct: ['domain'],
-    where: buildDomainFilter(asciiQuery),
-    orderBy: { domain: 'asc' },
-    take: remainingSlots,
-    select: { domain: true },
-  });
-
-  // Prioritize results that start with the query
-  const sorted = dsps
-    .map((d) => d.domain)
-    .sort((a, b) => {
-      const aStarts = a.toLowerCase().startsWith(asciiQuery.toLowerCase());
-      const bStarts = b.toLowerCase().startsWith(asciiQuery.toLowerCase());
-      if (aStarts && !bStarts) return -1;
-      if (!aStarts && bStarts) return 1;
-      return a.localeCompare(b);
+    result = prependExact(dsps.map((d) => d.domain)).map(toUnicode);
+  } else {
+    // Multi-strategy search for queries with dots/dashes
+    const dsps = await prisma.domainSelectorPair.findMany({
+      distinct: ['domain'],
+      where: buildDomainFilter(asciiQuery),
+      orderBy: { domain: 'asc' },
+      take: remainingSlots,
+      select: { domain: true },
     });
 
-  return prependExact(sorted).map(toUnicode);
+    // Prioritize results that start with the query
+    const sorted = dsps
+      .map((d) => d.domain)
+      .sort((a, b) => {
+        const aStarts = a.toLowerCase().startsWith(asciiQuery.toLowerCase());
+        const bStarts = b.toLowerCase().startsWith(asciiQuery.toLowerCase());
+        if (aStarts && !bStarts) return -1;
+        if (!aStarts && bStarts) return 1;
+        return a.localeCompare(b);
+      });
+
+    result = prependExact(sorted).map(toUnicode);
+  }
+
+  autocompleteCache.set(asciiQuery, result);
+  return result;
 }
 
 export type RecordWithSelector = DkimRecord & {
@@ -227,10 +261,17 @@ export async function searchDomain(
     ...(cursorIndex ? { cursor: { id: cursorIndex }, skip: 1 } : {}),
   });
 
+  // Count is identical across pages for the same query, so we cache it.
+  // On a cache hit, page-1 still gets a value without paying the full
+  // substring scan; on miss, we cache the result.
+  const cachedCount = isFirstPage
+    ? searchCountCache.get(asciiQuery)
+    : undefined;
   const totalCountPromise = isFirstPage
-    ? prisma.dkimRecord.count({
+    ? (cachedCount ??
+      prisma.dkimRecord.count({
         where: { domainSelectorPair: domainFilter },
-      })
+      }))
     : Promise.resolve(undefined);
 
   const [exactRecords, otherRecords, totalCount] = await Promise.all([
@@ -238,6 +279,12 @@ export async function searchDomain(
     otherRecordsPromise,
     totalCountPromise,
   ]);
+
+  // Populate the count cache after a miss. (cachedCount was undefined,
+  // so we just computed totalCount fresh.)
+  if (isFirstPage && cachedCount === undefined && totalCount !== undefined) {
+    searchCountCache.set(asciiQuery, totalCount);
+  }
 
   const records = [...exactRecords, ...otherRecords].slice(0, SEARCH_PAGE_SIZE);
 
