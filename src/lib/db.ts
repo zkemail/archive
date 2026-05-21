@@ -59,11 +59,12 @@ const createPrismaClient = () => {
     // (~150-400ms cross-cloud) before the query even starts.
     keepAlive: true,
     keepAliveInitialDelayMillis: 10000,
-    // Hard cap on any single statement. Prevents a runaway substring
-    // scan from holding a pool slot for 90s and starving every other
-    // request. 20s is well above any healthy query, well below the
-    // point where users have given up.
-    statement_timeout: 20000,
+    // Hard cap on any single statement. Generous initial value picked to
+    // accommodate the pre-trigram-index baseline (page-1 search measured
+    // 60-90s before REG-701 lands). Once healthy query latency settles
+    // below 100ms, ratchet this down in steps (60s, then 30s, then 10s)
+    // so a true runaway can't hold a pool slot indefinitely.
+    statement_timeout: 90000,
     // Distinguishes our queries from the legacy archive's in
     // pg_stat_activity so we can attribute load on the shared instance.
     application_name: 'archive-new',
