@@ -233,7 +233,6 @@ async function storeCalculationResult(data: {
           domainSelectorPairId: domainSelectorPair.id,
           firstSeenAt: data.metadata.timestamp1!,
           lastSeenAt: data.metadata.timestamp2!,
-          provenanceVerified: false,
           value: `p=${data.publicKey}`,
           keyType: 'RSA',
           keyData: data.publicKey,

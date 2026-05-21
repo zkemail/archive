@@ -2,7 +2,6 @@ import {
   ArrowsCounterClockwiseIcon,
   EnvelopeSimpleIcon,
   FlagIcon,
-  SealCheckIcon,
 } from '@phosphor-icons/react';
 import React, { useRef, useState } from 'react';
 
@@ -223,20 +222,6 @@ const SelectorDetails = ({ data }: SelectorDetailsProps) => {
                             </>
                           )}
                         </Badge>
-                        {item.provenanceVerified && (
-                          <Badge
-                            variant='source'
-                            className='text-xs text-secondary sm:text-sm'
-                          >
-                            <SealCheckIcon
-                              weight='bold'
-                              className='h-3 w-3 sm:h-4 sm:w-4'
-                            />
-                            <span className='text-xs leading-none font-normal tracking-tight'>
-                              Witness
-                            </span>
-                          </Badge>
-                        )}
                         <FlagIcon
                           weight='fill'
                           className='h-3 w-3 text-icon-muted sm:h-4 sm:w-4'

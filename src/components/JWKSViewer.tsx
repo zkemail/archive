@@ -17,7 +17,6 @@ interface JWKSRecord {
   x509Certificate: string; // JSON string
   jwks: string; // JSON string
   lastUpdated: string;
-  provenanceVerified?: boolean | null;
 }
 
 interface CollapsibleItemProps {

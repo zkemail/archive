@@ -145,7 +145,6 @@ export async function createDkimRecord(
       value: dkimDsnRecord.value,
       firstSeenAt: dkimDsnRecord.timestamp,
       lastSeenAt: dkimDsnRecord.timestamp,
-      provenanceVerified: false,
       keyType: dkimDsnRecord.keyType,
       keyData: dkimDsnRecord.keyDataBase64,
     },
@@ -193,7 +192,6 @@ export async function updateJWKeySet() {
         data: {
           jwks: latestJsonWebKeySet,
           x509Certificate: latestx509Cert,
-          provenanceVerified: false,
         },
       });
     } else {

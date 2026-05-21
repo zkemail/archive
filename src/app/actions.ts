@@ -127,7 +127,6 @@ export type SearchResult = {
   lastActive: string;
   value: string;
   origin: string;
-  provenanceVerified: boolean;
 };
 
 export type SearchResponse = {
@@ -154,7 +153,6 @@ function transformToSearchResult(record: RecordWithSelector): SearchResult {
     value: record.value,
     origin:
       record.source ?? record.domainSelectorPair.sourceIdentifier ?? 'Unknown',
-    provenanceVerified: record.provenanceVerified ?? false,
   };
 }
 
