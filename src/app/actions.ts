@@ -59,10 +59,13 @@ export async function autocomplete(query: string): Promise<string[]> {
   // like "x.com" get buried under the top-N alphabetical substring matches
   // ("101x.com", "1031ex.com", ...) and never appear in the dropdown even
   // though the API returns them.
+  //
+  // No insensitive mode: domains are stored lowercased on write (see
+  // utilsServer.ts addDomainSelectorPair and db.ts findRecordsWithCache),
+  // and toPunycode normalizes the query to lowercase too. Plain equality
+  // uses the (domain, selector) btree index; ILIKE does not.
   const exactMatch = await prisma.domainSelectorPair.findFirst({
-    where: {
-      domain: { equals: asciiQuery, mode: Prisma.QueryMode.insensitive },
-    },
+    where: { domain: asciiQuery },
     select: { domain: true },
   });
 
@@ -179,16 +182,14 @@ export async function searchDomain(
   // are completely missing from results because the first 50 alphabetical
   // substring matches ("101x.com", "1031ex.com", ...) consume the page
   // before their own records ever appear.
+  // No insensitive mode on equality: domains are stored lowercased on
+  // write and toPunycode normalizes the query, so plain equality uses
+  // the btree index instead of an ILIKE seq scan.
   const exactRecords =
     cursorIndex === null
       ? await prisma.dkimRecord.findMany({
           where: {
-            domainSelectorPair: {
-              domain: {
-                equals: asciiQuery,
-                mode: Prisma.QueryMode.insensitive,
-              },
-            },
+            domainSelectorPair: { domain: asciiQuery },
           },
           include: { domainSelectorPair: true },
           orderBy: { id: 'asc' },
@@ -207,12 +208,7 @@ export async function searchDomain(
     where: {
       domainSelectorPair: {
         ...domainFilter,
-        NOT: {
-          domain: {
-            equals: asciiQuery,
-            mode: Prisma.QueryMode.insensitive,
-          },
-        },
+        NOT: { domain: asciiQuery },
       },
     },
     include: { domainSelectorPair: true },
