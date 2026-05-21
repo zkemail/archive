@@ -9,7 +9,7 @@ import { analytics } from '@/lib/analytics';
 
 // Hard cap on each autocomplete request so a hung server action can't
 // permanently stall the in-flight ref (and therefore the dropdown).
-// Generous so that genuinely slow queries don't trip it — this is a hang
+// Generous so that genuinely slow queries don't trip it, since this is a hang
 // detector, not a tight latency bound.
 const AUTOCOMPLETE_TIMEOUT_MS = 20000;
 
@@ -37,7 +37,7 @@ export function DomainSearchInput({
   const [isAutocompleteFetching, setIsAutocompleteFetching] = useState(false);
   // Distinguishes "server returned no matches" (show "No suggestions for X")
   // from "request failed/timed out" (show a softer message that doesn't
-  // imply zero results exist — pressing Enter may still find something).
+  // imply zero results exist; pressing Enter may still find something).
   const [autocompleteFailed, setAutocompleteFailed] = useState(false);
   // Tracks the value most recently committed so the "Press Enter to search"
   // hint only shows when the input differs.
@@ -109,7 +109,7 @@ export function DomainSearchInput({
           // dev). Guard so `.length` doesn't crash the page.
           setSuggestions(Array.isArray(results) ? results : []);
           setAutocompleteFailed(false);
-          // Show the dropdown either way — an empty result list renders
+          // Show the dropdown either way: an empty result list renders
           // a "No suggestions for X" message instead of going silent.
           setShowSuggestions(true);
         } catch (err) {
@@ -137,14 +137,14 @@ export function DomainSearchInput({
     // Allow ASCII alphanumerics, dots, dashes, and any Unicode letter,
     // number, or combining mark so IDN domains can be typed in any script.
     // Marks (\p{M}) cover Thai vowel signs (เกาะกูด), Vietnamese diacritics
-    // (việt), Hindi vowels (हिन्दी), etc. — stripping them would silently
+    // (việt), Hindi vowels (हिन्दी), etc., since stripping them would silently
     // mangle valid input. Punycode conversion happens server-side.
     const value = rawValue.replace(/[^\p{L}\p{N}\p{M}.-]/gu, '');
     setSearchValue(value);
     setSelectedIndex(-1);
     // Resume autocomplete the moment the user starts typing again.
     suppressAutocompleteRef.current = false;
-    // Clear any stale "couldn't load" message — the next fetch decides the
+    // Clear any stale "couldn't load" message; the next fetch decides the
     // new state.
     setAutocompleteFailed(false);
 
@@ -231,7 +231,7 @@ export function DomainSearchInput({
     }
   };
 
-  // Close suggestions when clicking outside — unless the input is dirty,
+  // Close suggestions when clicking outside, unless the input is dirty,
   // in which case the dropdown stays visible to keep the "Press Enter to
   // search for X" hint in view.
   useEffect(() => {
@@ -333,7 +333,7 @@ export function DomainSearchInput({
             ))
           ) : autocompleteFailed ? (
             <div className='px-3 py-2 text-sm text-secondary'>
-              Couldn&apos;t load suggestions — press Enter to search
+              Couldn&apos;t load suggestions, press Enter to search
             </div>
           ) : (
             <div className='px-3 py-2 text-sm text-secondary'>

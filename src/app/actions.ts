@@ -203,7 +203,7 @@ export async function searchDomain(
   // Exclude the exact-match domain from the alphabetical stream on *every*
   // page (not just the first). Without this, any exact-domain records that
   // overflowed the priority cap on page 1 would reappear as duplicates on
-  // later pages — and totalCount would no longer match what's actually
+  // later pages, and totalCount would no longer match what's actually
   // shown.
   const otherRecords = await prisma.dkimRecord.findMany({
     where: {
@@ -233,7 +233,7 @@ export async function searchDomain(
 
   const searchResults = filteredRecords.map(transformToSearchResult);
   // Pagination cursor tracks the alphabetical (non-exact) stream. Only
-  // signal "load more" when that stream was actually full — otherwise the
+  // signal "load more" when that stream was actually full; otherwise the
   // client wastes a roundtrip fetching an empty next page.
   const nextCursor =
     otherRecords.length === remainingSlots && remainingSlots > 0
