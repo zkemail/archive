@@ -7,6 +7,10 @@ import { autocomplete } from '@/app/actions';
 import { Input } from '@/components/ui/input';
 import { analytics } from '@/lib/analytics';
 
+// Hard cap on each autocomplete request so a hung server action can't
+// permanently stall the in-flight ref (and therefore the dropdown).
+const AUTOCOMPLETE_TIMEOUT_MS = 8000;
+
 type DomainSearchInputProps = {
   initialQuery?: string;
   // Fired when the user commits a search (Enter, magnifier-click, picking
@@ -84,7 +88,15 @@ export function DomainSearchInput({
     try {
       while (current) {
         try {
-          const results = await autocomplete(current);
+          const results = await Promise.race([
+            autocomplete(current),
+            new Promise<string[]>((_, reject) =>
+              setTimeout(
+                () => reject(new Error('autocomplete timed out')),
+                AUTOCOMPLETE_TIMEOUT_MS
+              )
+            ),
+          ]);
           if (suppressAutocompleteRef.current) break;
           // Server can return undefined (e.g. stale-server-action errors in
           // dev). Guard so `.length` doesn't crash the page.
