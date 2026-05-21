@@ -135,7 +135,10 @@ export type SearchResult = {
 export type SearchResponse = {
   searchResults: SearchResult[];
   nextCursor: number | null;
-  totalCount: number;
+  // Optional because cursor (load-more) pages skip the count query as
+  // a perf optimization; the count is identical across pages for the
+  // same query, so the client carries forward the page-1 value.
+  totalCount?: number;
 };
 
 export type SearchFilters = {
@@ -174,37 +177,44 @@ export async function searchDomain(
   // Encode IDN inputs to Punycode before any DB lookup. ASCII queries
   // pass through unchanged.
   const asciiQuery = toPunycode(domainQuery);
-
+  const isFirstPage = cursorIndex === null;
   const domainFilter = buildDomainFilter(asciiQuery);
 
-  // On the first page, surface up to EXACT_MATCH_PRIORITY_LIMIT records
-  // for the exact-match domain. Without this, short domains like "x.com"
-  // are completely missing from results because the first 50 alphabetical
-  // substring matches ("101x.com", "1031ex.com", ...) consume the page
-  // before their own records ever appear.
-  // No insensitive mode on equality: domains are stored lowercased on
-  // write and toPunycode normalizes the query, so plain equality uses
-  // the btree index instead of an ILIKE seq scan.
-  const exactRecords =
-    cursorIndex === null
-      ? await prisma.dkimRecord.findMany({
-          where: {
-            domainSelectorPair: { domain: asciiQuery },
-          },
-          include: { domainSelectorPair: true },
-          orderBy: { id: 'asc' },
-          take: EXACT_MATCH_PRIORITY_LIMIT,
-        })
-      : [];
+  // All three queries are independent on page 1 and run in parallel,
+  // saving 2 cross-cloud round trips (~270 ms baseline) and overlapping
+  // DB work.
+  //
+  // otherRecords always fetches up to SEARCH_PAGE_SIZE rather than
+  // (PAGE_SIZE - exactRecords.length); we slice the combined list to
+  // SEARCH_PAGE_SIZE below. This trades a handful of possibly-wasted
+  // rows on page 1 (when the domain has many exact-match records) for
+  // breaking the exactRecords -> otherRecords dependency. The seq-scan
+  // cost dominates the small LIMIT difference anyway.
+  //
+  // totalCount only runs on page 1 because the value doesn't change
+  // across cursor pages for the same query; the client preserves the
+  // page-1 value when loading more. Skipping count on cursor pages saves
+  // a full ILIKE substring scan per scroll.
+  //
+  // exactRecords: surface up to EXACT_MATCH_PRIORITY_LIMIT records for
+  // the exact-match domain so short canonical domains like "x.com"
+  // aren't buried under alphabetical substring matches.
+  //
+  // otherRecords: exclude the exact-match domain on every page (not
+  // just page 1), otherwise exact-domain overflow beyond the priority
+  // cap would reappear as duplicates on later pages.
+  const exactRecordsPromise = isFirstPage
+    ? prisma.dkimRecord.findMany({
+        where: {
+          domainSelectorPair: { domain: asciiQuery },
+        },
+        include: { domainSelectorPair: true },
+        orderBy: { id: 'asc' },
+        take: EXACT_MATCH_PRIORITY_LIMIT,
+      })
+    : Promise.resolve([]);
 
-  const remainingSlots = SEARCH_PAGE_SIZE - exactRecords.length;
-
-  // Exclude the exact-match domain from the alphabetical stream on *every*
-  // page (not just the first). Without this, any exact-domain records that
-  // overflowed the priority cap on page 1 would reappear as duplicates on
-  // later pages, and totalCount would no longer match what's actually
-  // shown.
-  const otherRecords = await prisma.dkimRecord.findMany({
+  const otherRecordsPromise = prisma.dkimRecord.findMany({
     where: {
       domainSelectorPair: {
         ...domainFilter,
@@ -213,11 +223,23 @@ export async function searchDomain(
     },
     include: { domainSelectorPair: true },
     orderBy: { domainSelectorPair: { domain: 'asc' } },
-    take: remainingSlots,
+    take: SEARCH_PAGE_SIZE,
     ...(cursorIndex ? { cursor: { id: cursorIndex }, skip: 1 } : {}),
   });
 
-  const records = [...exactRecords, ...otherRecords];
+  const totalCountPromise = isFirstPage
+    ? prisma.dkimRecord.count({
+        where: { domainSelectorPair: domainFilter },
+      })
+    : Promise.resolve(undefined);
+
+  const [exactRecords, otherRecords, totalCount] = await Promise.all([
+    exactRecordsPromise,
+    otherRecordsPromise,
+    totalCountPromise,
+  ]);
+
+  const records = [...exactRecords, ...otherRecords].slice(0, SEARCH_PAGE_SIZE);
 
   // Filter for records with public key (p= tag present and not empty)
   const filteredRecords = records.filter((r) => {
@@ -226,20 +248,13 @@ export async function searchDomain(
   });
 
   const searchResults = filteredRecords.map(transformToSearchResult);
-  // Pagination cursor tracks the alphabetical (non-exact) stream. Only
-  // signal "load more" when that stream was actually full; otherwise the
-  // client wastes a roundtrip fetching an empty next page.
+
+  // Signal "load more" only when otherRecords filled the page; otherwise
+  // the client wastes a roundtrip fetching an empty next page.
   const nextCursor =
-    otherRecords.length === remainingSlots && remainingSlots > 0
+    otherRecords.length === SEARCH_PAGE_SIZE
       ? otherRecords[otherRecords.length - 1].id
       : null;
-
-  // Get total count
-  const totalCount = await prisma.dkimRecord.count({
-    where: {
-      domainSelectorPair: domainFilter,
-    },
-  });
 
   return { searchResults, nextCursor, totalCount };
 }
