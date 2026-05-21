@@ -9,7 +9,9 @@ import { analytics } from '@/lib/analytics';
 
 // Hard cap on each autocomplete request so a hung server action can't
 // permanently stall the in-flight ref (and therefore the dropdown).
-const AUTOCOMPLETE_TIMEOUT_MS = 8000;
+// Generous so that genuinely slow queries don't trip it — this is a hang
+// detector, not a tight latency bound.
+const AUTOCOMPLETE_TIMEOUT_MS = 20000;
 
 type DomainSearchInputProps = {
   initialQuery?: string;
@@ -33,6 +35,10 @@ export function DomainSearchInput({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [isAutocompleteFetching, setIsAutocompleteFetching] = useState(false);
+  // Distinguishes "server returned no matches" (show "No suggestions for X")
+  // from "request failed/timed out" (show a softer message that doesn't
+  // imply zero results exist — pressing Enter may still find something).
+  const [autocompleteFailed, setAutocompleteFailed] = useState(false);
   // Tracks the value most recently committed so the "Press Enter to search"
   // hint only shows when the input differs.
   const [committedValue, setCommittedValue] = useState(initialQuery);
@@ -83,6 +89,7 @@ export function DomainSearchInput({
 
     autocompleteInFlightRef.current = true;
     setIsAutocompleteFetching(true);
+    setAutocompleteFailed(false);
     let current = query;
 
     try {
@@ -101,12 +108,16 @@ export function DomainSearchInput({
           // Server can return undefined (e.g. stale-server-action errors in
           // dev). Guard so `.length` doesn't crash the page.
           setSuggestions(Array.isArray(results) ? results : []);
+          setAutocompleteFailed(false);
           // Show the dropdown either way — an empty result list renders
           // a "No suggestions for X" message instead of going silent.
           setShowSuggestions(true);
         } catch (err) {
           console.error('Autocomplete error:', err);
-          if (!suppressAutocompleteRef.current) setSuggestions([]);
+          if (!suppressAutocompleteRef.current) {
+            setSuggestions([]);
+            setAutocompleteFailed(true);
+          }
         }
 
         if (suppressAutocompleteRef.current) break;
@@ -123,12 +134,19 @@ export function DomainSearchInput({
   }, []);
 
   const handleInputChange = (rawValue: string) => {
-    // Strip characters that can never appear in a domain name
-    const value = rawValue.replace(/[^a-zA-Z0-9.-]/g, '');
+    // Allow ASCII alphanumerics, dots, dashes, and any Unicode letter,
+    // number, or combining mark so IDN domains can be typed in any script.
+    // Marks (\p{M}) cover Thai vowel signs (เกาะกูด), Vietnamese diacritics
+    // (việt), Hindi vowels (हिन्दी), etc. — stripping them would silently
+    // mangle valid input. Punycode conversion happens server-side.
+    const value = rawValue.replace(/[^\p{L}\p{N}\p{M}.-]/gu, '');
     setSearchValue(value);
     setSelectedIndex(-1);
     // Resume autocomplete the moment the user starts typing again.
     suppressAutocompleteRef.current = false;
+    // Clear any stale "couldn't load" message — the next fetch decides the
+    // new state.
+    setAutocompleteFailed(false);
 
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
@@ -313,6 +331,10 @@ export function DomainSearchInput({
                 {suggestion}
               </button>
             ))
+          ) : autocompleteFailed ? (
+            <div className='px-3 py-2 text-sm text-secondary'>
+              Couldn&apos;t load suggestions — press Enter to search
+            </div>
           ) : (
             <div className='px-3 py-2 text-sm text-secondary'>
               No suggestions for &quot;{searchValue}&quot;
