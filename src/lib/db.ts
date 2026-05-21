@@ -54,6 +54,19 @@ const createPrismaClient = () => {
     max: 20, // Max connections
     idleTimeoutMillis: 30000, // 30 seconds idle timeout
     connectionTimeoutMillis: 10000, // 10 seconds connection timeout
+    // Render's NAT closes idle sockets aggressively. Without keepAlive
+    // every first-request-after-idle pays a full TCP+TLS handshake
+    // (~150-400ms cross-cloud) before the query even starts.
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
+    // Hard cap on any single statement. Prevents a runaway substring
+    // scan from holding a pool slot for 90s and starving every other
+    // request. 20s is well above any healthy query, well below the
+    // point where users have given up.
+    statement_timeout: 20000,
+    // Distinguishes our queries from the legacy archive's in
+    // pg_stat_activity so we can attribute load on the shared instance.
+    application_name: 'archive-new',
   });
 
   // Create the Prisma adapter with the pool
