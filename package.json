@@ -13,7 +13,8 @@
     "prepare": "husky",
     "prettier": "prettier --write --cache .",
     "prettier:check": "prettier --check .",
-    "start": "next start"
+    "start": "next start",
+    "jwks:update": "tsx scripts/update-jwks.ts"
   },
   "dependencies": {
     "@google-cloud/tasks": "5.1.0",
@@ -94,6 +95,7 @@
     "prettier-plugin-tailwindcss": "^0.6.14",
     "prisma": "^7.0.1",
     "tailwindcss": "^4.1.17",
+    "tsx": "^4.22.3",
     "typescript": "^5.9.3"
   }
 }
