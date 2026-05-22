@@ -104,14 +104,6 @@ export type DomainAndSelector = {
   selector: string;
 };
 
-export type jwkSet = {
-  id: number;
-  x509Certificate: string;
-  jwks: string;
-  lastUpdated: Date;
-  provenanceVerified: boolean | null;
-};
-
 export interface DnsDkimFetchResult {
   domain: string;
   selector: string;
@@ -192,51 +184,6 @@ export function getCanonicalRecordString(
   dkimRecordValue: string
 ): string {
   return `${dsp.selector}._domainkey.${dsp.domain} TXT "${dkimRecordValue}"`;
-}
-
-// Canonicalize X.509 certificates
-function canonicalizeX509(certString: string): string {
-  const certs = JSON.parse(certString);
-  const sortedEntries = Object.entries(certs).sort(([a], [b]) =>
-    a.localeCompare(b)
-  );
-
-  const sortedCerts = Object.fromEntries(sortedEntries);
-  return JSON.stringify(sortedCerts, Object.keys(sortedCerts).sort());
-}
-
-// Canonicalize JWKS
-function canonicalizeJwks(jwksString: string): string {
-  const jwks = JSON.parse(jwksString);
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sortedKeys = jwks.keys.sort((a: any, b: any) =>
-    a.kid.localeCompare(b.kid)
-  );
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const canonicalKeys = sortedKeys.map((key: any) => {
-    const orderedKey: Record<string, unknown> = {};
-    Object.keys(key)
-      .sort()
-      .forEach((k) => (orderedKey[k] = key[k]));
-    return orderedKey;
-  });
-  return JSON.stringify({ keys: canonicalKeys }, null, 0);
-}
-
-export function getCanonicalJWKRecordString(jwkSetData: jwkSet): string {
-  const canonicalX509 = canonicalizeX509(jwkSetData.x509Certificate);
-  const canonicalJwks = canonicalizeJwks(jwkSetData.jwks);
-
-  const canonicalObject = {
-    x509Certificate: canonicalX509,
-    jwks: canonicalJwks,
-    lastUpdated: jwkSetData.lastUpdated,
-    provenanceVerified: jwkSetData.provenanceVerified,
-  };
-
-  return JSON.stringify(canonicalObject, Object.keys(canonicalObject).sort());
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

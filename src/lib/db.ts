@@ -54,6 +54,20 @@ const createPrismaClient = () => {
     max: 20, // Max connections
     idleTimeoutMillis: 30000, // 30 seconds idle timeout
     connectionTimeoutMillis: 10000, // 10 seconds connection timeout
+    // Render's NAT closes idle sockets aggressively. Without keepAlive
+    // every first-request-after-idle pays a full TCP+TLS handshake
+    // (~150-400ms cross-cloud) before the query even starts.
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
+    // Hard cap on any single statement. Generous initial value picked to
+    // accommodate the pre-trigram-index baseline (page-1 search measured
+    // 60-90s before REG-701 lands). Once healthy query latency settles
+    // below 100ms, ratchet this down in steps (60s, then 30s, then 10s)
+    // so a true runaway can't hold a pool slot indefinitely.
+    statement_timeout: 90000,
+    // Distinguishes our queries from the legacy archive's in
+    // pg_stat_activity so we can attribute load on the shared instance.
+    application_name: 'archive-new',
   });
 
   // Create the Prisma adapter with the pool
@@ -145,7 +159,6 @@ export async function createDkimRecord(
       value: dkimDsnRecord.value,
       firstSeenAt: dkimDsnRecord.timestamp,
       lastSeenAt: dkimDsnRecord.timestamp,
-      provenanceVerified: false,
       keyType: dkimDsnRecord.keyType,
       keyData: dkimDsnRecord.keyDataBase64,
     },
@@ -193,7 +206,6 @@ export async function updateJWKeySet() {
         data: {
           jwks: latestJsonWebKeySet,
           x509Certificate: latestx509Cert,
-          provenanceVerified: false,
         },
       });
     } else {

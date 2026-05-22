@@ -156,6 +156,8 @@ export function DomainSearchResults({
         return {
           ...response,
           searchResults: [...prev.searchResults, ...newResults],
+          // Cursor pages skip the count query; preserve the page-1 value.
+          totalCount: response.totalCount ?? prev.totalCount,
         };
       });
     } catch (err) {

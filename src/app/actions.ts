@@ -1,12 +1,36 @@
 'use server';
 import { domainToASCII, domainToUnicode } from 'node:url';
 
+import { LRUCache } from 'lru-cache';
+
 import {
   type DkimRecord,
   type DomainSelectorPair,
   Prisma,
 } from '@/generated/prisma/client';
 import { prisma } from '@/lib/db';
+
+// LRU caches for the user-facing hot paths (autocomplete + searchDomain
+// count). Most queries are repeats: typing-and-deleting the same prefix,
+// popular domains, etc. Cache hit returns in <1ms and obviates the
+// cross-cloud round trip + ILIKE seq scan entirely.
+//
+// Staleness window is bounded by TTL (5 min). New records added between
+// invalidations may be missing from suggestions and the count may be
+// off, both acceptable for autocomplete/count cosmetics. No explicit
+// invalidation from write paths (kept simple).
+const HOT_PATH_CACHE_TTL = 5 * 60 * 1000;
+const HOT_PATH_CACHE_MAX = 500;
+
+const autocompleteCache = new LRUCache<string, string[]>({
+  max: HOT_PATH_CACHE_MAX,
+  ttl: HOT_PATH_CACHE_TTL,
+});
+
+const searchCountCache = new LRUCache<string, number>({
+  max: HOT_PATH_CACHE_MAX,
+  ttl: HOT_PATH_CACHE_TTL,
+});
 
 // DKIM domains are stored in Punycode (xn--…) form in the DB, so any
 // IDN input must be encoded before lookup. ASCII queries pass through
@@ -55,14 +79,23 @@ export async function autocomplete(query: string): Promise<string[]> {
   // ASCII form stored in the DB.
   const asciiQuery = toPunycode(query);
 
+  // Cache hit fast-path. Cached value is the final Unicode-rendered
+  // suggestion list, so a hit obviates both the DB call and the
+  // post-processing.
+  const cached = autocompleteCache.get(asciiQuery);
+  if (cached !== undefined) return cached;
+
   // Always look up the exact match first. Without this, short domains
   // like "x.com" get buried under the top-N alphabetical substring matches
   // ("101x.com", "1031ex.com", ...) and never appear in the dropdown even
   // though the API returns them.
+  //
+  // No insensitive mode: domains are stored lowercased on write (see
+  // utilsServer.ts addDomainSelectorPair and db.ts findRecordsWithCache),
+  // and toPunycode normalizes the query to lowercase too. Plain equality
+  // uses the (domain, selector) btree index; ILIKE does not.
   const exactMatch = await prisma.domainSelectorPair.findFirst({
-    where: {
-      domain: { equals: asciiQuery, mode: Prisma.QueryMode.insensitive },
-    },
+    where: { domain: asciiQuery },
     select: { domain: true },
   });
 
@@ -77,8 +110,9 @@ export async function autocomplete(query: string): Promise<string[]> {
     return [exactMatch.domain, ...deduped].slice(0, AUTOCOMPLETE_LIMIT);
   };
 
-  // Simple prefix search for short queries
+  let result: string[];
   if (!asciiQuery.includes('.') && !asciiQuery.includes('-')) {
+    // Simple prefix search for short queries
     const dsps = await prisma.domainSelectorPair.findMany({
       distinct: ['domain'],
       where: {
@@ -88,30 +122,33 @@ export async function autocomplete(query: string): Promise<string[]> {
       take: remainingSlots,
       select: { domain: true },
     });
-    return prependExact(dsps.map((d) => d.domain)).map(toUnicode);
-  }
-
-  // Multi-strategy search for queries with dots/dashes
-  const dsps = await prisma.domainSelectorPair.findMany({
-    distinct: ['domain'],
-    where: buildDomainFilter(asciiQuery),
-    orderBy: { domain: 'asc' },
-    take: remainingSlots,
-    select: { domain: true },
-  });
-
-  // Prioritize results that start with the query
-  const sorted = dsps
-    .map((d) => d.domain)
-    .sort((a, b) => {
-      const aStarts = a.toLowerCase().startsWith(asciiQuery.toLowerCase());
-      const bStarts = b.toLowerCase().startsWith(asciiQuery.toLowerCase());
-      if (aStarts && !bStarts) return -1;
-      if (!aStarts && bStarts) return 1;
-      return a.localeCompare(b);
+    result = prependExact(dsps.map((d) => d.domain)).map(toUnicode);
+  } else {
+    // Multi-strategy search for queries with dots/dashes
+    const dsps = await prisma.domainSelectorPair.findMany({
+      distinct: ['domain'],
+      where: buildDomainFilter(asciiQuery),
+      orderBy: { domain: 'asc' },
+      take: remainingSlots,
+      select: { domain: true },
     });
 
-  return prependExact(sorted).map(toUnicode);
+    // Prioritize results that start with the query
+    const sorted = dsps
+      .map((d) => d.domain)
+      .sort((a, b) => {
+        const aStarts = a.toLowerCase().startsWith(asciiQuery.toLowerCase());
+        const bStarts = b.toLowerCase().startsWith(asciiQuery.toLowerCase());
+        if (aStarts && !bStarts) return -1;
+        if (!aStarts && bStarts) return 1;
+        return a.localeCompare(b);
+      });
+
+    result = prependExact(sorted).map(toUnicode);
+  }
+
+  autocompleteCache.set(asciiQuery, result);
+  return result;
 }
 
 export type RecordWithSelector = DkimRecord & {
@@ -127,13 +164,15 @@ export type SearchResult = {
   lastActive: string;
   value: string;
   origin: string;
-  provenanceVerified: boolean;
 };
 
 export type SearchResponse = {
   searchResults: SearchResult[];
   nextCursor: number | null;
-  totalCount: number;
+  // Optional because cursor (load-more) pages skip the count query as
+  // a perf optimization; the count is identical across pages for the
+  // same query, so the client carries forward the page-1 value.
+  totalCount?: number;
 };
 
 export type SearchFilters = {
@@ -154,7 +193,6 @@ function transformToSearchResult(record: RecordWithSelector): SearchResult {
     value: record.value,
     origin:
       record.source ?? record.domainSelectorPair.sourceIdentifier ?? 'Unknown',
-    provenanceVerified: record.provenanceVerified ?? false,
   };
 }
 
@@ -173,57 +211,82 @@ export async function searchDomain(
   // Encode IDN inputs to Punycode before any DB lookup. ASCII queries
   // pass through unchanged.
   const asciiQuery = toPunycode(domainQuery);
-
+  const isFirstPage = cursorIndex === null;
   const domainFilter = buildDomainFilter(asciiQuery);
 
-  // On the first page, surface up to EXACT_MATCH_PRIORITY_LIMIT records
-  // for the exact-match domain. Without this, short domains like "x.com"
-  // are completely missing from results because the first 50 alphabetical
-  // substring matches ("101x.com", "1031ex.com", ...) consume the page
-  // before their own records ever appear.
-  const exactRecords =
-    cursorIndex === null
-      ? await prisma.dkimRecord.findMany({
-          where: {
-            domainSelectorPair: {
-              domain: {
-                equals: asciiQuery,
-                mode: Prisma.QueryMode.insensitive,
-              },
-            },
-          },
-          include: { domainSelectorPair: true },
-          orderBy: { id: 'asc' },
-          take: EXACT_MATCH_PRIORITY_LIMIT,
-        })
-      : [];
+  // All three queries are independent on page 1 and run in parallel,
+  // saving 2 cross-cloud round trips (~270 ms baseline) and overlapping
+  // DB work.
+  //
+  // otherRecords always fetches up to SEARCH_PAGE_SIZE rather than
+  // (PAGE_SIZE - exactRecords.length); we slice the combined list to
+  // SEARCH_PAGE_SIZE below. This trades a handful of possibly-wasted
+  // rows on page 1 (when the domain has many exact-match records) for
+  // breaking the exactRecords -> otherRecords dependency. The seq-scan
+  // cost dominates the small LIMIT difference anyway.
+  //
+  // totalCount only runs on page 1 because the value doesn't change
+  // across cursor pages for the same query; the client preserves the
+  // page-1 value when loading more. Skipping count on cursor pages saves
+  // a full ILIKE substring scan per scroll.
+  //
+  // exactRecords: surface up to EXACT_MATCH_PRIORITY_LIMIT records for
+  // the exact-match domain so short canonical domains like "x.com"
+  // aren't buried under alphabetical substring matches.
+  //
+  // otherRecords: exclude the exact-match domain on every page (not
+  // just page 1), otherwise exact-domain overflow beyond the priority
+  // cap would reappear as duplicates on later pages.
+  const exactRecordsPromise = isFirstPage
+    ? prisma.dkimRecord.findMany({
+        where: {
+          domainSelectorPair: { domain: asciiQuery },
+        },
+        include: { domainSelectorPair: true },
+        orderBy: { id: 'asc' },
+        take: EXACT_MATCH_PRIORITY_LIMIT,
+      })
+    : Promise.resolve([]);
 
-  const remainingSlots = SEARCH_PAGE_SIZE - exactRecords.length;
-
-  // Exclude the exact-match domain from the alphabetical stream on *every*
-  // page (not just the first). Without this, any exact-domain records that
-  // overflowed the priority cap on page 1 would reappear as duplicates on
-  // later pages, and totalCount would no longer match what's actually
-  // shown.
-  const otherRecords = await prisma.dkimRecord.findMany({
+  const otherRecordsPromise = prisma.dkimRecord.findMany({
     where: {
       domainSelectorPair: {
         ...domainFilter,
-        NOT: {
-          domain: {
-            equals: asciiQuery,
-            mode: Prisma.QueryMode.insensitive,
-          },
-        },
+        NOT: { domain: asciiQuery },
       },
     },
     include: { domainSelectorPair: true },
     orderBy: { domainSelectorPair: { domain: 'asc' } },
-    take: remainingSlots,
+    take: SEARCH_PAGE_SIZE,
     ...(cursorIndex ? { cursor: { id: cursorIndex }, skip: 1 } : {}),
   });
 
-  const records = [...exactRecords, ...otherRecords];
+  // Count is identical across pages for the same query, so we cache it.
+  // On a cache hit, page-1 still gets a value without paying the full
+  // substring scan; on miss, we cache the result.
+  const cachedCount = isFirstPage
+    ? searchCountCache.get(asciiQuery)
+    : undefined;
+  const totalCountPromise = isFirstPage
+    ? (cachedCount ??
+      prisma.dkimRecord.count({
+        where: { domainSelectorPair: domainFilter },
+      }))
+    : Promise.resolve(undefined);
+
+  const [exactRecords, otherRecords, totalCount] = await Promise.all([
+    exactRecordsPromise,
+    otherRecordsPromise,
+    totalCountPromise,
+  ]);
+
+  // Populate the count cache after a miss. (cachedCount was undefined,
+  // so we just computed totalCount fresh.)
+  if (isFirstPage && cachedCount === undefined && totalCount !== undefined) {
+    searchCountCache.set(asciiQuery, totalCount);
+  }
+
+  const records = [...exactRecords, ...otherRecords].slice(0, SEARCH_PAGE_SIZE);
 
   // Filter for records with public key (p= tag present and not empty)
   const filteredRecords = records.filter((r) => {
@@ -232,20 +295,13 @@ export async function searchDomain(
   });
 
   const searchResults = filteredRecords.map(transformToSearchResult);
-  // Pagination cursor tracks the alphabetical (non-exact) stream. Only
-  // signal "load more" when that stream was actually full; otherwise the
-  // client wastes a roundtrip fetching an empty next page.
+
+  // Signal "load more" only when otherRecords filled the page; otherwise
+  // the client wastes a roundtrip fetching an empty next page.
   const nextCursor =
-    otherRecords.length === remainingSlots && remainingSlots > 0
+    otherRecords.length === SEARCH_PAGE_SIZE
       ? otherRecords[otherRecords.length - 1].id
       : null;
-
-  // Get total count
-  const totalCount = await prisma.dkimRecord.count({
-    where: {
-      domainSelectorPair: domainFilter,
-    },
-  });
 
   return { searchResults, nextCursor, totalCount };
 }

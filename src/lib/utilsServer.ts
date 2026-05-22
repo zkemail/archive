@@ -86,7 +86,6 @@ export async function addDomainSelectorPair(
             value: record.value,
             firstSeenAt: record.timestamp,
             lastSeenAt: record.timestamp,
-            provenanceVerified: false,
             keyType: record.keyType,
             keyData: record.keyDataBase64,
           })),

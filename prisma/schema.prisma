@@ -32,6 +32,12 @@ model DomainSelectorPair {
   records          DkimRecord[]
 
   @@index([domain, selector])
+  // Also declared out-of-band:
+  //   idx_domain_selector_pair_domain_trgm — GIN trigram index on (domain)
+  //   for fast ILIKE substring search. See
+  //   prisma/migrations/20260521151000_add_pg_trgm_index/migration.sql.
+  //   Not expressible in schema.prisma without enabling the
+  //   postgresqlExtensions preview feature.
 }
 
 model EmailPairGcdResult {
