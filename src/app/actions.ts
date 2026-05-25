@@ -47,21 +47,41 @@ function toUnicode(domain: string): string {
   return domainToUnicode(domain) || domain;
 }
 
-// Pick the display form for a domain so the user can see WHY it matched
-// their query. ASCII queries like `--` find IDN domains via their `xn--`
-// Punycode prefix; without this helper we would display those matches in
-// Unicode form (which doesn't contain `--`) and the user would think the
-// result was unrelated. Conversely, when the user typed a Unicode IDN
-// query, we want to keep the nicer Unicode display.
+// Decide whether a matched domain should be shown to the user and in
+// which form (Unicode vs Punycode). Three cases:
 //
-// Rule: if the human-readable Unicode form contains the query, show
-// Unicode. Otherwise show the raw Punycode (which is what actually
-// matched).
-function pickDomainDisplay(punycodeDomain: string, query: string): string {
+//   1. Query appears in the human-readable Unicode form. Always show,
+//      render in Unicode. The normal case for ASCII and full-IDN
+//      queries.
+//
+//   2. Query only matches the Punycode encoding artifacts (e.g. ASCII
+//      query `--` finds IDN domains whose stored `xn--…` prefix
+//      contains `--`). Show only when the user looks like they
+//      explicitly typed Punycode (their query contains "xn-").
+//      Otherwise hide the row entirely; showing `xn--0kqx72g9fffb.biz`
+//      to someone who searched for `--` is just confusing.
+//
+//   3. The query is in neither form (shouldn't normally happen given
+//      our substring filter). Hide.
+function decideDomainDisplay(
+  punycodeDomain: string,
+  query: string
+): { display: string; show: boolean } {
+  const queryLower = query.toLowerCase();
   const unicode = toUnicode(punycodeDomain);
-  return unicode.toLowerCase().includes(query.toLowerCase())
-    ? unicode
-    : punycodeDomain;
+
+  if (unicode.toLowerCase().includes(queryLower)) {
+    return { display: unicode, show: true };
+  }
+
+  if (
+    queryLower.includes('xn-') &&
+    punycodeDomain.toLowerCase().includes(queryLower)
+  ) {
+    return { display: punycodeDomain, show: true };
+  }
+
+  return { display: punycodeDomain, show: false };
 }
 
 // Helper: Build domain search filter with subdomain/variant matching
@@ -130,6 +150,15 @@ export async function autocomplete(query: string): Promise<string[]> {
     return [exactMatch.domain, ...deduped].slice(0, AUTOCOMPLETE_LIMIT);
   };
 
+  // Pick + filter helper so a list of raw Punycode domains becomes the
+  // user-facing display list, dropping rows the user shouldn't see
+  // (see decideDomainDisplay).
+  const toDisplay = (domains: string[]): string[] =>
+    domains
+      .map((d) => decideDomainDisplay(d, query))
+      .filter((r) => r.show)
+      .map((r) => r.display);
+
   let result: string[];
   if (!asciiQuery.includes('.') && !asciiQuery.includes('-')) {
     // Simple prefix search for short queries
@@ -142,9 +171,7 @@ export async function autocomplete(query: string): Promise<string[]> {
       take: remainingSlots,
       select: { domain: true },
     });
-    result = prependExact(dsps.map((d) => d.domain)).map((d) =>
-      pickDomainDisplay(d, query)
-    );
+    result = toDisplay(prependExact(dsps.map((d) => d.domain)));
   } else {
     // Multi-strategy search for queries with dots/dashes
     const dsps = await prisma.domainSelectorPair.findMany({
@@ -166,7 +193,7 @@ export async function autocomplete(query: string): Promise<string[]> {
         return a.localeCompare(b);
       });
 
-    result = prependExact(sorted).map((d) => pickDomainDisplay(d, query));
+    result = toDisplay(prependExact(sorted));
   }
 
   autocompleteCache.set(cacheKey, result);
@@ -205,14 +232,22 @@ export type SearchFilters = {
 
 // Transform DB record to frontend format. `query` is the user's original
 // (possibly Unicode) input; it drives whether we display each domain in
-// Unicode or Punycode form. See pickDomainDisplay for the rule.
+// Unicode or Punycode form. See decideDomainDisplay for the rule.
+//
+// Assumes the caller has already filtered out records where
+// decideDomainDisplay would return show=false (e.g. via a prior pass).
+// Falls back to the Unicode form defensively if the decision somehow
+// disagrees, to avoid a `domain: ''` ending up in the UI.
 function transformToSearchResult(
   record: RecordWithSelector,
   query: string
 ): SearchResult {
+  const decision = decideDomainDisplay(record.domainSelectorPair.domain, query);
   return {
     id: record.id,
-    domain: pickDomainDisplay(record.domainSelectorPair.domain, query),
+    domain: decision.show
+      ? decision.display
+      : toUnicode(record.domainSelectorPair.domain),
     selector: record.domainSelectorPair.selector,
     firstActive: record.firstSeenAt.toISOString(),
     lastActive:
@@ -321,7 +356,17 @@ export async function searchDomain(
     return match && match[1] && match[1].trim().length > 0;
   });
 
-  const searchResults = filteredRecords.map((r) =>
+  // Filter out rows where the user's query only matched Punycode
+  // encoding artifacts (e.g. ASCII `--` finding `xn--…` IDN domains).
+  // The user typed something that has no clear human-readable match in
+  // those rows, so showing them would be confusing. Power users who
+  // want Punycode results explicitly type "xn-" somewhere in the
+  // query; see decideDomainDisplay.
+  const visibleRecords = filteredRecords.filter(
+    (r) => decideDomainDisplay(r.domainSelectorPair.domain, domainQuery).show
+  );
+
+  const searchResults = visibleRecords.map((r) =>
     transformToSearchResult(r, domainQuery)
   );
 
