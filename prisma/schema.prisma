@@ -26,18 +26,28 @@ model DkimRecord {
 model DomainSelectorPair {
   id               Int          @id @default(autoincrement())
   domain           String
+  // Unicode-decoded form of `domain`. For ASCII domains equals `domain`.
+  // For IDN domains (xn--…) holds the decoded label (e.g. "прайм19.рф").
+  // Maintained so substring search can match partial Unicode queries
+  // like "прайм"; Punycode encoding is not prefix-preserving so the
+  // encoded form alone can't be substring-searched in Cyrillic / Thai /
+  // etc. See REG-711.
+  domainUnicode    String       @default("")
   lastRecordUpdate DateTime?
   selector         String
   sourceIdentifier String
   records          DkimRecord[]
 
   @@index([domain, selector])
-  // Also declared out-of-band:
-  //   idx_domain_selector_pair_domain_trgm — GIN trigram index on (domain)
-  //   for fast ILIKE substring search. See
-  //   prisma/migrations/20260521151000_add_pg_trgm_index/migration.sql.
-  //   Not expressible in schema.prisma without enabling the
-  //   postgresqlExtensions preview feature.
+  // Also declared out-of-band (Prisma can't express gin_trgm_ops without
+  // the postgresqlExtensions preview feature):
+  //   idx_domain_selector_pair_domain_trgm
+  //     GIN trigram index on (domain). See
+  //     prisma/migrations/20260521151000_add_pg_trgm_index/migration.sql.
+  //   idx_domain_selector_pair_domain_unicode_trgm
+  //     GIN trigram index on (domainUnicode) for partial-IDN substring
+  //     search. See
+  //     prisma/migrations/20260525120000_add_domain_unicode_column/migration.sql.
 }
 
 model EmailPairGcdResult {

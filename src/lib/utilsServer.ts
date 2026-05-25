@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { domainToUnicode } from 'node:url';
 
 import * as crypto from 'crypto';
 import dns from 'dns';
@@ -74,9 +75,18 @@ export async function addDomainSelectorPair(
     return { already_in_db: false, added: false };
   }
 
+  // Populate domainUnicode alongside domain so partial-IDN substring
+  // search (REG-711) can match the decoded form. For ASCII domains this
+  // equals `domain`. For Punycode IDN domains (`xn--…`) this is the
+  // decoded Unicode label (e.g. "прайм19.рф"). domainToUnicode returns
+  // an empty string for unparseable input, so we fall back to `domain`
+  // defensively.
+  const domainUnicode = (domainToUnicode(domain) || domain).toLowerCase();
+
   await prisma.domainSelectorPair.create({
     data: {
       domain,
+      domainUnicode,
       selector,
       sourceIdentifier,
       lastRecordUpdate: new Date(),

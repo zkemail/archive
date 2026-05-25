@@ -84,20 +84,39 @@ function decideDomainDisplay(
   return { display: punycodeDomain, show: false };
 }
 
-// Helper: Build domain search filter with subdomain/variant matching
-function buildDomainFilter(query: string): Prisma.DomainSelectorPairWhereInput {
-  const modifiedQuery = query.replace(/\./g, '-');
-  const modifiedQuery2 = query.replace(/-/g, '.');
+// Helper: Build domain search filter with subdomain/variant matching.
+// Searches both:
+//   - `domain` (Punycode form) with asciiQuery: catches ASCII matches
+//     and full-IDN-domain matches (the IDN form was Punycode-encoded
+//     to asciiQuery on the way in).
+//   - `domainUnicode` (Unicode form) with the original unicodeQuery:
+//     catches partial-IDN matches like `прайм` finding `прайм19.рф`,
+//     which can't be substring-matched against the Punycode form
+//     (Punycode encoding is not prefix-preserving). See REG-711.
+// The dot<->dash variants only apply to the Punycode column; Unicode
+// labels don't have the same dash/dot substitution pattern.
+function buildDomainFilter(
+  asciiQuery: string,
+  unicodeQuery: string
+): Prisma.DomainSelectorPairWhereInput {
+  const modifiedQuery = asciiQuery.replace(/\./g, '-');
+  const modifiedQuery2 = asciiQuery.replace(/-/g, '.');
 
   return {
     OR: [
-      { domain: { contains: query, mode: Prisma.QueryMode.insensitive } },
+      { domain: { contains: asciiQuery, mode: Prisma.QueryMode.insensitive } },
       {
         domain: { contains: modifiedQuery, mode: Prisma.QueryMode.insensitive },
       },
       {
         domain: {
           contains: modifiedQuery2,
+          mode: Prisma.QueryMode.insensitive,
+        },
+      },
+      {
+        domainUnicode: {
+          contains: unicodeQuery,
           mode: Prisma.QueryMode.insensitive,
         },
       },
@@ -161,11 +180,26 @@ export async function autocomplete(query: string): Promise<string[]> {
 
   let result: string[];
   if (!asciiQuery.includes('.') && !asciiQuery.includes('-')) {
-    // Simple prefix search for short queries
+    // Simple prefix search for short queries. Search both domain (for
+    // ASCII and Punycode-form queries) and domainUnicode (for partial
+    // IDN queries like "прайм").
     const dsps = await prisma.domainSelectorPair.findMany({
       distinct: ['domain'],
       where: {
-        domain: { startsWith: asciiQuery, mode: Prisma.QueryMode.insensitive },
+        OR: [
+          {
+            domain: {
+              startsWith: asciiQuery,
+              mode: Prisma.QueryMode.insensitive,
+            },
+          },
+          {
+            domainUnicode: {
+              startsWith: query,
+              mode: Prisma.QueryMode.insensitive,
+            },
+          },
+        ],
       },
       orderBy: { domain: 'asc' },
       take: remainingSlots,
@@ -176,7 +210,7 @@ export async function autocomplete(query: string): Promise<string[]> {
     // Multi-strategy search for queries with dots/dashes
     const dsps = await prisma.domainSelectorPair.findMany({
       distinct: ['domain'],
-      where: buildDomainFilter(asciiQuery),
+      where: buildDomainFilter(asciiQuery, query),
       orderBy: { domain: 'asc' },
       take: remainingSlots,
       select: { domain: true },
@@ -271,10 +305,12 @@ export async function searchDomain(
   }
 
   // Encode IDN inputs to Punycode before any DB lookup. ASCII queries
-  // pass through unchanged.
+  // pass through unchanged. domainQuery (original, possibly Unicode)
+  // is also passed through so buildDomainFilter can search the
+  // domainUnicode column for partial-IDN matches.
   const asciiQuery = toPunycode(domainQuery);
   const isFirstPage = cursorIndex === null;
-  const domainFilter = buildDomainFilter(asciiQuery);
+  const domainFilter = buildDomainFilter(asciiQuery, domainQuery);
 
   // All three queries are independent on page 1 and run in parallel,
   // saving 2 cross-cloud round trips (~270 ms baseline) and overlapping
