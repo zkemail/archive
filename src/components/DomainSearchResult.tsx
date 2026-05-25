@@ -66,65 +66,53 @@ export function DomainSearchResults({
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const loadingMoreRef = useRef(false);
-  // Serialize searches: at most one request in flight at a time. While one
-  // is running, the latest query is stashed in pendingQueryRef and fired
-  // when the current request settles. Server actions can't be aborted, so
-  // this is how we prevent the backend from being hammered by per-keystroke
-  // requests during slow typing.
-  const inFlightRef = useRef(false);
-  const pendingQueryRef = useRef<string | null>(null);
+  // Abort-on-new model: each search bumps requestIdRef. A response only
+  // updates state if its id still matches; otherwise it was superseded
+  // by a newer query and is silently dropped. Loading is true iff the
+  // most recent search hasn't completed yet — older in-flight fetches
+  // don't own the loading flag, so they can't get it stuck.
+  //
+  // The previous "queue-latest" implementation kept a separate
+  // pendingQueryRef + inFlightRef + a while loop; it had an edge case
+  // where rapid query changes left the loading state stuck on (REG-712).
+  // Server actions still can't be aborted client-side, so older fetches
+  // continue to run on the server; they just have no client-side effect.
   const requestIdRef = useRef(0);
 
-  const runSearchQueue = useCallback(async (initialQuery: string) => {
-    if (inFlightRef.current) {
-      pendingQueryRef.current = initialQuery;
-      return;
-    }
-
-    inFlightRef.current = true;
-    let current = initialQuery;
-
+  const runSearch = useCallback(async (query: string) => {
+    const requestId = ++requestIdRef.current;
+    setLoading(true);
     try {
-      while (current) {
-        const requestId = ++requestIdRef.current;
-        try {
-          const response = await searchDomain(current, null);
-          if (requestId === requestIdRef.current) {
-            // Guard against the server returning undefined (e.g. dev-mode
-            // stale-server-action errors) — keep data null in that case.
-            setData(response ?? null);
-            setError(null);
-          }
-        } catch (err) {
-          if (requestId === requestIdRef.current) {
-            setError('Failed to load search results');
-            console.error('Search error:', err);
-          }
-        }
-
-        const next = pendingQueryRef.current;
-        pendingQueryRef.current = null;
-        if (!next || next === current) break;
-        current = next;
-      }
+      const response = await searchDomain(query, null);
+      if (requestId !== requestIdRef.current) return;
+      // Guard against the server returning undefined (e.g. dev-mode
+      // stale-server-action errors); keep data null in that case.
+      setData(response ?? null);
+      setError(null);
+    } catch (err) {
+      if (requestId !== requestIdRef.current) return;
+      setError('Failed to load search results');
+      console.error('Search error:', err);
     } finally {
-      inFlightRef.current = false;
-      setLoading(false);
+      // Only the latest request owns the loading flag. A stale response
+      // landing late must not flip loading off while a newer search is
+      // still pending.
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
   const loadRecords = useCallback(() => {
     if (!domainQuery) {
       requestIdRef.current += 1;
-      pendingQueryRef.current = null;
       setData(null);
       setError(null);
       setLoading(false);
       return;
     }
-    setLoading(true);
-    runSearchQueue(domainQuery);
-  }, [domainQuery, runSearchQueue]);
+    runSearch(domainQuery);
+  }, [domainQuery, runSearch]);
 
   useEffect(() => {
     loadRecords();
