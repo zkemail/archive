@@ -47,6 +47,23 @@ function toUnicode(domain: string): string {
   return domainToUnicode(domain) || domain;
 }
 
+// Pick the display form for a domain so the user can see WHY it matched
+// their query. ASCII queries like `--` find IDN domains via their `xn--`
+// Punycode prefix; without this helper we would display those matches in
+// Unicode form (which doesn't contain `--`) and the user would think the
+// result was unrelated. Conversely, when the user typed a Unicode IDN
+// query, we want to keep the nicer Unicode display.
+//
+// Rule: if the human-readable Unicode form contains the query, show
+// Unicode. Otherwise show the raw Punycode (which is what actually
+// matched).
+function pickDomainDisplay(punycodeDomain: string, query: string): string {
+  const unicode = toUnicode(punycodeDomain);
+  return unicode.toLowerCase().includes(query.toLowerCase())
+    ? unicode
+    : punycodeDomain;
+}
+
 // Helper: Build domain search filter with subdomain/variant matching
 function buildDomainFilter(query: string): Prisma.DomainSelectorPairWhereInput {
   const modifiedQuery = query.replace(/\./g, '-');
@@ -79,10 +96,13 @@ export async function autocomplete(query: string): Promise<string[]> {
   // ASCII form stored in the DB.
   const asciiQuery = toPunycode(query);
 
-  // Cache hit fast-path. Cached value is the final Unicode-rendered
-  // suggestion list, so a hit obviates both the DB call and the
-  // post-processing.
-  const cached = autocompleteCache.get(asciiQuery);
+  // Cache hit fast-path. The cache key includes the original query (not
+  // just the Punycode-encoded form) because the chosen display form per
+  // result depends on which form matched: e.g. an ASCII `--` query and
+  // a Cyrillic `пример` query may resolve to overlapping Punycode hits
+  // but should render differently to the user.
+  const cacheKey = `${asciiQuery}|${query.toLowerCase()}`;
+  const cached = autocompleteCache.get(cacheKey);
   if (cached !== undefined) return cached;
 
   // Always look up the exact match first. Without this, short domains
@@ -122,7 +142,9 @@ export async function autocomplete(query: string): Promise<string[]> {
       take: remainingSlots,
       select: { domain: true },
     });
-    result = prependExact(dsps.map((d) => d.domain)).map(toUnicode);
+    result = prependExact(dsps.map((d) => d.domain)).map((d) =>
+      pickDomainDisplay(d, query)
+    );
   } else {
     // Multi-strategy search for queries with dots/dashes
     const dsps = await prisma.domainSelectorPair.findMany({
@@ -144,10 +166,10 @@ export async function autocomplete(query: string): Promise<string[]> {
         return a.localeCompare(b);
       });
 
-    result = prependExact(sorted).map(toUnicode);
+    result = prependExact(sorted).map((d) => pickDomainDisplay(d, query));
   }
 
-  autocompleteCache.set(asciiQuery, result);
+  autocompleteCache.set(cacheKey, result);
   return result;
 }
 
@@ -181,11 +203,16 @@ export type SearchFilters = {
   toDate?: string;
 };
 
-// Transform DB record to frontend format
-function transformToSearchResult(record: RecordWithSelector): SearchResult {
+// Transform DB record to frontend format. `query` is the user's original
+// (possibly Unicode) input; it drives whether we display each domain in
+// Unicode or Punycode form. See pickDomainDisplay for the rule.
+function transformToSearchResult(
+  record: RecordWithSelector,
+  query: string
+): SearchResult {
   return {
     id: record.id,
-    domain: toUnicode(record.domainSelectorPair.domain),
+    domain: pickDomainDisplay(record.domainSelectorPair.domain, query),
     selector: record.domainSelectorPair.selector,
     firstActive: record.firstSeenAt.toISOString(),
     lastActive:
@@ -294,7 +321,9 @@ export async function searchDomain(
     return match && match[1] && match[1].trim().length > 0;
   });
 
-  const searchResults = filteredRecords.map(transformToSearchResult);
+  const searchResults = filteredRecords.map((r) =>
+    transformToSearchResult(r, domainQuery)
+  );
 
   // Signal "load more" only when otherRecords filled the page; otherwise
   // the client wastes a roundtrip fetching an empty next page.
