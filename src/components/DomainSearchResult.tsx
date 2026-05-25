@@ -13,6 +13,11 @@ interface Props {
   domainQuery: string | undefined;
   filters?: SearchFilters;
   onLoadingChange?: (loading: boolean) => void;
+  // Fires once the latest committed query has settled (success or error).
+  // The parent uses this to sync the URL *after* the server action has
+  // resolved; updating the URL while the action is in flight causes
+  // Next.js to refetch the RSC and cancel the action mid-flight (REG-712).
+  onSearchSettled?: (query: string) => void;
 }
 
 // Check if a record is expired (last seen > 365 days ago)
@@ -58,6 +63,7 @@ export function DomainSearchResults({
   domainQuery,
   filters = {},
   onLoadingChange,
+  onSearchSettled,
 }: Props) {
   const [data, setData] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -69,7 +75,7 @@ export function DomainSearchResults({
   // Abort-on-new model: each search bumps requestIdRef. A response only
   // updates state if its id still matches; otherwise it was superseded
   // by a newer query and is silently dropped. Loading is true iff the
-  // most recent search hasn't completed yet — older in-flight fetches
+  // most recent search hasn't completed yet. Older in-flight fetches
   // don't own the loading flag, so they can't get it stuck.
   //
   // The previous "queue-latest" implementation kept a separate
@@ -79,29 +85,32 @@ export function DomainSearchResults({
   // continue to run on the server; they just have no client-side effect.
   const requestIdRef = useRef(0);
 
-  const runSearch = useCallback(async (query: string) => {
-    const requestId = ++requestIdRef.current;
-    setLoading(true);
-    try {
-      const response = await searchDomain(query, null);
-      if (requestId !== requestIdRef.current) return;
-      // Guard against the server returning undefined (e.g. dev-mode
-      // stale-server-action errors); keep data null in that case.
-      setData(response ?? null);
-      setError(null);
-    } catch (err) {
-      if (requestId !== requestIdRef.current) return;
-      setError('Failed to load search results');
-      console.error('Search error:', err);
-    } finally {
-      // Only the latest request owns the loading flag. A stale response
-      // landing late must not flip loading off while a newer search is
-      // still pending.
-      if (requestId === requestIdRef.current) {
-        setLoading(false);
+  const runSearch = useCallback(
+    async (query: string) => {
+      const requestId = ++requestIdRef.current;
+      setLoading(true);
+      try {
+        const response = await searchDomain(query, null);
+        if (requestId !== requestIdRef.current) return;
+        setData(response ?? null);
+        setError(null);
+      } catch (err) {
+        if (requestId !== requestIdRef.current) return;
+        setError('Failed to load search results');
+        console.error('Search error:', err);
+      } finally {
+        // Only the latest request owns the loading flag. A stale response
+        // landing late must not flip loading off while a newer search is
+        // still pending.
+        const isLatest = requestId === requestIdRef.current;
+        if (isLatest) {
+          setLoading(false);
+          onSearchSettled?.(query);
+        }
       }
-    }
-  }, []);
+    },
+    [onSearchSettled]
+  );
 
   const loadRecords = useCallback(() => {
     if (!domainQuery) {
@@ -109,14 +118,15 @@ export function DomainSearchResults({
       setData(null);
       setError(null);
       setLoading(false);
+      onSearchSettled?.('');
       return;
     }
     runSearch(domainQuery);
-  }, [domainQuery, runSearch]);
+  }, [domainQuery, runSearch, onSearchSettled]);
 
   useEffect(() => {
     loadRecords();
-  }, [loadRecords]);
+  }, [loadRecords, domainQuery]);
 
   // Mirror the committed-search loading state up to the parent so the
   // SearchAndFilterSection magnifier button can show a spinner while the
