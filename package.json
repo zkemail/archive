@@ -14,7 +14,8 @@
     "prettier": "prettier --write --cache .",
     "prettier:check": "prettier --check .",
     "start": "next start",
-    "jwks:update": "tsx scripts/update-jwks.ts"
+    "jwks:update": "tsx scripts/update-jwks.ts",
+    "backfill:domain-unicode": "tsx scripts/backfill-domain-unicode.ts"
   },
   "dependencies": {
     "@google-cloud/tasks": "5.1.0",

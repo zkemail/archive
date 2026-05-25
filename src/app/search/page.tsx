@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { type SearchFilters } from '@/app/actions';
 import { DomainSearchResults } from '@/components/DomainSearchResult';
@@ -23,16 +23,22 @@ export default function Home() {
 
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
-    // Keep URL in sync without triggering an RSC navigation per keystroke.
-    const params = new URLSearchParams(searchParams.toString());
-    if (value) {
-      params.set('q', value);
+    // URL sync is deferred to onSearchSettled below: doing it here
+    // (via replaceState) while the server action is in flight caused
+    // Next.js to refetch the RSC and cancel the action mid-flight,
+    // which left the search UI stuck on "Loading..." (REG-712).
+  };
+
+  const handleSearchSettled = useCallback((query: string) => {
+    const params = new URLSearchParams(window.location.search);
+    if (query) {
+      params.set('q', query);
     } else {
       params.delete('q');
     }
     const qs = params.toString();
     window.history.replaceState(null, '', qs ? `/search?${qs}` : '/search');
-  };
+  }, []);
 
   const handleFilterChange = (value: string) => {
     setStatusFilter(value as 'all' | 'active' | 'expired');
@@ -91,6 +97,7 @@ export default function Home() {
             domainQuery={searchQuery}
             filters={filters}
             onLoadingChange={setIsSearchLoading}
+            onSearchSettled={handleSearchSettled}
           />
         </div>
       </div>

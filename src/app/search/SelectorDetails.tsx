@@ -119,7 +119,15 @@ const SelectorDetails = ({ data }: SelectorDetailsProps) => {
     <div className='flex w-full flex-col gap-6'>
       <div ref={stickyHeaderRef} className='sticky top-0 z-10 bg-foreground'>
         <div className='flex flex-col flex-wrap gap-2'>
-          <div className='flex flex-wrap gap-2'>
+          {/*
+            Cap the height of the domain pill list so a query that
+            returns many matching domains (e.g. "x.com" with thousands
+            of substring hits) doesn't push the rest of the page off
+            screen. Without max-h here the sticky header expands to
+            fill the viewport and the selector details below stay
+            hidden even after clicking a pill.
+          */}
+          <div className='flex max-h-48 flex-wrap gap-2 overflow-y-auto pr-1'>
             <Button
               variant='ghost'
               key='all'
