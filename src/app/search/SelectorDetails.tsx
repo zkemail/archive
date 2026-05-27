@@ -117,7 +117,11 @@ const SelectorDetails = ({ data }: SelectorDetailsProps) => {
 
   return (
     <div className='flex w-full flex-col gap-6'>
-      <div ref={stickyHeaderRef} className='sticky top-0 z-10 bg-foreground'>
+      <div
+        ref={stickyHeaderRef}
+        className='sticky z-10 bg-foreground'
+        style={{ top: 'var(--search-header-height, 0px)' }}
+      >
         <div className='flex flex-col flex-wrap gap-2'>
           {/*
             Cap the height of the domain pill list so a query that
