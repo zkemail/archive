@@ -49,29 +49,37 @@ const ActivityChart = ({
 
     const timeframeDuration =
       timeframeDays[currentTimeframe as keyof typeof timeframeDays];
-    const idealStartDate = new Date(now);
+
+    // Anchor the chart end to lastActive so expired selectors render
+    // their activity at the right edge instead of being squashed against
+    // the y-axis. For active selectors lastActive is ~now, so behavior
+    // is effectively unchanged.
+    const endDate = new Date(lastActive);
+    const idealStartDate = new Date(endDate);
     idealStartDate.setDate(idealStartDate.getDate() - timeframeDuration);
 
-    // Snap to the first of the month, with at least 1 month buffer before active period
-    const startDate =
-      firstActive < idealStartDate ? firstActive : idealStartDate;
+    // Snap to the first of the month, with 1 month buffer before the start.
     const timeframeStartDate = new Date(
-      startDate.getFullYear(),
-      startDate.getMonth() - 1,
+      idealStartDate.getFullYear(),
+      idealStartDate.getMonth() - 1,
       1
     );
 
     const dataPoints = [];
     const current = new Date(timeframeStartDate);
 
-    while (current <= now) {
-      // Compare by month to avoid off-by-days issues with 1st-of-month snapping
+    while (current <= endDate) {
+      // Each x-axis label is a bucket of `stepMonths` months. Mark the
+      // bucket active if it overlaps [firstActive, lastActive] so a
+      // sub-step active window (e.g. only May 2015 with a 6-month step)
+      // still surfaces a marker.
       const currentMonth = current.getFullYear() * 12 + current.getMonth();
+      const bucketEndMonth = currentMonth + stepMonths - 1;
       const firstMonth =
         firstActive.getFullYear() * 12 + firstActive.getMonth();
       const lastMonth = lastActive.getFullYear() * 12 + lastActive.getMonth();
       const isInActivePeriod =
-        currentMonth >= firstMonth && currentMonth <= lastMonth;
+        bucketEndMonth >= firstMonth && currentMonth <= lastMonth;
 
       const dateLabel =
         currentTimeframe === '5Y' || currentTimeframe === '10Y'
