@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 
+import { badRequest, serverError } from '@/lib/api-response';
 import { prisma, updateDspTimestamp } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { guessSelectors } from '@/lib/selectorGuesser';
@@ -18,10 +19,7 @@ export async function GET(request: NextRequest) {
   const batchSizeParam = request.nextUrl.searchParams.get('batch_size');
   const batchSize = Number(batchSizeParam || '10');
   if (!Number.isFinite(batchSize) || batchSize <= 0 || batchSize > 1000) {
-    return NextResponse.json(
-      { error: 'batch_size must be a positive integer ≤ 1000' },
-      { status: 400 }
-    );
+    return badRequest('batch_size must be a positive integer <= 1000');
   }
 
   try {
@@ -38,10 +36,10 @@ export async function GET(request: NextRequest) {
     });
 
     const addedAlternatives: { domain: string; selector: string }[] = [];
-    const now = new Date();
     for (const dsp of dsps) {
       try {
         await fetchAndStoreDkimDnsRecord(dsp);
+        const now = new Date();
         await updateDspTimestamp(dsp, now);
         addedAlternatives.push(
           ...(await guessSelectors(dsp.domain, dsp.selector, now))
@@ -66,9 +64,6 @@ export async function GET(request: NextRequest) {
     logger.error('batch_update_failed', {
       error: error instanceof Error ? error.message : String(error),
     });
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
-      { status: 500 }
-    );
+    return serverError();
   }
 }

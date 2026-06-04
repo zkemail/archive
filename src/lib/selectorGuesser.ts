@@ -1,6 +1,6 @@
-import { logger } from './logger';
-import { type DomainAndSelector, isValidDate } from './utils';
-import { addDomainSelectorPair } from './utilsServer';
+import { logger } from '@/lib/logger';
+import { type DomainAndSelector, isValidDate } from '@/lib/utils';
+import { addDomainSelectorPair } from '@/lib/utilsServer';
 
 function dateToYYYYMMDD(date: Date): string {
   return `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
