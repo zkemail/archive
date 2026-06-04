@@ -1,17 +1,14 @@
-import {
-  MagnifyingGlassIcon,
-  SlidersHorizontalIcon,
-  XIcon,
-} from '@phosphor-icons/react';
-import { useEffect, useState } from 'react';
+import { SlidersHorizontalIcon } from '@phosphor-icons/react';
+import { useState } from 'react';
 
+import { DomainSearchInput } from '@/components/DomainSearchInput';
 import { Button } from '@/components/ui/button';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { Input } from '@/components/ui/input';
+import { analytics } from '@/lib/analytics';
 
 import Calendar from './Calendar';
 
@@ -23,6 +20,7 @@ type SearchAndFilterSectionProps = {
     fromDate: Date | undefined,
     toDate: Date | undefined
   ) => void;
+  isSearchLoading?: boolean;
 };
 
 export function SearchAndFilterSection({
@@ -30,38 +28,40 @@ export function SearchAndFilterSection({
   onSearchChange,
   onFilterChange,
   onDateRangeChange,
+  isSearchLoading = false,
 }: SearchAndFilterSectionProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [searchValue, setSearchValue] = useState(initialQuery);
   const [filterValue, setFilterValue] = useState('all');
   const [fromDate, setFromDate] = useState<Date | undefined>(undefined);
   const [toDate, setToDate] = useState<Date | undefined>(undefined);
 
-  useEffect(() => {
-    setSearchValue(initialQuery);
-  }, [initialQuery]);
-
-  const handleSearchChange = (value: string) => {
-    setSearchValue(value);
-    onSearchChange?.(value);
-  };
-
   const handleFilterChange = (value: string) => {
     setFilterValue(value);
     onFilterChange?.(value);
+    analytics.capture('filter_applied', { filterType: 'status', value });
   };
 
   const handleFromDateChange = (date: Date | undefined) => {
     setFromDate(date);
     onDateRangeChange?.(date, toDate);
+    if (date) {
+      analytics.capture('filter_applied', {
+        filterType: 'fromDate',
+        value: date.toISOString(),
+      });
+    }
   };
 
   const handleToDateChange = (date: Date | undefined) => {
     setToDate(date);
     onDateRangeChange?.(fromDate, date);
+    if (date) {
+      analytics.capture('filter_applied', {
+        filterType: 'toDate',
+        value: date.toISOString(),
+      });
+    }
   };
-
-  const handleClear = () => handleSearchChange('');
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen} className='w-full'>
@@ -70,27 +70,11 @@ export function SearchAndFilterSection({
           Search
         </div>
         <div className='flex w-full items-center gap-2'>
-          <div className='flex w-full items-center gap-2 rounded-lg border border-border px-3 py-2'>
-            <MagnifyingGlassIcon size={16} color='#606060' weight='bold' />
-            <div className='relative min-w-0 flex-1'>
-              <Input
-                placeholder='Domain name'
-                value={searchValue}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                className='h-auto w-full border-0 bg-transparent p-0 text-base leading-tight tracking-tight ring-0 outline-0 focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
-              {searchValue && (
-                <button
-                  onClick={handleClear}
-                  className='absolute top-1/2 right-0 -translate-y-1/2 hover:text-secondary focus:outline-none'
-                  aria-label='Clear search'
-                >
-                  <XIcon size={20} weight='bold' color='#606060' />
-                </button>
-              )}
-            </div>
-          </div>
-
+          <DomainSearchInput
+            initialQuery={initialQuery}
+            onSubmit={(value) => onSearchChange?.(value)}
+            isSearchLoading={isSearchLoading}
+          />
           <CollapsibleTrigger asChild>
             <Button
               variant='ghost'

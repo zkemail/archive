@@ -19,8 +19,8 @@ export default function Home() {
           </div>
           <div className='flex justify-start text-[clamp(1rem,1.39vw,1.25rem)] leading-5 font-semibold tracking-tight text-white'>
             <span className='whitespace-normal'>
-              By uploading DKIM pairs from your Gmail account or from a TSV
-              file.
+              By uploading DKIM pairs from your Gmail account, a mailbox file,
+              or a TSV file.
             </span>
           </div>
         </div>
@@ -33,10 +33,7 @@ export default function Home() {
         />
       </div>
       <div className='flex w-14/15 max-w-[720px] flex-col items-start justify-start gap-6 rounded-br-3xl rounded-bl-3xl border-r border-b border-l border-border bg-foreground p-6'>
-        <EmailUploader
-          setIsDataFetching={setIsDataFetching}
-          onFileUpload={() => {}}
-        />
+        <EmailUploader setIsDataFetching={setIsDataFetching} />
       </div>
     </div>
   );

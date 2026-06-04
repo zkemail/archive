@@ -1,0 +1,21 @@
+project_id = "zkairdrop"
+region     = "us-central1"
+
+cloud_sql_instance = "zkemail:us-central1:dkimregistry"
+cloud_sql_db_user  = "render"
+cloud_sql_db_name  = "prodduplicate_new_archive"
+
+next_public_google_client_id = "your-google-oauth-client-id.apps.googleusercontent.com"
+
+# Existing Cloud Tasks / Cloud Functions infra — get from GCP console or old env vars
+cloud_tasks_queue_name      = ""   # e.g. "projects/zkairdrop/locations/us-central1/queues/gcd-calculator-queue-..."
+cloud_function_url          = ""   # e.g. "https://gcd-calculator-....run.app"
+tasks_service_account_email = ""   # e.g. "tasks-sa-name@zkairdrop.iam.gserviceaccount.com"
+
+# Secrets — never commit real values; set via CI env vars or a local terraform.tfvars
+db_password        = ""   # render user password from Cloud SQL
+auth_google_id     = ""   # same as next_public_google_client_id
+auth_google_secret = ""
+auth_secret        = ""   # openssl rand -base64 32
+cron_secret        = ""   # openssl rand -base64 32
+posthog_key        = ""   # optional

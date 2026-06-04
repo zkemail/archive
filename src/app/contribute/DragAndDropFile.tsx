@@ -158,9 +158,6 @@ const DragAndDropFile = ({
                   Click to upload{' '}
                   <span className='text-secondary'>or drop here</span>
                 </p>
-                <p className='text-accent-foreground-blue underline'>
-                  How to get the PST/MBOX file?
-                </p>
               </div>
             </>
           )}

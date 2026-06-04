@@ -40,3 +40,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .claude
+
+/src/generated/prisma
+
+.terraform*
+terraform.*
+!terraform.tfvars.example

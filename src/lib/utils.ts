@@ -1,7 +1,12 @@
-import { ParsedEmail } from '@zk-email/sdk';
+import type { ParsedEmail } from '@zk-email/sdk';
 // import { parseEmail as parseEmailUtils } from '@zk-email/sdk';
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+
+import type { KeyType } from '@/generated/prisma/client';
+
+// Regex to extract DKIM-Signature header blocks
+export const DKIM_HEADER_REGEX = /^DKIM-Signature:\s*(.+?)(?=\r?\n[^ \t])/gims;
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -90,115 +95,333 @@ export async function getFileContent(file: File): Promise<string> {
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
-let relayerUtilsResolver: (value: any) => void;
-const relayerUtilsInit: Promise<void> = new Promise((resolve) => {
-  relayerUtilsResolver = resolve;
-});
+// ═══════════════════════════════════════════════════════════════════════════
+// Types and Interfaces
+// ═══════════════════════════════════════════════════════════════════════════
 
-const emlPubKeyCache = new Map();
+export type DomainAndSelector = {
+  domain: string;
+  selector: string;
+};
 
-// export async function parseEmail(
-//   eml: string,
-//   ignoreBodyHashCheck = false
-// ): Promise<ParsedEmail> {
-//   try {
-//     await relayerUtilsInit;
+export interface DnsDkimFetchResult {
+  domain: string;
+  selector: string;
+  value: string;
+  timestamp: Date;
+  keyType: KeyType;
+  keyDataBase64: string | null;
+}
 
-//     const publicKey = emlPubKeyCache.get(eml);
+export const DspSourceIdentifiers = [
+  'top_1m_lookup',
+  'api',
+  'selector_guesser',
+  'seed',
+  'try_selectors',
+  'api_auto',
+  'scraper',
+  'public_key_gcd_batch',
+  'public_key_gcd_cloud_function',
+  'unknown',
+] as const;
+export type DspSourceIdentifier = (typeof DspSourceIdentifiers)[number];
 
-//     let parsedEmail;
-//     if (publicKey) {
-//       // ignoreBodyHashCheck is not needed here, since parseEmail
-//       // will internally not verify the pubkey if it is provided
-//       parsedEmail = await parseEmailUtils(eml, publicKey);
-//     } else {
-//       console.log('parsing email no pub key');
-//       parsedEmail = await parseEmailUtils(eml, ignoreBodyHashCheck);
-//       console.log('parsed email');
-//       emlPubKeyCache.set(eml, parsedEmail.publicKey);
+export const KeySourceIdentifiers = [
+  'public_key_gcd_batch',
+  'public_key_gcd_cloud_function',
+  'unknown',
+] as const;
+export type KeySourceIdentifier = (typeof KeySourceIdentifiers)[number];
 
-//       try {
-//         const { senderDomain, selector } = await extractEMLDetails(
-//           eml,
-//           parsedEmail
-//         );
+// ═══════════════════════════════════════════════════════════════════════════
+// DKIM Utility Functions
+// ═══════════════════════════════════════════════════════════════════════════
 
-//         await fetch('https://archive.zk.email/api/dsp', {
-//           method: 'POST',
-//           body: JSON.stringify({
-//             domain: senderDomain,
-//             selector: selector,
-//           }),
-//         });
+export function kValueToKeyType(s: string | null | undefined): KeyType {
+  if (s === null || s === undefined) {
+    // if k is not specified, RSA is implied, see https://datatracker.ietf.org/doc/html/rfc6376#section-3.6.1
+    return 'RSA';
+  }
+  if (s.toLowerCase() === 'rsa') {
+    return 'RSA';
+  }
+  if (s.toLowerCase() === 'ed25519') {
+    return 'Ed25519';
+  }
+  throw new Error(`Unknown key type: "${s}"`);
+}
 
-//         // Do not stop function flow if this fails - warn only
-//       } catch (err) {
-//         console.warn('Failed to findOrCreateDSP: ', err);
-//       }
-//     }
+// relaxed implementation of Tag=Value List, see https://datatracker.ietf.org/doc/html/rfc6376#section-3.2
+export function parseDkimTagList(dkimValue: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  const parts = dkimValue.split(';').map((part) => part.trim());
+  for (const part of parts) {
+    const i = part.indexOf('=');
+    if (i <= 0) {
+      continue;
+    }
+    const key = part.slice(0, i).trim();
+    const value = part.slice(i + 1).trim();
+    if (Object.prototype.hasOwnProperty.call(result, key)) {
+      // duplicate key, keep the longer value
+      if (value.length > result[key].length) {
+        result[key] = value;
+      }
+      continue;
+    }
+    result[key] = value;
+  }
+  return result;
+}
 
-//     return parsedEmail as ParsedEmail;
-//   } catch (err) {
-//     console.error('Failed to parse email: ', err);
-//     throw err;
-//   }
-// }
+// ═══════════════════════════════════════════════════════════════════════════
+// Canonical Record Functions
+// ═══════════════════════════════════════════════════════════════════════════
 
-// export async function extractEMLDetails(
-//   emlContent: string,
-//   parsedEmail?: ParsedEmail,
-//   ignoreBodyHashCheck = false
-// ) {
-//   const headers: Record<string, string> = {};
-//   const lines = emlContent.split('\n');
+export function getCanonicalRecordString(
+  dsp: DomainAndSelector,
+  dkimRecordValue: string
+): string {
+  return `${dsp.selector}._domainkey.${dsp.domain} TXT "${dkimRecordValue}"`;
+}
 
-//   let headerPart = true;
-//   const headerLines = [];
+// ═══════════════════════════════════════════════════════════════════════════
+// Google OAuth Certificate Functions
+// ═══════════════════════════════════════════════════════════════════════════
 
-//   // Parse headers
-//   for (const line of lines) {
-//     if (headerPart) {
-//       if (line.trim() === '') {
-//         headerPart = false; // End of headers
-//       } else {
-//         headerLines.push(line);
-//       }
-//     }
-//   }
+export async function fetchJsonWebKeySet(): Promise<string> {
+  try {
+    const response = await fetch('https://www.googleapis.com/oauth2/v3/certs');
+    if (!response.ok) {
+      throw new Error('Cannot fetch Google JSON Web Key Set');
+    }
+    const jsonData = await response.json();
+    const jsonWebKeySet = JSON.stringify(jsonData, null, 2);
+    return jsonWebKeySet;
+  } catch (error) {
+    console.error('Error fetching JSON Web Key Set:', error);
+    return '';
+  }
+}
 
-//   // Join multi-line headers and split into key-value pairs
-//   const joinedHeaders = headerLines
-//     .map((line) =>
-//       line.startsWith(' ') || line.startsWith('\t')
-//         ? line.trim()
-//         : `\n${line.trim()}`
-//     )
-//     .join('')
-//     .split('\n');
+export async function fetchx509Cert(): Promise<string> {
+  try {
+    const response = await fetch('https://www.googleapis.com/oauth2/v1/certs');
+    if (!response.ok) {
+      throw new Error('Cannot fetch Google X.509 certificate');
+    }
+    const jsonData = await response.json();
+    const x509Cert = JSON.stringify(jsonData, Object.keys(jsonData).sort(), 2);
+    return x509Cert;
+  } catch (error) {
+    console.error('Error fetching X.509 certificate:', error);
+    return '';
+  }
+}
 
-//   joinedHeaders.forEach((line) => {
-//     const [key, ...value] = line.split(':');
-//     if (key) headers[key.trim()] = value.join(':').trim();
-//   });
+// ═══════════════════════════════════════════════════════════════════════════
+// Source Identifier Helpers
+// ═══════════════════════════════════════════════════════════════════════════
 
-//   if (!parsedEmail) {
-//     parsedEmail = await parseEmail(emlContent, ignoreBodyHashCheck);
-//   }
-//   const emailBodyMaxLength = parsedEmail.cleanedBody.length;
-//   const headerLength = parsedEmail.canonicalizedHeader.length;
+export function stringToDspSourceIdentifier(s: string): DspSourceIdentifier {
+  const sourceIdentifier = DspSourceIdentifiers.find((id) => id === s);
+  if (sourceIdentifier) {
+    return sourceIdentifier;
+  }
+  return 'unknown';
+}
 
-//   const dkimHeader = parsedEmail.headers.get('DKIM-Signature')?.[0] || '';
-//   const selector = dkimHeader.match(/s=([^;]+)/)?.[1] || '';
+export function stringToKeySourceIdentifier(s: string): KeySourceIdentifier {
+  const sourceIdentifier = KeySourceIdentifiers.find((id) => id === s);
+  if (sourceIdentifier) {
+    return sourceIdentifier;
+  }
+  return 'unknown';
+}
 
-//   const senderDomain = getSenderDomain(parsedEmail);
-//   const emailQuery = `from:${senderDomain}`;
+export function dspSourceIdentifierToHumanReadable(
+  sourceIdentifierStr: string
+) {
+  switch (stringToDspSourceIdentifier(sourceIdentifierStr)) {
+    case 'top_1m_lookup':
+    case 'scraper':
+      return 'Scraped';
+    case 'api':
+      return 'Inbox upload';
+    case 'api_auto':
+      return 'Inbox upload';
+    case 'selector_guesser':
+      return 'Selector guesser';
+    case 'seed':
+      return 'Seed';
+    case 'try_selectors':
+      return 'Try selectors';
+    case 'public_key_gcd_batch':
+      return 'Mail archive';
+    case 'public_key_gcd_cloud_function':
+      return 'Inbox upload';
+    case 'unknown':
+      return 'Unknown';
+  }
+}
 
-//   return {
-//     senderDomain,
-//     headerLength,
-//     emailQuery,
-//     emailBodyMaxLength,
-//     selector,
-//   };
-// }
+export function keySourceIdentifierToHumanReadable(
+  sourceIdentifierStr: string
+) {
+  switch (stringToKeySourceIdentifier(sourceIdentifierStr)) {
+    case 'public_key_gcd_batch':
+      return 'Reverse engineered';
+    case 'public_key_gcd_cloud_function':
+      return 'Reverse engineered';
+    case 'unknown':
+      return 'Unknown';
+  }
+}
+
+// Note: This follows RFC 5322 for parsing the Email header, it keeps the white spaces and CRLF for simple/relaxed canonicalization
+export function parseEmailHeader(rawEmail: { toString: () => string }) {
+  const emailContent =
+    typeof rawEmail === 'string' ? rawEmail : rawEmail.toString();
+
+  // Split email into headers and body at first blank line
+  const headerBodySplit = emailContent.split(/\r?\n\r?\n/);
+  const headerSection = headerBodySplit[0];
+
+  // Split headers by lines, but handle folded headers (RFC 5322)
+  const headerLines: string[] = [];
+  const lines = headerSection.split(/(?<=\r?\n)/);
+
+  let currentHeader = '';
+
+  for (const line of lines) {
+    // Check if line starts with whitespace (folded header continuation)
+    if (line.match(/^[\t ]/)) {
+      // This is a continuation of the previous header
+      currentHeader += line;
+    } else {
+      // This is a new header, save the previous one
+      if (currentHeader) {
+        headerLines.push(currentHeader);
+      }
+      currentHeader = line;
+    }
+  }
+
+  // Don't forget the last header
+  if (currentHeader) {
+    headerLines.push(currentHeader);
+  }
+
+  // Parse each header line into [name, value] pairs
+  const headers: [string, string][] = [];
+
+  for (const headerLine of headerLines) {
+    const colonIndex = headerLine.indexOf(':');
+    if (colonIndex === -1) continue; // Skip malformed headers
+
+    const name = headerLine.substring(0, colonIndex);
+    const value = headerLine.substring(colonIndex + 1);
+
+    headers.push([name, value]);
+  }
+  return headers;
+}
+
+// Extract all DKIM-Signature blocks and return [rawHeader].
+// Note: Multiple signatures may exist and can share the same {domain, selector}.
+export function getDkimSigsArray(rawEmail: string): string[] {
+  const blocks: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = DKIM_HEADER_REGEX.exec(rawEmail))) {
+    const rawHeader = match[0];
+    blocks.push(rawHeader);
+  }
+  return blocks;
+}
+
+export function parseDkimTagListV2(rawHeader: string): Record<string, string> {
+  const unfoldedSignature = rawHeader
+    .replace(/\r?\n\s+/g, ' ')
+    .replace(/^DKIM-Signature\s*:\s*/i, '');
+  return Object.fromEntries(
+    unfoldedSignature
+      .trim()
+      .split(';')
+      .map((part) => {
+        const [k, v] = part.split('=', 2).map((x) => x.trim());
+        return [k, v];
+      })
+  );
+}
+
+export type DomainSelectorPair = { domain: string; selector: string };
+
+// Soft cap on pairs accepted from a single uploaded file. Each pair fires
+// one sequential POST /api/dsp, so even at 5k rows that's ~minutes of
+// processing — anything larger should be split or batched.
+export const MAX_UPLOAD_PAIRS = 5000;
+
+// Parse a TSV file of pre-extracted domain/selector pairs.
+// Format: one row per line, tab-separated, first two columns are
+// `domain` and `selector`. The selector column may include a date suffix
+// (e.g. "selector:2024-01-01") — that's the format the old archive's
+// mbox_scraper.py produces; we strip everything after the first `:`.
+export function parseTsvPairs(content: string): DomainSelectorPair[] {
+  const out: DomainSelectorPair[] = [];
+  const lines = content
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  for (const line of lines) {
+    const [rawDomain, rawSelector] = line.split('\t');
+    if (!rawDomain || !rawSelector) continue;
+    const domain = rawDomain.trim();
+    const selector = rawSelector.split(':')[0].trim();
+    if (!domain || !selector) continue;
+    out.push({ domain, selector });
+    if (out.length >= MAX_UPLOAD_PAIRS) {
+      throw new Error(
+        `TSV file has more than ${MAX_UPLOAD_PAIRS} rows — please split it into smaller files.`
+      );
+    }
+  }
+  return out;
+}
+
+// Split an mbox archive into individual raw email messages. Mbox uses
+// "From " (with trailing space) at the start of a line as the message
+// separator; a single .eml file is treated as an mbox with one message.
+export function splitMboxMessages(content: string): string[] {
+  const normalised = content.replace(/\r\n/g, '\n');
+  const parts = normalised.split(/(?:^|\n)From [^\n]*\n/);
+  const messages = parts.map((p) => p.trim()).filter(Boolean);
+  // No mbox separators present at all → treat the whole file as one
+  // message (covers raw .eml uploads).
+  return messages.length > 0 ? messages : [normalised.trim()].filter(Boolean);
+}
+
+// Walk an mbox/.eml file, extract every DKIM-Signature, and return the
+// deduplicated set of {domain, selector} pairs found.
+export function parseMailboxPairs(content: string): DomainSelectorPair[] {
+  const seen = new Set<string>();
+  const out: DomainSelectorPair[] = [];
+  for (const message of splitMboxMessages(content)) {
+    for (const rawHeader of getDkimSigsArray(message)) {
+      const tags = parseDkimTagListV2(rawHeader);
+      const domain = tags['d']?.trim();
+      const selector = tags['s']?.trim();
+      if (!domain || !selector) continue;
+      const key = `${domain}\t${selector}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ domain, selector });
+      if (out.length >= MAX_UPLOAD_PAIRS) {
+        throw new Error(
+          `Mailbox produced more than ${MAX_UPLOAD_PAIRS} unique pairs — please split it into smaller files.`
+        );
+      }
+    }
+  }
+  return out;
+}

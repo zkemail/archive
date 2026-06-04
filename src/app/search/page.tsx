@@ -2,18 +2,90 @@
 
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import searchResults from '@/app/search/searchData.json';
+import { type SearchFilters } from '@/app/actions';
+import { DomainSearchResults } from '@/components/DomainSearchResult';
 
 import { SearchAndFilterSection } from './SearchAndFilterSection';
-import SelectorDetails from './SelectorDetails';
 
 export default function Home() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q') ?? '';
-  const data = searchResults;
+
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<
+    'all' | 'active' | 'expired'
+  >('all');
+  const [fromDate, setFromDate] = useState<Date | undefined>(undefined);
+  const [toDate, setToDate] = useState<Date | undefined>(undefined);
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    // URL sync is deferred to onSearchSettled below: doing it here
+    // (via replaceState) while the server action is in flight caused
+    // Next.js to refetch the RSC and cancel the action mid-flight,
+    // which left the search UI stuck on "Loading..." (REG-712).
+  };
+
+  const handleSearchSettled = useCallback((query: string) => {
+    const params = new URLSearchParams(window.location.search);
+    if (query) {
+      params.set('q', query);
+    } else {
+      params.delete('q');
+    }
+    const qs = params.toString();
+    window.history.replaceState(null, '', qs ? `/search?${qs}` : '/search');
+  }, []);
+
+  const handleFilterChange = (value: string) => {
+    setStatusFilter(value as 'all' | 'active' | 'expired');
+  };
+
+  const handleDateRangeChange = (
+    from: Date | undefined,
+    to: Date | undefined
+  ) => {
+    setFromDate(from);
+    setToDate(to);
+  };
+
+  const filters: SearchFilters = useMemo(
+    () => ({
+      status: statusFilter,
+      fromDate: fromDate?.toISOString(),
+      toDate: toDate?.toISOString(),
+    }),
+    [statusFilter, fromDate, toDate]
+  );
+
+  // Measure the sticky search-and-filter header and expose its height
+  // as a CSS variable so the sticky pill list below it can stack with
+  // the right offset instead of overlapping. ResizeObserver keeps the
+  // value live across viewport / content changes.
+  const searchHeaderRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = searchHeaderRef.current;
+    if (!el) return;
+    const update = () => {
+      document.documentElement.style.setProperty(
+        '--search-header-height',
+        `${el.offsetHeight}px`
+      );
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      document.documentElement.style.removeProperty('--search-header-height');
+    };
+  }, []);
+
   return (
-    <div className='my-8 flex flex-col items-center justify-center'>
+    <div className='my-8 flex flex-1 flex-col items-center'>
       <div className='relative mx-auto aspect-12/5 w-14/15 max-w-[720px] overflow-clip rounded-t-3xl border border-border md:aspect-9/2'>
         <div className='absolute bottom-0 z-40 inline-flex flex-col items-start justify-start p-6'>
           <div className='flex justify-start text-[clamp(2rem,3.34vw,3rem)] font-bold text-white capitalize'>
@@ -21,12 +93,11 @@ export default function Home() {
           </div>
           <div className='flex justify-start text-[clamp(1rem,1.39vw,1.25rem)] leading-5 font-semibold tracking-tight text-white'>
             <span className='whitespace-normal'>
-              Building the largest open-sourced directory of DKIM pairs.&nbsp;
-              <span className='underline'>Read More</span>
+              Building the largest open-sourced directory of DKIM pairs.
             </span>
           </div>
         </div>
-        <div className='absolute -bottom-1 z-20 h-40 w-full bg-gradient-to-b from-sky-900/0 to-sky-900/90 blur-[2px] md:h-20'></div>
+        <div className='absolute -bottom-1 z-20 h-40 w-full bg-linear-to-b from-sky-900/0 to-sky-900/90 blur-[2px] md:h-20'></div>
         <Image
           src='/header-home.png'
           alt='Home page header image'
@@ -35,11 +106,25 @@ export default function Home() {
         />
       </div>
       <div className='flex w-14/15 max-w-[720px] flex-col items-start justify-start gap-6 rounded-br-3xl rounded-bl-3xl border-r border-b border-l border-border bg-foreground p-6'>
-        <div className='flex flex-col items-start justify-start gap-2 self-stretch'>
-          <SearchAndFilterSection initialQuery={initialQuery} />
+        <div
+          ref={searchHeaderRef}
+          className='sticky top-0 z-20 flex flex-col items-start justify-start gap-2 self-stretch bg-foreground pb-2'
+        >
+          <SearchAndFilterSection
+            initialQuery={initialQuery}
+            onSearchChange={handleSearchChange}
+            onFilterChange={handleFilterChange}
+            onDateRangeChange={handleDateRangeChange}
+            isSearchLoading={isSearchLoading}
+          />
         </div>
         <div className='flex flex-col items-start justify-start gap-2 self-stretch'>
-          <SelectorDetails data={data} />
+          <DomainSearchResults
+            domainQuery={searchQuery}
+            filters={filters}
+            onLoadingChange={setIsSearchLoading}
+            onSearchSettled={handleSearchSettled}
+          />
         </div>
       </div>
     </div>

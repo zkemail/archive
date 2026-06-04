@@ -2,10 +2,10 @@ import {
   ArrowsCounterClockwiseIcon,
   EnvelopeSimpleIcon,
   FlagIcon,
-  SealCheckIcon,
 } from '@phosphor-icons/react';
 import React, { useRef, useState } from 'react';
 
+import { type SearchResponse, type SearchResult } from '@/app/actions';
 import {
   Accordion,
   AccordionContent,
@@ -13,6 +13,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
+import { analytics } from '@/lib/analytics';
 import { formatDate } from '@/lib/utils';
 
 import { Badge } from '../../components/ui/badge';
@@ -26,7 +27,11 @@ const isExpired = (lastActive: string) => {
   return daysDiff > 365;
 };
 
-const SelectorDetails = ({ data }: any) => {
+interface SelectorDetailsProps {
+  data: SearchResponse;
+}
+
+const SelectorDetails = ({ data }: SelectorDetailsProps) => {
   type DetailRowProps = {
     label: React.ReactNode;
     children: React.ReactNode;
@@ -36,6 +41,7 @@ const SelectorDetails = ({ data }: any) => {
   const [openItems, setOpenItems] = useState<{ [key: string]: boolean }>({});
   const [activeDomain, setActiveDomain] = useState<string>('all');
   const domainRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const stickyHeaderRef = useRef<HTMLDivElement | null>(null);
 
   const DetailRow: React.FC<DetailRowProps> = ({
     label,
@@ -54,11 +60,19 @@ const SelectorDetails = ({ data }: any) => {
     </div>
   );
 
-  const toggleAccordion = (itemId: string) => {
+  const toggleAccordion = (
+    itemId: string,
+    domain: string,
+    selector: string
+  ) => {
+    const isOpening = !openItems[itemId];
     setOpenItems((prev) => ({
       ...prev,
       [itemId]: !prev[itemId],
     }));
+    if (isOpening) {
+      analytics.capture('selector_expanded', { domain, selector });
+    }
   };
 
   const scrollToDomain = (domain: string) => {
@@ -67,35 +81,57 @@ const SelectorDetails = ({ data }: any) => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
-    const element = domainRefs.current[domain];
-    if (element) {
-      element.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
-        inline: 'nearest',
-      });
-    }
+    setTimeout(() => {
+      const element = domainRefs.current[domain];
+      if (element) {
+        const stickyHeight =
+          stickyHeaderRef.current?.getBoundingClientRect().height ?? 0;
+        const y =
+          element.getBoundingClientRect().top +
+          window.scrollY -
+          stickyHeight -
+          16;
+        window.scrollTo({ top: y, behavior: 'smooth' });
+      }
+    }, 100);
   };
 
   if (!data?.searchResults || !Array.isArray(data.searchResults)) {
     return <div className='text-red-500'>No data available</div>;
   }
 
-  const groupedByDomain = data.searchResults.reduce((acc: any, item: any) => {
-    if (!acc[item.domain]) {
-      acc[item.domain] = [];
-    }
-    acc[item.domain].push(item);
-    return acc;
-  }, {});
+  const groupedByDomain = data.searchResults.reduce(
+    (acc: Record<string, SearchResult[]>, item: SearchResult) => {
+      if (!acc[item.domain]) {
+        acc[item.domain] = [];
+      }
+      acc[item.domain].push(item);
+      return acc;
+    },
+    {}
+  );
 
-  const domains = Object.keys(groupedByDomain).sort();
+  // Preserve server order (exact-match domain first, then alphabetical)
+  // rather than re-sorting alphabetically and burying the exact match.
+  const domains = Object.keys(groupedByDomain);
 
   return (
     <div className='flex w-full flex-col gap-6'>
-      <div className='sticky top-0 z-10 bg-foreground'>
+      <div
+        ref={stickyHeaderRef}
+        className='sticky z-10 bg-foreground'
+        style={{ top: 'var(--search-header-height, 0px)' }}
+      >
         <div className='flex flex-col flex-wrap gap-2'>
-          <div className='flex flex-wrap gap-2'>
+          {/*
+            Cap the height of the domain pill list so a query that
+            returns many matching domains (e.g. "x.com" with thousands
+            of substring hits) doesn't push the rest of the page off
+            screen. Without max-h here the sticky header expands to
+            fill the viewport and the selector details below stay
+            hidden even after clicking a pill.
+          */}
+          <div className='flex max-h-48 flex-wrap gap-2 overflow-y-auto pr-1'>
             <Button
               variant='ghost'
               key='all'
@@ -125,8 +161,15 @@ const SelectorDetails = ({ data }: any) => {
           </div>
           <div>
             <div className='text-base leading-tight tracking-tight text-secondary'>
-              <span className='text-primary'>2 domains</span> found for
-              coinbase.com
+              <span className='text-primary'>
+                {domains.length} domain{domains.length !== 1 ? 's' : ''}
+              </span>{' '}
+              found
+              {data.totalCount !== undefined && (
+                <span className='ml-1'>
+                  ({data.totalCount} total selectors)
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -137,7 +180,7 @@ const SelectorDetails = ({ data }: any) => {
           ref={(el) => {
             domainRefs.current[domain] = el;
           }}
-          className='scroll-mt-24 rounded-lg border border-border'
+          className='scroll-mt-6 rounded-lg border border-border'
         >
           <div className='flex flex-col gap-1 border-border p-4'>
             <h3 className='text-xl leading-7 font-medium tracking-tight'>
@@ -150,7 +193,7 @@ const SelectorDetails = ({ data }: any) => {
             </p>
           </div>
           <div>
-            {groupedByDomain[domain].map((item: any, index: number) => (
+            {groupedByDomain[domain].map((item: SearchResult) => (
               <div key={item.id} className='border-t border-border'>
                 <div className='flex flex-col gap-4 px-4 py-3'>
                   <DetailRow label='Selector'>
@@ -191,20 +234,6 @@ const SelectorDetails = ({ data }: any) => {
                             </>
                           )}
                         </Badge>
-                        {item.provenanceVerified && (
-                          <Badge
-                            variant='source'
-                            className='text-xs text-secondary sm:text-sm'
-                          >
-                            <SealCheckIcon
-                              weight='bold'
-                              className='h-3 w-3 sm:h-4 sm:w-4'
-                            />
-                            <span className='text-xs leading-none font-normal tracking-tight'>
-                              Witness
-                            </span>
-                          </Badge>
-                        )}
                         <FlagIcon
                           weight='fill'
                           className='h-3 w-3 text-icon-muted sm:h-4 sm:w-4'
@@ -218,12 +247,20 @@ const SelectorDetails = ({ data }: any) => {
                   type='single'
                   collapsible
                   className='w-full'
-                  value={openItems[item.id] ? `selector-detail-${item.id}` : ''}
-                  onValueChange={() => toggleAccordion(item.id)}
+                  value={
+                    openItems[String(item.id)]
+                      ? `selector-detail-${item.id}`
+                      : ''
+                  }
+                  onValueChange={() =>
+                    toggleAccordion(String(item.id), domain, item.selector)
+                  }
                 >
                   <AccordionItem value={`selector-detail-${item.id}`}>
                     <AccordionTrigger className='p-4 font-normal tracking-tight text-secondary hover:no-underline'>
-                      {openItems[item.id] ? 'Hide details' : 'More Details'}
+                      {openItems[String(item.id)]
+                        ? 'Hide details'
+                        : 'More Details'}
                     </AccordionTrigger>
                     <AccordionContent className='flex flex-col gap-4 px-4 pt-2'>
                       <div className='max-w-4xl'>
