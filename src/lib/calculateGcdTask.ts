@@ -67,7 +67,7 @@ export async function createGcdCalculationTask(payload: GcdCalculationPayload) {
       s2: s2.toString(),
       em1: em1.toString(),
       em2: em2.toString(),
-      callbackUrl: `${CALLBACK_URL}/api/gcd_callback_result`,
+      callbackUrl: `${CALLBACK_URL}/api/gcd_result_callback`,
       taskId: taskId || `task_${Date.now()}`,
       metadata: metadata || {},
     };
