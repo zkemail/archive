@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
   const batchSizeParam = request.nextUrl.searchParams.get('batch_size');
   const batchSize = Number(batchSizeParam || '10');
-  if (!Number.isFinite(batchSize) || batchSize <= 0 || batchSize > 1000) {
+  if (!Number.isInteger(batchSize) || batchSize <= 0 || batchSize > 1000) {
     return badRequest('batch_size must be a positive integer <= 1000');
   }
 
