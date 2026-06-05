@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 
+import { serverError } from '@/lib/api-response';
 import { getArchiveStats, refreshArchiveStats } from '@/lib/db';
+import { logger } from '@/lib/logger';
 
 // GET - read cached stats (instant)
 export async function GET() {
@@ -17,6 +19,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const stats = await refreshArchiveStats();
-  return NextResponse.json(stats);
+  try {
+    const stats = await refreshArchiveStats();
+    return NextResponse.json(stats);
+  } catch (error) {
+    logger.error('stats_refresh_failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return serverError();
+  }
 }
