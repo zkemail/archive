@@ -21,14 +21,14 @@ import {
   type ProcessResult,
 } from '@/lib/utilsServer';
 
-// Input validation schema
+// Input validation schema. We deliberately don't whitelist characters in
+// gmailQuery: Gmail's search syntax includes parens, quotes, comparison
+// operators, etc., and a narrow whitelist mis-rejects valid queries. The
+// 200-char cap remains as a basic DoS guard; Gmail's API rejects truly
+// malformed queries on its own.
 const queryParamsSchema = z.object({
   pageToken: z.string().max(500).optional(),
-  gmailQuery: z
-    .string()
-    .max(200)
-    .regex(/^[a-zA-Z0-9@.:\-_/\s]*$/, 'Invalid characters in query')
-    .optional(),
+  gmailQuery: z.string().max(200).optional(),
 });
 
 async function handleMessage(
