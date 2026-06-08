@@ -14,7 +14,7 @@ import { DnsDkimFetchResult, fetchJsonWebKeySet, fetchx509Cert } from './utils';
 
 // In process Cache configuration (LRU cache)
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
-const CACHE_MAX_SIZE = 1000; // Maximum 1000 entries
+const CACHE_MAX_SIZE = 200;
 
 // Create LRU cache instances
 const domainCache = new LRUCache<string, RecordWithSelector[]>({
@@ -51,7 +51,7 @@ const createPrismaClient = () => {
   // Create a pg Pool with optimized connection settings
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    max: 20, // Max connections
+    max: 5,
     idleTimeoutMillis: 30000, // 30 seconds idle timeout
     connectionTimeoutMillis: 10000, // 10 seconds connection timeout
     // Render's NAT closes idle sockets aggressively. Without keepAlive
