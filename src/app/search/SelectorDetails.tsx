@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { analytics } from '@/lib/analytics';
-import { formatDate } from '@/lib/utils';
+import { dspSourceIdentifierToHumanReadable, formatDate } from '@/lib/utils';
 
 import { Badge } from '../../components/ui/badge';
 import ActivityChart from './ActivityChart';
@@ -215,24 +215,26 @@ const SelectorDetails = ({ data }: SelectorDetailsProps) => {
                           variant='source'
                           className='text-xs text-secondary sm:text-sm'
                         >
-                          {item.origin === 'Inbox Upload' ? (
-                            <>
-                              <EnvelopeSimpleIcon className='h-3 w-3 sm:h-4 sm:w-4' />
-                              <span className='text-xs leading-none font-normal tracking-tight'>
-                                Inbox Upload
-                              </span>
-                            </>
+                          {/* REASON: source must be derived from the actual
+                              origin identifier, not a binary "is it the literal
+                              string 'Inbox Upload'" check. item.origin carries
+                              raw identifiers (top_1m_lookup, scraper, api,
+                              public_key_gcd_batch, ...), so the old `=== 'Inbox
+                              Upload'` test never matched and EVERYTHING fell
+                              through to "Reverse Engineering" — mislabeling all
+                              the DNS-scraped keys. Use the shared mapping helper
+                              so DNS lookups show "Scraped", uploads show "Inbox
+                              upload", GCD-recovered keys show "Mail archive", etc. */}
+                          {item.origin === 'api' ||
+                          item.origin === 'api_auto' ||
+                          item.origin === 'public_key_gcd_cloud_function' ? (
+                            <EnvelopeSimpleIcon className='h-3 w-3 sm:h-4 sm:w-4' />
                           ) : (
-                            <>
-                              <ArrowsCounterClockwiseIcon className='h-3 w-3 text-secondary sm:h-4 sm:w-4' />
-                              <span className='text-xs leading-none font-normal tracking-tight sm:hidden'>
-                                Rev Eng
-                              </span>
-                              <span className='hidden text-xs leading-none font-normal tracking-tight sm:inline'>
-                                Reverse Engineering
-                              </span>
-                            </>
+                            <ArrowsCounterClockwiseIcon className='h-3 w-3 text-secondary sm:h-4 sm:w-4' />
                           )}
+                          <span className='text-xs leading-none font-normal tracking-tight'>
+                            {dspSourceIdentifierToHumanReadable(item.origin)}
+                          </span>
                         </Badge>
                         <FlagIcon
                           weight='fill'
@@ -276,7 +278,9 @@ const SelectorDetails = ({ data }: SelectorDetailsProps) => {
                       <DetailRow label='Last seen'>
                         {formatDate(item.lastActive)}
                       </DetailRow>
-                      <DetailRow label='Origin'>{item.origin}</DetailRow>
+                      <DetailRow label='Origin'>
+                        {dspSourceIdentifierToHumanReadable(item.origin)}
+                      </DetailRow>
 
                       <DetailRow label='Value'>
                         <div className='font-mono text-xs leading-relaxed break-all'>
