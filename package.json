@@ -15,6 +15,7 @@
     "prettier:check": "prettier --check .",
     "start": "next start",
     "jwks:update": "tsx scripts/update-jwks.ts",
+    "stats:refresh": "tsx scripts/refresh-stats.ts",
     "backfill:domain-unicode": "tsx scripts/backfill-domain-unicode.ts"
   },
   "dependencies": {
