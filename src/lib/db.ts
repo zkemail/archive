@@ -400,7 +400,14 @@ export async function getArchiveStats(): Promise<ArchiveStats> {
 
 // Heavy computation - call via cron/API, not on page load
 export async function refreshArchiveStats(): Promise<ArchiveStats> {
-  // Use pg_class reltuples for fast approximate counts (updated by ANALYZE/VACUUM)
+  // REASON: We previously read pg_stats.n_distinct / pg_class.reltuples for
+  // "fast approximate" counts. Those are sampled planner statistics (ANALYZE
+  // looks at ~30k rows) and are wildly inaccurate for distinct counts on a
+  // large table — production showed unique_selectors=728 (real: 5,932) and
+  // unique_domains=220,967 (real: 409,747). reltuples happened to be close for
+  // raw row counts but n_distinct was not. Since this runs on a cron (not page
+  // load), do exact COUNT(DISTINCT). The two distinct aggregates over
+  // DomainSelectorPair are computed in a single scan via a CTE.
   const result = await prisma.$queryRaw<
     [
       {
@@ -411,21 +418,19 @@ export async function refreshArchiveStats(): Promise<ArchiveStats> {
       },
     ]
   >`
+    WITH dsp AS (
+      SELECT
+        COUNT(DISTINCT domain)   AS unique_domains,
+        COUNT(DISTINCT selector) AS unique_selectors,
+        COUNT(*)                 AS dsp_count
+      FROM "DomainSelectorPair"
+    )
     SELECT
-      (SELECT CASE
-        WHEN n_distinct < 0 THEN (reltuples * ABS(n_distinct))::int
-        ELSE n_distinct::int
-       END
-       FROM pg_stats ps JOIN pg_class pc ON ps.tablename = pc.relname
-       WHERE ps.tablename = 'DomainSelectorPair' AND ps.attname = 'domain') as unique_domains,
-      (SELECT CASE
-        WHEN n_distinct < 0 THEN (reltuples * ABS(n_distinct))::int
-        ELSE n_distinct::int
-       END
-       FROM pg_stats ps JOIN pg_class pc ON ps.tablename = pc.relname
-       WHERE ps.tablename = 'DomainSelectorPair' AND ps.attname = 'selector') as unique_selectors,
-      (SELECT reltuples::int FROM pg_class WHERE relname = 'DomainSelectorPair') as dsp_count,
-      (SELECT reltuples::int FROM pg_class WHERE relname = 'DkimRecord') as dkim_count
+      dsp.unique_domains,
+      dsp.unique_selectors,
+      dsp.dsp_count,
+      (SELECT COUNT(*) FROM "DkimRecord") AS dkim_count
+    FROM dsp
   `;
 
   const stats: ArchiveStats = {
