@@ -169,10 +169,13 @@ export function getDkimDnsQnames(domain: string, selector: string): string[] {
   return [`${selector}._domainkey.${domain}`, `${selector}.dkim.${domain}`];
 }
 
-async function resolveTxtRecords(
-  resolver: dns.promises.Resolver,
-  qname: string
-): Promise<string[]> {
+async function resolveTxtRecords(qname: string): Promise<string[]> {
+  // A fresh resolver per qname: the public-DNS fallback below mutates the
+  // resolver's servers, so reusing one across qnames would make every lookup
+  // after the first fallback skip the system/configured resolver. That breaks
+  // split-horizon / private-DNS setups where a `dkim`-label record only exists
+  // on the configured resolver.
+  const resolver = new dns.promises.Resolver({ timeout: 2500 });
   try {
     return (await resolver.resolve(qname, 'TXT')).map((record) =>
       record.join('')
@@ -205,12 +208,11 @@ export async function fetchDkimDnsRecord(
   domain: string,
   selector: string
 ): Promise<DnsDkimFetchResult[]> {
-  const resolver = new dns.promises.Resolver({ timeout: 2500 });
   const result: DnsDkimFetchResult[] = [];
   const seenRecords = new Set<string>();
 
   for (const qname of getDkimDnsQnames(domain, selector)) {
-    const records = await resolveTxtRecords(resolver, qname);
+    const records = await resolveTxtRecords(qname);
     for (const record of records) {
       if (seenRecords.has(record)) {
         continue;
