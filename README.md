@@ -8,7 +8,7 @@
 
 - **Discover DKIM public keys:** Access a searchable database of DKIM keys for various domains via a web interface and a programmatic API.
 - **Contribute DKIM signatures:** Submit DKIM signatures from multiple sources, including integrated Gmail accounts or by uploading mailbox files (`.mbox`/`.pst`).
-- **Verify Authenticity:** Ensure the integrity and active timeframe of DKIM keys, with records timestamped on-chain using TLSNotary for robust verification.
+- **Verify Authenticity:** Ensure the integrity and active timeframe of DKIM keys, with first-seen and last-seen timestamps recorded from live DNS observation.
 
 ## **Getting Started**
 
