@@ -33,6 +33,7 @@ import {
   buildStatementPayload,
   getPublishedJwks,
   observationsForRecord,
+  signableObservationsForRecord,
   signStatement,
   type StatementPayload,
   type StatementSourceRecord,
@@ -234,7 +235,7 @@ async function main() {
     issuedAt: Date
   ): Promise<string[]> =>
     Promise.all(
-      observationsForRecord(record).map((observation) =>
+      signableObservationsForRecord(record).map((observation) =>
         sign(buildStatementPayload(d, s, record, observation, issuedAt))
       )
     );
@@ -263,11 +264,11 @@ async function main() {
   ).flat();
 
   const expected = records.reduce(
-    (n, r) => n + observationsForRecord(r).length,
+    (n, r) => n + signableObservationsForRecord(r).length,
     0
   );
   check(
-    'one statement per attributable observation',
+    'one statement per attributable, signable observation',
     statements.length === expected,
     `${statements.length} statement(s) from ${records.length} record(s)`
   );
@@ -299,8 +300,9 @@ async function main() {
   const dns = decoded.find((r) => r?.source === 'live_dns');
   const gcd = decoded.find((r) => r?.source === 'gcd_recovered');
   check(
-    'a record seen on both channels yields one statement per channel',
-    Boolean(dns && gcd)
+    'a record seen on both channels signs only the live_dns one',
+    Boolean(dns) && !gcd && bothChannels.length === 1,
+    `${bothChannels.length} statement(s)`
   );
   check(
     'the live_dns window is the DNS window, unmixed with GCD',
@@ -308,11 +310,16 @@ async function main() {
       dns?.last_seen_at === SYNTHETIC_RECORD.dnsLastSeenAt!.toISOString(),
     `${dns?.first_seen_at} → ${dns?.last_seen_at}`
   );
+  check('gcd_recovered is withheld from signing (REG-739)', gcd === undefined);
   check(
-    'the gcd_recovered window is the GCD window, unmixed with DNS',
-    gcd?.first_seen_at === SYNTHETIC_RECORD.gcdFirstSeenAt!.toISOString() &&
-      gcd?.last_seen_at === SYNTHETIC_RECORD.gcdLastSeenAt!.toISOString(),
-    `${gcd?.first_seen_at} → ${gcd?.last_seen_at}`
+    'but the observation itself is still extracted, unsigned',
+    observationsForRecord(SYNTHETIC_RECORD).some(
+      (o) =>
+        o.source === 'gcd_recovered' &&
+        o.firstSeenAt.toISOString() ===
+          SYNTHETIC_RECORD.gcdFirstSeenAt!.toISOString()
+    ),
+    'available via /api/key observations'
   );
 
   // ── A half-known channel must be silent, not guessed ───────────────────────
@@ -323,9 +330,9 @@ async function main() {
     issuedAt
   );
   check(
-    'a channel with only one bound yields no statement',
-    halfKnown.length === 1,
-    `${halfKnown.length} statement(s), gcd only`
+    'a half-known live_dns bound yields no statement',
+    halfKnown.length === 0,
+    `${halfKnown.length} statement(s)`
   );
 
   // ── Negative cases: rejection must be active, not incidental ───────────────

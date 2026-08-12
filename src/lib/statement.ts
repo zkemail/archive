@@ -47,6 +47,29 @@ export const STATEMENT_ISSUER =
 const SUPPORTED_ALGS = ['EdDSA', 'ES256'] as const;
 type SupportedAlg = (typeof SUPPORTED_ALGS)[number];
 
+/**
+ * Channels we are currently willing to put a signature on.
+ *
+ * A signature is a claim we stand behind, so a channel only belongs here once
+ * we can vouch for how its observations got into the database. `live_dns`
+ * qualifies: those rows are written by our own resolver reading a TXT record,
+ * and no external input reaches them.
+ *
+ * `gcd_recovered` does not, yet. Its window derives from email we were given
+ * rather than from anything we observed ourselves, and the ingest path that
+ * accepts that email does not currently establish it is genuine (REG-739).
+ * Until it does, those observations are still exposed unsigned through
+ * /api/key's `observations` array, where a consumer can weigh them for
+ * themselves, but we do not attest to them.
+ *
+ * Restoring `gcd_recovered` here is the last step of REG-739 and needs no
+ * other change: the payload, the endpoint and the format already handle it,
+ * and the format's `source` field exists precisely so the two can be told
+ * apart.
+ */
+const SIGNABLE_SOURCES: ReadonlySet<ObservationSource> =
+  new Set<ObservationSource>(['live_dns']);
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 /**
@@ -131,6 +154,22 @@ export function observationsForRecord(
   }
 
   return observations;
+}
+
+/**
+ * The subset of a record's observations we are currently willing to sign.
+ *
+ * Exported so the signing path and the format self-check apply the same rule
+ * rather than each deciding for itself: the check mints its own key when none
+ * is configured, and without this it would happily attest a channel the real
+ * endpoint withholds.
+ */
+export function signableObservationsForRecord(
+  record: StatementSourceRecord
+): ArchiveObservation[] {
+  return observationsForRecord(record).filter((observation) =>
+    SIGNABLE_SOURCES.has(observation.source)
+  );
 }
 
 /**
@@ -355,7 +394,7 @@ export async function signStatementsForRecord(
   record: StatementSourceRecord,
   issuedAt: Date
 ): Promise<string[]> {
-  const observations = observationsForRecord(record);
+  const observations = signableObservationsForRecord(record);
 
   return Promise.all(
     observations.map((observation) =>

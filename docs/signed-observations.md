@@ -32,10 +32,25 @@ A key value can reach the archive two ways, and they mean different things:
 
 The two are stored in separate columns (`dnsFirstSeenAt` / `dnsLastSeenAt` and
 `gcdFirstSeenAt` / `gcdLastSeenAt`) and are attested separately. **A GCD
-recovery can never move a live-DNS window, and vice versa.** A key seen both
-ways yields _two_ statements (same record `id`, different `source`, each with
-its own window) rather than one blended claim. If you bound key validity on
-live DNS, filter on `source === 'live_dns'` and ignore the rest.
+recovery can never move a live-DNS window, and vice versa.** If you bound key
+validity on live DNS, filter on `source === 'live_dns'`.
+
+> **Only `live_dns` observations are currently signed.**
+>
+> A signature is a claim we stand behind, and a channel only earns one once we
+> can vouch for how its observations reached the database. `live_dns` rows are
+> written by our own resolver reading a TXT record, with no external input in
+> the path. A `gcd_recovered` window instead derives from email we were given,
+> and the ingest path that accepts that email does not yet establish it is
+> genuine. We are fixing that; until it lands, we are not putting our signature
+> on it.
+>
+> `gcd_recovered` observations are still returned, unsigned, in `/api/key`'s
+> `observations` array, so you can weigh them yourself. Nothing about the
+> format changes when signing is enabled: a key seen both ways will then yield
+> _two_ statements, same record `id`, different `source`, each with its own
+> window, which is what the `source` field exists to distinguish. If you only
+> consume `live_dns`, this restriction is invisible to you.
 
 For `gcd_recovered`, the times are **the source emails' dates**, not our
 processing time: the window is the span between the two messages whose
