@@ -1,12 +1,10 @@
 import forge from 'node-forge';
-
 import { z } from 'zod';
 
 import { Prisma } from '@/generated/prisma/client';
 import { clearRecordsCache, prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { encodeRsaPkcs1Digest, pubKeyLength } from '@/lib/utilsServer';
-import { domainSchema, selectorSchema } from '@/lib/validation';
 
 interface GcdCallbackMetadata {
   domain: string;
@@ -23,13 +21,27 @@ interface GcdCallbackMetadata {
   timestamp2?: Date | null;
 }
 
-// Shape of the callback body's `metadata`, validated before use. The hashes are
-// hex digests and the signatures base64; both are compared against stored
-// values, so anything that is not a plain non-empty string is a malformed
-// request rather than something to coerce.
+// Shape of the callback body's `metadata`, validated before use.
+//
+// This checks types and bounds, NOT DKIM syntax. An earlier revision reused
+// domainSchema/selectorSchema from lib/validation, which are written for
+// user-facing query params and forbid dots in a selector. Dots are legal per
+// RFC 6376 and common in the wild: production holds 66 distinct dotted
+// selectors across 985 EmailSignature rows, including itea.salesforce with 593
+// signatures, and 55 DomainSelectorPair rows with a dotted selector were
+// created by this very endpoint. domainSchema likewise rejects the underscores
+// in Google Workspace relay domains such as knox_edu.20150623.gappssmtp.com,
+// for which the archive already holds recovered keys. Validating shape as
+// registry-legal syntax would have silently 400'd all of it.
+//
+// Stricter validation is not needed anyway: `domain` and `selector` are
+// re-checked against the stored signature rows further down, so the only job
+// here is to guarantee a plain bounded string reaches Prisma, since an
+// `undefined` would be read as "omit this filter" and an object as a filter
+// operator.
 const gcdCallbackMetadataSchema = z.object({
-  domain: domainSchema,
-  selector: selectorSchema,
+  domain: z.string().min(1).max(253),
+  selector: z.string().min(1).max(253),
   headerHash1: z
     .string()
     .regex(/^[0-9a-fA-F]+$/, 'must be hex')
@@ -113,23 +125,28 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Missing metadata' }, { status: 400 });
     }
 
-    // Validate the shape before anything reads it. The body is unauthenticated
-    // and every field below is used to build a database query or a digest, and
-    // Prisma treats `undefined` as "omit this filter" rather than "match
-    // nothing", so a missing field must never reach a `where` clause. Nothing
-    // downstream should have to rely on an earlier statement happening to throw
-    // on a bad type.
-    const parsed = gcdCallbackMetadataSchema.safeParse(metadata);
-    if (!parsed.success) {
-      logger.warn('gcd_callback_invalid_metadata', {
-        taskId,
-        issues: parsed.error.issues.map((i) => i.path.join('.')).join(','),
-      });
-      return Response.json({ error: 'Invalid metadata' }, { status: 400 });
-    }
-
     if (success) {
       logger.info('gcd_task_success', { taskId });
+
+      // Validated inside the success branch, not above it. The failure branch
+      // only logs and never reads these fields, so rejecting it on shape would
+      // answer a callback that can never succeed with a non-2xx, which the
+      // Cloud Function retries: a permanent loop over a task that is already
+      // known to have failed.
+      //
+      // The body is unauthenticated and every field below feeds a database
+      // query or a digest, and Prisma reads `undefined` as "omit this filter"
+      // rather than "match nothing", so a missing field must never reach a
+      // `where` clause. Nothing downstream should depend on an earlier
+      // statement happening to throw on a bad type.
+      const parsed = gcdCallbackMetadataSchema.safeParse(metadata);
+      if (!parsed.success) {
+        logger.warn('gcd_callback_invalid_metadata', {
+          taskId,
+          issues: parsed.error.issues.map((i) => i.path.join('.')).join(','),
+        });
+        return Response.json({ error: 'Invalid metadata' }, { status: 400 });
+      }
 
       const publicKeyBigInt = BigInt(result!);
       const publicKeyHex = publicKeyBigInt.toString(16);
