@@ -1,5 +1,7 @@
 import forge from 'node-forge';
+import { z } from 'zod';
 
+import { Prisma } from '@/generated/prisma/client';
 import { clearRecordsCache, prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { encodeRsaPkcs1Digest, pubKeyLength } from '@/lib/utilsServer';
@@ -12,9 +14,46 @@ interface GcdCallbackMetadata {
   dkimSignature1: string;
   dkimSignature2: string;
   signingAlgorithm: string;
-  timestamp1: Date | null;
-  timestamp2: Date | null;
+  // Present in the payload but deliberately unused. The observation window is
+  // taken from the stored EmailSignature rows instead, because these are
+  // caller-supplied and this endpoint is unauthenticated (REG-737).
+  timestamp1?: Date | null;
+  timestamp2?: Date | null;
 }
+
+// Shape of the callback body's `metadata`, validated before use.
+//
+// This checks types and bounds, NOT DKIM syntax. An earlier revision reused
+// domainSchema/selectorSchema from lib/validation, which are written for
+// user-facing query params and forbid dots in a selector. Dots are legal per
+// RFC 6376 and common in the wild: production holds 66 distinct dotted
+// selectors across 985 EmailSignature rows, including itea.salesforce with 593
+// signatures, and 55 DomainSelectorPair rows with a dotted selector were
+// created by this very endpoint. domainSchema likewise rejects the underscores
+// in Google Workspace relay domains such as knox_edu.20150623.gappssmtp.com,
+// for which the archive already holds recovered keys. Validating shape as
+// registry-legal syntax would have silently 400'd all of it.
+//
+// Stricter validation is not needed anyway: `domain` and `selector` are
+// re-checked against the stored signature rows further down, so the only job
+// here is to guarantee a plain bounded string reaches Prisma, since an
+// `undefined` would be read as "omit this filter" and an object as a filter
+// operator.
+const gcdCallbackMetadataSchema = z.object({
+  domain: z.string().min(1).max(253),
+  selector: z.string().min(1).max(253),
+  headerHash1: z
+    .string()
+    .regex(/^[0-9a-fA-F]+$/, 'must be hex')
+    .max(256),
+  headerHash2: z
+    .string()
+    .regex(/^[0-9a-fA-F]+$/, 'must be hex')
+    .max(256),
+  dkimSignature1: z.string().min(1).max(4096),
+  dkimSignature2: z.string().min(1).max(4096),
+  signingAlgorithm: z.string().min(1).max(64),
+});
 
 function verifyRsaPublicKey(
   publicKeyHex: string,
@@ -89,6 +128,26 @@ export async function POST(request: Request) {
     if (success) {
       logger.info('gcd_task_success', { taskId });
 
+      // Validated inside the success branch, not above it. The failure branch
+      // only logs and never reads these fields, so rejecting it on shape would
+      // answer a callback that can never succeed with a non-2xx, which the
+      // Cloud Function retries: a permanent loop over a task that is already
+      // known to have failed.
+      //
+      // The body is unauthenticated and every field below feeds a database
+      // query or a digest, and Prisma reads `undefined` as "omit this filter"
+      // rather than "match nothing", so a missing field must never reach a
+      // `where` clause. Nothing downstream should depend on an earlier
+      // statement happening to throw on a bad type.
+      const parsed = gcdCallbackMetadataSchema.safeParse(metadata);
+      if (!parsed.success) {
+        logger.warn('gcd_callback_invalid_metadata', {
+          taskId,
+          issues: parsed.error.issues.map((i) => i.path.join('.')).join(','),
+        });
+        return Response.json({ error: 'Invalid metadata' }, { status: 400 });
+      }
+
       const publicKeyBigInt = BigInt(result!);
       const publicKeyHex = publicKeyBigInt.toString(16);
       const publicKeyBigIntjsbn = new forge.jsbn.BigInteger(publicKeyHex, 16);
@@ -133,7 +192,7 @@ export async function POST(request: Request) {
         taskId,
         result,
         completedAt: new Date(),
-        metadata,
+        metadata: parsed.data,
         publicKey,
       });
     } else {
@@ -171,19 +230,38 @@ function gcdObservationWindow(
   timestamp1: Date | string | null,
   timestamp2: Date | string | null
 ): { first: Date; last: Date } | null {
+  // DKIM predates neither of these. A value outside the range is a parse
+  // artefact or a crafted header, not a real signing date.
+  const FLOOR = Date.UTC(1990, 0, 1);
+  const CEILING = Date.now() + 24 * 60 * 60 * 1000;
+
   const parse = (value: Date | string | null): Date | null => {
     if (value === null || value === undefined) return null;
     const date = value instanceof Date ? value : new Date(value);
-    return Number.isNaN(date.getTime()) ? null : date;
+    const time = date.getTime();
+    if (Number.isNaN(time) || time < FLOOR || time > CEILING) return null;
+    return date;
   };
 
   const a = parse(timestamp1);
   const b = parse(timestamp2);
-  if (!a || !b) return null;
 
-  return a.getTime() <= b.getTime()
-    ? { first: a, last: b }
-    : { first: b, last: a };
+  // Reject only the out-of-range side. Discarding both would throw away a
+  // perfectly good observation because its partner was corrupt: production has
+  // 20 EmailSignature rows stamped 1969-12-31, all on accounts.google.com
+  // selector 20230601, which is a live high-traffic pair. Pairing one of those
+  // with a normally dated email would otherwise widen nothing at all.
+  //
+  // With one usable bound the window collapses to that instant, which is the
+  // narrow-but-true direction the rest of this change follows.
+  const usable = [a, b].filter((d): d is Date => d !== null);
+  if (usable.length === 0) return null;
+
+  const times = usable.map((d) => d.getTime());
+  return {
+    first: new Date(Math.min(...times)),
+    last: new Date(Math.max(...times)),
+  };
 }
 
 async function storeCalculationResult(data: {
@@ -194,10 +272,110 @@ async function storeCalculationResult(data: {
   metadata: GcdCallbackMetadata;
   publicKey: string;
 }) {
+  // Hoisted out of the try so the finally below can invalidate the cache even
+  // when a write throws part way through.
+  const domain = data.metadata.domain.toLowerCase();
+  const selector = data.metadata.selector.toLowerCase();
+
+  // Only the paths that actually touch the database invalidate the cache.
+  // Clearing unconditionally handed an unauthenticated caller a cheap eviction
+  // primitive: the validation returns below need no stored signatures, and
+  // reaching them costs only a self-signed key, so repeated requests naming a
+  // hot pair could push every lookup for it back to Postgres.
+  let writeAttempted = false;
+
   try {
-    // Normalize domain and selector to lowercase
-    const domain = data.metadata.domain.toLowerCase();
-    const selector = data.metadata.selector.toLowerCase();
+    // REG-737: resolve the evidence BEFORE writing anything.
+    //
+    // This endpoint is unauthenticated, and its only other gate is
+    // verifyRsaPublicKey, which checks a signature against a modulus that also
+    // comes from the request body: an attacker signs their own digests with
+    // their own key and it passes. The write used to happen first and this
+    // lookup second, with the failure throwing into a catch that swallowed it
+    // after the record had already committed. So a request naming any domain
+    // could land a DkimRecord for a key nobody controls.
+    //
+    // Requiring both signatures to already exist in our own table means a
+    // recovery can only ever attach to email we stored, and no write happens
+    // for one we did not. This does not make the endpoint authenticated: an
+    // attacker who can get crafted EmailSignature rows in through the upload
+    // path is still in scope until the callback itself is authenticated
+    // (REG-737 part 2, a shared secret echoed by the Cloud Function).
+    // Matched on (headerHashV2, dkimSignature), which is the unique constraint
+    // on EmailSignature, rather than on (domain, selector, headerHash).
+    //
+    // Two reasons. The task-creation path sends `headerHashV2` values in the
+    // metadata for both halves of the pair (storeEmailSignature writes the same
+    // digest into both columns on insert and sends `dsp.headerHashV2`), so this
+    // is the column the values actually correspond to. And it goes straight to
+    // the unique index instead of the (domain, selector, timestamp) one.
+    //
+    // Deliberately not filtering on domain/selector here: the callback
+    // lowercases them, but 198 stored rows have a non-lowercase domain and 689 a
+    // non-lowercase selector, and Prisma's default equality is case-sensitive,
+    // so including them silently matched nothing for those recoveries. They are
+    // re-checked case-insensitively below, where a mismatch is a real signal
+    // rather than an accident of casing.
+    // findUnique on the composite key, not findFirst: the pair IS the unique
+    // constraint, so this makes "exactly one match" a compile-time fact rather
+    // than a property someone has to re-derive. It also refuses to build a
+    // query at all if either component is missing, which findFirst would
+    // happily do — Prisma reads `undefined` as "omit this filter", so a payload
+    // without `headerHash1` would have degraded to findFirst({ where: {} }) and
+    // returned an arbitrary row. Unreachable today only because
+    // verifyRsaPublicKey throws on a non-string first; that is an accident of
+    // ordering, not a guarantee.
+    const [emailSignatureA, emailSignatureB] = await Promise.all([
+      prisma.emailSignature.findUnique({
+        where: {
+          headerHashV2_dkimSignature: {
+            headerHashV2: data.metadata.headerHash1,
+            dkimSignature: data.metadata.dkimSignature1,
+          },
+        },
+      }),
+      prisma.emailSignature.findUnique({
+        where: {
+          headerHashV2_dkimSignature: {
+            headerHashV2: data.metadata.headerHash2,
+            dkimSignature: data.metadata.dkimSignature2,
+          },
+        },
+      }),
+    ]);
+
+    if (!emailSignatureA || !emailSignatureB) {
+      // Not an exception: a callback naming signatures we never stored is
+      // exactly the shape a forged one takes. Refuse it and write nothing.
+      logger.warn('gcd_callback_unknown_signatures', {
+        taskId: data.taskId,
+        domain,
+        selector,
+      });
+      return;
+    }
+
+    // The signatures exist, but they must also belong to the pair the caller
+    // claims. Without this a caller could point real signatures from one domain
+    // at a record for another. Compared case-insensitively because stored
+    // casing is inconsistent; the callback's own values are already lowercased.
+    const belongsToPair = (sig: { domain: string; selector: string }) =>
+      sig.domain.toLowerCase() === domain &&
+      sig.selector.toLowerCase() === selector;
+
+    if (!belongsToPair(emailSignatureA) || !belongsToPair(emailSignatureB)) {
+      logger.warn('gcd_callback_signature_pair_mismatch', {
+        taskId: data.taskId,
+        claimed: `${domain}/${selector}`,
+        actualA: `${emailSignatureA.domain}/${emailSignatureA.selector}`,
+        actualB: `${emailSignatureB.domain}/${emailSignatureB.selector}`,
+      });
+      return;
+    }
+
+    // From here on the request touches the database, so the cache must be
+    // invalidated however this ends.
+    writeAttempted = true;
 
     const domainSelectorPair = await prisma.domainSelectorPair.upsert({
       where: {
@@ -234,14 +412,19 @@ async function storeCalculationResult(data: {
     let dkimRecordId: number;
 
     // The two source emails' dates bound what this recovery actually proves:
-    // the key signed mail between them. They are the only timestamps a GCD
-    // recovery may claim. Either can be absent when the source email carried no
-    // parseable Date header, and previously `new Date(null!)` silently became the
-    // Unix epoch and dragged firstSeenAt back to 1970, so guard explicitly and
-    // skip the time attribution rather than record a false window.
+    // the key signed mail between them. Take them from the rows we just
+    // resolved, never from the request body. The caller supplies timestamps
+    // too, but trusting those let anyone holding two genuinely signed messages
+    // from a domain replay them with an arbitrary window and stretch the
+    // record's dates without bound.
+    //
+    // Either stored timestamp can still be null when the source email carried
+    // no parseable Date header. Previously `new Date(null!)` silently became
+    // the Unix epoch and dragged firstSeenAt back to 1970, so guard explicitly
+    // and skip the time attribution rather than record a false window.
     const gcdBounds = gcdObservationWindow(
-      data.metadata.timestamp1,
-      data.metadata.timestamp2
+      emailSignatureA.timestamp,
+      emailSignatureB.timestamp
     );
 
     if (!gcdBounds) {
@@ -310,52 +493,57 @@ async function storeCalculationResult(data: {
       });
     }
 
-    // Invalidate as soon as the record write has committed, not at the end of
-    // the function. Two statements below can throw after this point (the
-    // "Could not find email signatures" guard, and the composite-PK violation
-    // a retried callback hits), and the outer catch swallows both. Clearing
-    // late meant a committed change could leave a stale cache entry that the
-    // statement endpoint would then sign.
-    clearRecordsCache(domain, selector);
-
-    // Find the email signature entries
-    const emailSignatureA = await prisma.emailSignature.findFirst({
-      where: {
-        domain: domain,
-        selector: selector,
-        headerHash: data.metadata.headerHash1,
-        dkimSignature: data.metadata.dkimSignature1,
-      },
-    });
-
-    const emailSignatureB = await prisma.emailSignature.findFirst({
-      where: {
-        domain: domain,
-        selector: selector,
-        headerHash: data.metadata.headerHash2,
-        dkimSignature: data.metadata.dkimSignature2,
-      },
-    });
-
-    if (!emailSignatureA || !emailSignatureB) {
-      throw new Error('Could not find email signatures');
+    // Link the pair to the record. A retried callback hits the composite
+    // primary key, which is the intended idempotency: the recovery is already
+    // recorded, so treat the conflict as success rather than an error the
+    // Cloud Function should retry again.
+    try {
+      await prisma.emailPairGcdResult.create({
+        data: {
+          emailSignatureA_id: emailSignatureA.id,
+          emailSignatureB_id: emailSignatureB.id,
+          foundGcd: true,
+          dkimRecordId,
+          timestamp: data.completedAt,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        logger.info('gcd_result_already_recorded', { taskId: data.taskId });
+      } else {
+        throw error;
+      }
     }
-
-    // Create the GCD result entry linking the signatures
-    await prisma.emailPairGcdResult.create({
-      data: {
-        emailSignatureA_id: emailSignatureA.id,
-        emailSignatureB_id: emailSignatureB.id,
-        foundGcd: true,
-        dkimRecordId,
-        timestamp: data.completedAt,
-      },
-    });
 
     logger.info('gcd_result_stored', { taskId: data.taskId });
   } catch (error) {
     logger.error('gcd_store_error', {
       error: error instanceof Error ? error.message : String(error),
     });
+    // Rethrow so POST returns 500 and the Cloud Function retries. Swallowing
+    // here made the retry machinery unreachable: every write failure, however
+    // transient, was reported to the caller as success, so a record could be
+    // left permanently without its EmailPairGcdResult link. Retrying is safe
+    // because the record lookup is by keyData and the link create treats a
+    // duplicate as success, so a second delivery completes whatever the first
+    // one left unfinished.
+    //
+    // Only genuine failures reach here. The validation paths above return
+    // rather than throw, precisely so a forged or unrecognised callback is not
+    // retried.
+    throw error;
+  } finally {
+    // In `finally` because a throw between the record write and here would
+    // otherwise leave a committed change behind a stale cache entry for the
+    // full 30-minute TTL. Clearing unnecessarily is free; clearing too late is
+    // not. This restores the ordering intent of the merged REG-735 fix, which
+    // an earlier revision of this branch reversed by moving the call to the
+    // end of the try block.
+    if (writeAttempted) {
+      clearRecordsCache(domain, selector);
+    }
   }
 }
