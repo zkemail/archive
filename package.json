@@ -16,7 +16,8 @@
     "start": "next start",
     "jwks:update": "tsx scripts/update-jwks.ts",
     "stats:refresh": "tsx scripts/refresh-stats.ts",
-    "backfill:domain-unicode": "tsx scripts/backfill-domain-unicode.ts"
+    "backfill:domain-unicode": "tsx scripts/backfill-domain-unicode.ts",
+    "backfill:observation-channels": "tsx scripts/backfill-observation-channels.ts"
   },
   "dependencies": {
     "@google-cloud/tasks": "5.1.0",

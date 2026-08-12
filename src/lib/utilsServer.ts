@@ -8,7 +8,12 @@ import type { RateLimiterMemory } from 'rate-limiter-flexible';
 
 import type { DomainSelectorPair, KeyType } from '@/generated/prisma/client';
 
-import { createDkimRecord, prisma, updateDspTimestamp } from './db';
+import {
+  clearRecordsCache,
+  createDkimRecord,
+  prisma,
+  updateDspTimestamp,
+} from './db';
 import { logger } from './logger';
 import {
   type DnsDkimFetchResult,
@@ -98,6 +103,9 @@ export async function addDomainSelectorPair(
             lastSeenAt: record.timestamp,
             keyType: record.keyType,
             keyData: record.keyDataBase64,
+            // Direct live-DNS sighting, so it opens the DNS channel too (REG-735).
+            dnsFirstSeenAt: record.timestamp,
+            dnsLastSeenAt: record.timestamp,
           })),
         ],
       },
@@ -106,6 +114,14 @@ export async function addDomainSelectorPair(
       records: true,
     },
   });
+
+  // A lookup miss caches the empty result for the full 30-minute TTL, and
+  // /api/key/domain calls this immediately after such a miss. Without an
+  // explicit invalidation the pair we just created stays invisible for half an
+  // hour, which now also means /api/key/statement reports no observation for a
+  // key the archive demonstrably holds (REG-735).
+  clearRecordsCache(domain, selector);
+
   return { already_in_db: false, added: true };
 }
 
@@ -235,8 +251,22 @@ export async function fetchAndStoreDkimDnsRecord(dsp: DomainSelectorPair) {
     if (dbRecord) {
       await prisma.dkimRecord.update({
         where: { id: dbRecord.id },
-        data: { lastSeenAt: dnsRecord.timestamp },
+        data: {
+          lastSeenAt: dnsRecord.timestamp,
+          // REG-735: bump the DNS channel alongside the union window, and never
+          // touch gcd*. dnsFirstSeenAt is normally already set; it can be NULL
+          // on a legacy record whose DNS window the backfill could not
+          // disentangle from a GCD contribution. Opening it at this sighting
+          // understates how long we have really known the key, which is the
+          // safe direction: the claimed window is never wider than the truth.
+          dnsFirstSeenAt: dbRecord.dnsFirstSeenAt ?? dnsRecord.timestamp,
+          dnsLastSeenAt: dnsRecord.timestamp,
+        },
       });
+      // createDkimRecord clears the cache itself, but this branch did not, so a
+      // re-observed key kept serving (and now signing) its previous window for
+      // up to the 30-minute TTL.
+      clearRecordsCache(dsp.domain, dsp.selector);
     } else {
       dbRecord = await createDkimRecord(dsp, dnsRecord);
     }

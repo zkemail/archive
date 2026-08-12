@@ -1,6 +1,6 @@
 import forge from 'node-forge';
 
-import { prisma } from '@/lib/db';
+import { clearRecordsCache, prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { encodeRsaPkcs1Digest, pubKeyLength } from '@/lib/utilsServer';
 
@@ -160,6 +160,46 @@ export async function POST(request: Request) {
   }
 }
 
+/** Earliest of the two, treating an absent stored bound as "no bound yet". */
+function minDate(existing: Date | null, incoming: Date): Date {
+  return existing && existing.getTime() < incoming.getTime()
+    ? existing
+    : incoming;
+}
+
+/** Latest of the two, treating an absent stored bound as "no bound yet". */
+function maxDate(existing: Date | null, incoming: Date): Date {
+  return existing && existing.getTime() > incoming.getTime()
+    ? existing
+    : incoming;
+}
+
+/**
+ * The window a GCD recovery is entitled to claim: the span between the two
+ * source emails' dates. Returns null unless both are present and parseable, since
+ * the callback metadata types them as nullable and a missing Date header is a
+ * real case, so a bad value must yield "unknown", never a bogus instant.
+ * The pair is ordered defensively; nothing guarantees timestamp1 <= timestamp2.
+ */
+function gcdObservationWindow(
+  timestamp1: Date | string | null,
+  timestamp2: Date | string | null
+): { first: Date; last: Date } | null {
+  const parse = (value: Date | string | null): Date | null => {
+    if (value === null || value === undefined) return null;
+    const date = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  };
+
+  const a = parse(timestamp1);
+  const b = parse(timestamp2);
+  if (!a || !b) return null;
+
+  return a.getTime() <= b.getTime()
+    ? { first: a, last: b }
+    : { first: b, last: a };
+}
+
 async function storeCalculationResult(data: {
   taskId: string;
   result?: string;
@@ -202,41 +242,67 @@ async function storeCalculationResult(data: {
       },
     });
 
-    if (dkimRecord) {
-      const newFirstSeenAt = new Date(
-        Math.min(
-          new Date(dkimRecord.firstSeenAt!).getTime(),
-          new Date(data.metadata.timestamp1!).getTime()
-        )
-      );
-      const newLastSeenAt = new Date(
-        Math.max(
-          new Date(dkimRecord.lastSeenAt!).getTime(),
-          new Date(data.metadata.timestamp2!).getTime()
-        )
-      );
+    // The two source emails' dates bound what this recovery actually proves:
+    // the key signed mail between them. They are the only timestamps a GCD
+    // recovery may claim. Either can be absent when the source email carried no
+    // parseable Date header, and previously `new Date(null!)` silently became the
+    // Unix epoch and dragged firstSeenAt back to 1970, so guard explicitly and
+    // skip the time attribution rather than record a false window.
+    const gcdBounds = gcdObservationWindow(
+      data.metadata.timestamp1,
+      data.metadata.timestamp2
+    );
 
-      dkimRecord = await prisma.dkimRecord.update({
-        where: { id: dkimRecord.id },
-        data: {
-          firstSeenAt: newFirstSeenAt,
-          lastSeenAt: newLastSeenAt,
-        },
+    if (!gcdBounds) {
+      logger.warn('gcd_missing_email_timestamps', {
+        taskId: data.taskId,
+        domain,
+        selector,
       });
-      logger.info('dkim_record_updated', {
-        domain: data.metadata.domain,
-        selector: data.metadata.selector,
-      });
+    }
+
+    if (dkimRecord) {
+      // REG-735: a GCD recovery must never move a live-DNS record's window.
+      // This lookup matches on keyData, which is the same normalized SPKI for a
+      // key we scraped from DNS and one we recovered from signatures, so this
+      // branch routinely lands on a DNS-sourced record. Widen the GCD channel
+      // and the union window only; dnsFirstSeenAt / dnsLastSeenAt are left
+      // untouched so a live-DNS observation stays a live-DNS observation.
+      //
+      // With no usable bounds there is nothing to widen, so skip the write
+      // rather than issue an empty update and log a change that did not happen.
+      if (gcdBounds) {
+        dkimRecord = await prisma.dkimRecord.update({
+          where: { id: dkimRecord.id },
+          data: {
+            firstSeenAt: minDate(dkimRecord.firstSeenAt, gcdBounds.first),
+            lastSeenAt: maxDate(dkimRecord.lastSeenAt, gcdBounds.last),
+            gcdFirstSeenAt: minDate(dkimRecord.gcdFirstSeenAt, gcdBounds.first),
+            gcdLastSeenAt: maxDate(dkimRecord.gcdLastSeenAt, gcdBounds.last),
+          },
+        });
+        logger.info('dkim_record_updated', {
+          domain: data.metadata.domain,
+          selector: data.metadata.selector,
+        });
+      }
     } else {
+      // When the email dates are missing we cannot date the recovery at all.
+      // Fall back to the completion time for the union window (so the record
+      // still appears in the archive) but leave the GCD channel empty, so
+      // nothing downstream can mistake "when we computed it" for "when it
+      // signed mail".
       dkimRecord = await prisma.dkimRecord.create({
         data: {
           domainSelectorPairId: domainSelectorPair.id,
-          firstSeenAt: data.metadata.timestamp1!,
-          lastSeenAt: data.metadata.timestamp2!,
+          firstSeenAt: gcdBounds?.first ?? data.completedAt,
+          lastSeenAt: gcdBounds?.last ?? data.completedAt,
           value: `p=${data.publicKey}`,
           keyType: 'RSA',
           keyData: data.publicKey,
           source: 'public_key_gcd_cloud_function',
+          gcdFirstSeenAt: gcdBounds?.first,
+          gcdLastSeenAt: gcdBounds?.last,
         },
       });
       logger.info('dkim_record_created', {
@@ -244,6 +310,14 @@ async function storeCalculationResult(data: {
         selector: data.metadata.selector,
       });
     }
+
+    // Invalidate as soon as the record write has committed, not at the end of
+    // the function. Two statements below can throw after this point (the
+    // "Could not find email signatures" guard, and the composite-PK violation
+    // a retried callback hits), and the outer catch swallows both. Clearing
+    // late meant a committed change could leave a stale cache entry that the
+    // statement endpoint would then sign.
+    clearRecordsCache(domain, selector);
 
     // Find the email signature entries
     const emailSignatureA = await prisma.emailSignature.findFirst({

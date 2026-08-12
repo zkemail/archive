@@ -8,17 +8,44 @@ datasource db {
 }
 
 model DkimRecord {
-  id                   Int                  @id @default(autoincrement())
-  firstSeenAt          DateTime
+  id Int @id @default(autoincrement())
+
+  // Union of every observation channel: firstSeenAt = min over all channels,
+  // lastSeenAt = max. This is what the UI and the legacy /api/key fields show.
+  // It deliberately mixes provenance, so it must NOT be used to bound a key's
+  // validity; use the per-channel columns below for that. See REG-735.
+  firstSeenAt DateTime
+  lastSeenAt  DateTime?
+
   value                String
   domainSelectorPairId Int
   provenanceVerified   Boolean?
-  lastSeenAt           DateTime?
   keyData              String?
   keyType              KeyType?
-  source               String?
-  domainSelectorPair   DomainSelectorPair   @relation(fields: [domainSelectorPairId], references: [id])
-  emailPairGcdResults  EmailPairGcdResult[]
+
+  // How this key value first entered the archive. Historical/internal marker
+  // only ('public_key_gcd_cloud_function', 'public_key_gcd_batch', or NULL for
+  // the DNS path); it says nothing about later observations. Provenance for
+  // signed statements comes from the per-channel columns, never from this.
+  source String?
+
+  // Per-channel observation windows (REG-735). A single key value can be seen
+  // both in live DNS and recovered from email signatures via GCD, and the two
+  // mean very different things: a live DNS observation is a direct sighting of
+  // the record the domain published, while a GCD recovery only proves the key
+  // signed some mail at the source emails' dates. Downstream consumers bound
+  // key validity on the live-DNS window alone, so the two must never bleed
+  // into each other. Invariant: the GCD write path only ever touches gcd*, the
+  // DNS write path only ever touches dns*. A channel is claimable only when
+  // BOTH of its columns are set; a half-known window is treated as unknown and
+  // yields no statement (fail closed).
+  dnsFirstSeenAt DateTime?
+  dnsLastSeenAt  DateTime?
+  gcdFirstSeenAt DateTime?
+  gcdLastSeenAt  DateTime?
+
+  domainSelectorPair  DomainSelectorPair   @relation(fields: [domainSelectorPairId], references: [id])
+  emailPairGcdResults EmailPairGcdResult[]
 
   @@index([domainSelectorPairId])
 }
