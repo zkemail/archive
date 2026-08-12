@@ -42,6 +42,17 @@ import { Pool } from 'pg';
 // batch well inside the 90s statement_timeout with room to spare.
 const DEFAULT_BATCH_SIZE = 10_000;
 
+// The union columns are not guaranteed ordered: production holds 257 rows
+// where lastSeenAt sits fractionally before firstSeenAt, a clock artefact from
+// a 2024-05-14 import. Copied verbatim those become an inverted per-channel
+// window, and a signed statement whose first_seen_at is after its last_seen_at
+// is malformed evidence that the reference verifier would still accept, since
+// it checks RFC 3339 form and not ordering. Every phase therefore normalises
+// with LEAST/GREATEST rather than assuming the stored order. Both values are
+// real observation instants, so [min, max] is the honest window, and
+// LEAST/GREATEST ignore NULLs so a NULL lastSeenAt still collapses to a
+// single-instant window.
+//
 // Records whose union firstSeenAt predates this are treated as corrupt rather
 // than early. The pre-fix GCD callback turned a missing email Date header into
 // `new Date(null!)` -> the Unix epoch, and copying such a value into a
@@ -137,7 +148,7 @@ async function main() {
     // ended later than its links.
     const phase1 = await pool.query(
       `
-      ${dryRun ? 'SELECT count(*) AS count FROM "DkimRecord" WHERE' : 'UPDATE "DkimRecord" SET "gcdFirstSeenAt" = "firstSeenAt", "gcdLastSeenAt" = COALESCE("lastSeenAt", "firstSeenAt") WHERE'}
+      ${dryRun ? 'SELECT count(*) AS count FROM "DkimRecord" WHERE' : 'UPDATE "DkimRecord" SET "gcdFirstSeenAt" = LEAST("firstSeenAt", "lastSeenAt"), "gcdLastSeenAt" = GREATEST("firstSeenAt", "lastSeenAt") WHERE'}
         source LIKE 'public_key_gcd%'
         AND "gcdFirstSeenAt" IS NULL
         AND "dnsFirstSeenAt" IS NULL
@@ -214,8 +225,17 @@ async function main() {
         UPDATE "DkimRecord" r
         SET "gcdFirstSeenAt" = a.gcd_first,
             "gcdLastSeenAt"  = a.gcd_last,
-            "dnsFirstSeenAt" = COALESCE(a.dns_first_exact, a.dns_last_exact),
-            "dnsLastSeenAt"  = COALESCE(a.dns_last_exact, a.dns_first_exact)
+            -- Merge with whatever DNS has already recorded rather than
+            -- replacing it. A DNS refresh landing between the migration and
+            -- this script leaves a real live-DNS observation here, and an
+            -- unconditional assignment wiped it out when neither reconstructed
+            -- bound was provable: the one kind of evidence this whole change
+            -- exists to protect. LEAST/GREATEST ignore NULLs in PostgreSQL, so
+            -- this also covers "only one bound provable" (the window collapses
+            -- to that instant) and "nothing to merge" (the column keeps its
+            -- existing value, or stays NULL).
+            "dnsFirstSeenAt" = LEAST(r."dnsFirstSeenAt", a.dns_first_exact, a.dns_last_exact),
+            "dnsLastSeenAt"  = GREATEST(r."dnsLastSeenAt", a.dns_last_exact, a.dns_first_exact)
         FROM attributed a
         WHERE a.id = r.id`,
         [SANITY_FLOOR]
@@ -266,8 +286,8 @@ async function main() {
             LIMIT $1
           )
           UPDATE "DkimRecord" r
-          SET "dnsFirstSeenAt" = r."firstSeenAt",
-              "dnsLastSeenAt"  = COALESCE(r."lastSeenAt", r."firstSeenAt")
+          SET "dnsFirstSeenAt" = LEAST(r."firstSeenAt", r."lastSeenAt"),
+              "dnsLastSeenAt"  = GREATEST(r."firstSeenAt", r."lastSeenAt")
           FROM todo
           WHERE todo.id = r.id
         `,
