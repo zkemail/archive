@@ -260,6 +260,13 @@ async function storeCalculationResult(data: {
   const domain = data.metadata.domain.toLowerCase();
   const selector = data.metadata.selector.toLowerCase();
 
+  // Only the paths that actually touch the database invalidate the cache.
+  // Clearing unconditionally handed an unauthenticated caller a cheap eviction
+  // primitive: the validation returns below need no stored signatures, and
+  // reaching them costs only a self-signed key, so repeated requests naming a
+  // hot pair could push every lookup for it back to Postgres.
+  let writeAttempted = false;
+
   try {
     // REG-737: resolve the evidence BEFORE writing anything.
     //
@@ -348,6 +355,10 @@ async function storeCalculationResult(data: {
       });
       return;
     }
+
+    // From here on the request touches the database, so the cache must be
+    // invalidated however this ends.
+    writeAttempted = true;
 
     const domainSelectorPair = await prisma.domainSelectorPair.upsert({
       where: {
@@ -514,6 +525,8 @@ async function storeCalculationResult(data: {
     // not. This restores the ordering intent of the merged REG-735 fix, which
     // an earlier revision of this branch reversed by moving the call to the
     // end of the try block.
-    clearRecordsCache(domain, selector);
+    if (writeAttempted) {
+      clearRecordsCache(domain, selector);
+    }
   }
 }
