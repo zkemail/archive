@@ -221,12 +221,17 @@ async function storeCalculationResult(data: {
       },
     });
 
-    let dkimRecord = await prisma.dkimRecord.findFirst({
+    const existingRecord = await prisma.dkimRecord.findFirst({
       where: {
         domainSelectorPairId: domainSelectorPair.id,
         keyData: data.publicKey,
       },
     });
+
+    // Only the id is needed downstream. Deliberately not carrying the whole row
+    // past this point: the update below happens in the database, so any field
+    // read off the pre-update snapshot afterwards would be stale.
+    let dkimRecordId: number;
 
     // The two source emails' dates bound what this recovery actually proves:
     // the key signed mail between them. They are the only timestamps a GCD
@@ -247,7 +252,9 @@ async function storeCalculationResult(data: {
       });
     }
 
-    if (dkimRecord) {
+    if (existingRecord) {
+      dkimRecordId = existingRecord.id;
+
       // REG-735: a GCD recovery must never move a live-DNS record's window.
       // This lookup matches on keyData, which is the same normalized SPKI for a
       // key we scraped from DNS and one we recovered from signatures, so this
@@ -270,7 +277,7 @@ async function storeCalculationResult(data: {
               "lastSeenAt"     = GREATEST(COALESCE("lastSeenAt", "firstSeenAt"), ${gcdBounds.last}::timestamp),
               "gcdFirstSeenAt" = LEAST(COALESCE("gcdFirstSeenAt", ${gcdBounds.first}::timestamp), ${gcdBounds.first}::timestamp),
               "gcdLastSeenAt"  = GREATEST(COALESCE("gcdLastSeenAt", ${gcdBounds.last}::timestamp), ${gcdBounds.last}::timestamp)
-          WHERE id = ${dkimRecord.id}
+          WHERE id = ${existingRecord.id}
         `;
         logger.info('dkim_record_updated', {
           domain: data.metadata.domain,
@@ -283,7 +290,7 @@ async function storeCalculationResult(data: {
       // still appears in the archive) but leave the GCD channel empty, so
       // nothing downstream can mistake "when we computed it" for "when it
       // signed mail".
-      dkimRecord = await prisma.dkimRecord.create({
+      const created = await prisma.dkimRecord.create({
         data: {
           domainSelectorPairId: domainSelectorPair.id,
           firstSeenAt: gcdBounds?.first ?? data.completedAt,
@@ -296,6 +303,7 @@ async function storeCalculationResult(data: {
           gcdLastSeenAt: gcdBounds?.last,
         },
       });
+      dkimRecordId = created.id;
       logger.info('dkim_record_created', {
         domain: data.metadata.domain,
         selector: data.metadata.selector,
@@ -339,7 +347,7 @@ async function storeCalculationResult(data: {
         emailSignatureA_id: emailSignatureA.id,
         emailSignatureB_id: emailSignatureB.id,
         foundGcd: true,
-        dkimRecordId: dkimRecord.id,
+        dkimRecordId,
         timestamp: data.completedAt,
       },
     });
