@@ -435,5 +435,17 @@ async function storeCalculationResult(data: {
     logger.error('gcd_store_error', {
       error: error instanceof Error ? error.message : String(error),
     });
+    // Rethrow so POST returns 500 and the Cloud Function retries. Swallowing
+    // here made the retry machinery unreachable: every write failure, however
+    // transient, was reported to the caller as success, so a record could be
+    // left permanently without its EmailPairGcdResult link. Retrying is safe
+    // because the record lookup is by keyData and the link create treats a
+    // duplicate as success, so a second delivery completes whatever the first
+    // one left unfinished.
+    //
+    // Only genuine failures reach here. The validation paths above return
+    // rather than throw, precisely so a forged or unrecognised callback is not
+    // retried.
+    throw error;
   }
 }
