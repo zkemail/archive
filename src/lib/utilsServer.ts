@@ -249,20 +249,22 @@ export async function fetchAndStoreDkimDnsRecord(dsp: DomainSelectorPair) {
     });
 
     if (dbRecord) {
-      await prisma.dkimRecord.update({
-        where: { id: dbRecord.id },
-        data: {
-          lastSeenAt: dnsRecord.timestamp,
-          // REG-735: bump the DNS channel alongside the union window, and never
-          // touch gcd*. dnsFirstSeenAt is normally already set; it can be NULL
-          // on a legacy record whose DNS window the backfill could not
-          // disentangle from a GCD contribution. Opening it at this sighting
-          // understates how long we have really known the key, which is the
-          // safe direction: the claimed window is never wider than the truth.
-          dnsFirstSeenAt: dbRecord.dnsFirstSeenAt ?? dnsRecord.timestamp,
-          dnsLastSeenAt: dnsRecord.timestamp,
-        },
-      });
+      // REG-735: bump the DNS channel alongside the union window, and never
+      // touch gcd*. dnsFirstSeenAt is normally already set; it can be NULL on a
+      // legacy record whose DNS window the backfill could not disentangle from
+      // a GCD contribution. Opening it at this sighting understates how long we
+      // have really known the key, which is the safe direction: the claimed
+      // window is never wider than the truth.
+      //
+      // GREATEST rather than a plain assignment so two refreshes racing cannot
+      // move lastSeenAt backwards. Prisma has no atomic max for DateTime.
+      await prisma.$executeRaw`
+        UPDATE "DkimRecord"
+        SET "lastSeenAt"     = GREATEST(COALESCE("lastSeenAt", "firstSeenAt"), ${dnsRecord.timestamp}::timestamp),
+            "dnsFirstSeenAt" = COALESCE("dnsFirstSeenAt", ${dnsRecord.timestamp}::timestamp),
+            "dnsLastSeenAt"  = GREATEST(COALESCE("dnsLastSeenAt", ${dnsRecord.timestamp}::timestamp), ${dnsRecord.timestamp}::timestamp)
+        WHERE id = ${dbRecord.id}
+      `;
       // createDkimRecord clears the cache itself, but this branch did not, so a
       // re-observed key kept serving (and now signing) its previous window for
       // up to the 30-minute TTL.

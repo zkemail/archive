@@ -98,25 +98,49 @@ async function main() {
     // and the phase-3 anti-join go through it, so without this they are full
     // scans. CONCURRENTLY cannot run inside a transaction, which is the other
     // reason this cannot live in the migration file.
-    if (!dryRun) {
-      log('ensuring index on EmailPairGcdResult("dkimRecordId")');
-      await pool.query(`
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS
-          idx_email_pair_gcd_result_dkim_record_id
-          ON "EmailPairGcdResult" ("dkimRecordId")
-      `);
-    }
+    // Built in --dry-run too. The preview queries are the same anti-join the
+    // real run does, and without the index that anti-join runs past 300s on
+    // production, so a dry run would time out before reporting anything. The
+    // index is idempotent, non-locking, and a prerequisite of the operation
+    // either way, so building it is not the kind of change --dry-run exists to
+    // withhold.
+    log('ensuring index on EmailPairGcdResult("dkimRecordId")');
+    await pool.query(`
+      CREATE INDEX CONCURRENTLY IF NOT EXISTS
+        idx_email_pair_gcd_result_dkim_record_id
+        ON "EmailPairGcdResult" ("dkimRecordId")
+    `);
 
     // ── Phase 1: records the GCD path created ───────────────────────────────
     // Their whole window came from email timestamps, so it is GCD's in full and
     // there is no DNS observation to attribute. The sanity floor keeps an
     // epoch-corrupted row out of the signed columns entirely.
-    const phase1 = await pool.query(`
+    //
+    // `source` records how a key first entered, not everything that happened
+    // afterwards, so in principle a later live-DNS sighting could have widened
+    // one of these windows and would then be misattributed to GCD. The
+    // `dnsFirstSeenAt IS NULL` guard closes that: the DNS write path stamps
+    // dns* on any record it touches, so a row DNS has claimed is left for
+    // phase 2 rather than swallowed whole here.
+    //
+    // Measured on production before relying on this: of 392 GCD-created
+    // records, none had been re-observed in the last 90 days, and their stored
+    // `value` is the bare `k=rsa; p=…` form the batch importer wrote rather
+    // than a `v=DKIM1; …` TXT record, so the DNS path (which matches on exact
+    // `value`) could not have matched them. Where the union window did start
+    // earlier than the linked signatures could prove (7 rows), the gap traces
+    // to an earlier GCD batch run, not a DNS sighting: no row's union window
+    // ended later than its links.
+    const phase1 = await pool.query(
+      `
       ${dryRun ? 'SELECT count(*) AS count FROM "DkimRecord" WHERE' : 'UPDATE "DkimRecord" SET "gcdFirstSeenAt" = "firstSeenAt", "gcdLastSeenAt" = COALESCE("lastSeenAt", "firstSeenAt") WHERE'}
         source LIKE 'public_key_gcd%'
         AND "gcdFirstSeenAt" IS NULL
-        AND "firstSeenAt" > TIMESTAMP '${SANITY_FLOOR}'
-    `);
+        AND "dnsFirstSeenAt" IS NULL
+        AND "firstSeenAt" > $1::timestamp
+    `,
+      [SANITY_FLOOR]
+    );
     log(
       `phase 1 (GCD-created): ${dryRun ? phase1.rows[0].count : phase1.rowCount} rows`
     );
@@ -152,7 +176,7 @@ async function main() {
         JOIN gcd_bounds b ON b.record_id = r.id
         WHERE (r.source IS NULL OR r.source NOT LIKE 'public_key_gcd%')
           AND r."gcdFirstSeenAt" IS NULL
-          AND r."firstSeenAt" > TIMESTAMP '${SANITY_FLOOR}'
+          AND r."firstSeenAt" > $1::timestamp
           -- Fail closed on records whose GCD linkage includes any pair we
           -- cannot date. Their union window carries a contribution the
           -- gcd_bounds CTE cannot see, so "outside the GCD window" would be
@@ -169,23 +193,29 @@ async function main() {
     `;
 
     if (dryRun) {
-      const preview = await pool.query(`${phase2Sql} SELECT
+      const preview = await pool.query(
+        `${phase2Sql} SELECT
         COUNT(*)                                                          AS total,
         COUNT(*) FILTER (WHERE dns_first_exact IS NOT NULL
                            AND dns_last_exact IS NOT NULL)                AS both_bounds,
         COUNT(*) FILTER (WHERE dns_first_exact IS NULL
                            AND dns_last_exact IS NULL)                    AS neither_bound
-        FROM attributed`);
+        FROM attributed`,
+        [SANITY_FLOOR]
+      );
       log(`phase 2 (contaminated): ${JSON.stringify(preview.rows[0])}`);
     } else {
-      const phase2 = await pool.query(`${phase2Sql}
+      const phase2 = await pool.query(
+        `${phase2Sql}
         UPDATE "DkimRecord" r
         SET "gcdFirstSeenAt" = a.gcd_first,
             "gcdLastSeenAt"  = a.gcd_last,
             "dnsFirstSeenAt" = COALESCE(a.dns_first_exact, a.dns_last_exact),
             "dnsLastSeenAt"  = COALESCE(a.dns_last_exact, a.dns_first_exact)
         FROM attributed a
-        WHERE a.id = r.id`);
+        WHERE a.id = r.id`,
+        [SANITY_FLOOR]
+      );
       log(`phase 2 (contaminated): ${phase2.rowCount} rows`);
     }
 
@@ -193,16 +223,23 @@ async function main() {
     // The bulk of the table. Batched by primary key so each statement takes a
     // bounded row lock and commits on its own, rather than one 1.48M-row
     // transaction. Gated on dnsFirstSeenAt IS NULL, so a resumed run skips
-    // everything already done and the cursor never has to be persisted.
+    // everything already done and the cursor never has to be persisted. The
+    // sanity floor applies here as well: a pre-1990 union timestamp is corrupt,
+    // and copying it into dnsFirstSeenAt would launder it into a signed claim
+    // that we saw the key in DNS decades before DKIM existed.
     if (dryRun) {
-      const remaining = await pool.query(`
+      const remaining = await pool.query(
+        `
         SELECT COUNT(*) AS count FROM "DkimRecord" r
         WHERE (r.source IS NULL OR r.source NOT LIKE 'public_key_gcd%')
           AND r."dnsFirstSeenAt" IS NULL
+          AND r."firstSeenAt" > $1::timestamp
           AND NOT EXISTS (
             SELECT 1 FROM "EmailPairGcdResult" g WHERE g."dkimRecordId" = r.id
           )
-      `);
+      `,
+        [SANITY_FLOOR]
+      );
       log(
         `phase 3 (pure DNS): ${remaining.rows[0].count} rows would be updated`
       );
@@ -217,6 +254,7 @@ async function main() {
             SELECT r.id FROM "DkimRecord" r
             WHERE (r.source IS NULL OR r.source NOT LIKE 'public_key_gcd%')
               AND r."dnsFirstSeenAt" IS NULL
+              AND r."firstSeenAt" > $2::timestamp
               AND NOT EXISTS (
                 SELECT 1 FROM "EmailPairGcdResult" g WHERE g."dkimRecordId" = r.id
               )
@@ -229,7 +267,7 @@ async function main() {
           FROM todo
           WHERE todo.id = r.id
         `,
-          [batchSize]
+          [batchSize, SANITY_FLOOR]
         );
 
         const n = batch.rowCount ?? 0;

@@ -160,20 +160,6 @@ export async function POST(request: Request) {
   }
 }
 
-/** Earliest of the two, treating an absent stored bound as "no bound yet". */
-function minDate(existing: Date | null, incoming: Date): Date {
-  return existing && existing.getTime() < incoming.getTime()
-    ? existing
-    : incoming;
-}
-
-/** Latest of the two, treating an absent stored bound as "no bound yet". */
-function maxDate(existing: Date | null, incoming: Date): Date {
-  return existing && existing.getTime() > incoming.getTime()
-    ? existing
-    : incoming;
-}
-
 /**
  * The window a GCD recovery is entitled to claim: the span between the two
  * source emails' dates. Returns null unless both are present and parseable, since
@@ -272,15 +258,20 @@ async function storeCalculationResult(data: {
       // With no usable bounds there is nothing to widen, so skip the write
       // rather than issue an empty update and log a change that did not happen.
       if (gcdBounds) {
-        dkimRecord = await prisma.dkimRecord.update({
-          where: { id: dkimRecord.id },
-          data: {
-            firstSeenAt: minDate(dkimRecord.firstSeenAt, gcdBounds.first),
-            lastSeenAt: maxDate(dkimRecord.lastSeenAt, gcdBounds.last),
-            gcdFirstSeenAt: minDate(dkimRecord.gcdFirstSeenAt, gcdBounds.first),
-            gcdLastSeenAt: maxDate(dkimRecord.gcdLastSeenAt, gcdBounds.last),
-          },
-        });
+        // Widen in the database rather than from the row we read a moment ago.
+        // Two callbacks completing at once would otherwise both compute their
+        // bounds from the same pre-update snapshot, and the second write would
+        // discard the first one's widening. LEAST/GREATEST make the update
+        // monotonic regardless of interleaving. Prisma has no atomic min/max
+        // for DateTime, hence the raw statement.
+        await prisma.$executeRaw`
+          UPDATE "DkimRecord"
+          SET "firstSeenAt"    = LEAST("firstSeenAt", ${gcdBounds.first}::timestamp),
+              "lastSeenAt"     = GREATEST(COALESCE("lastSeenAt", "firstSeenAt"), ${gcdBounds.last}::timestamp),
+              "gcdFirstSeenAt" = LEAST(COALESCE("gcdFirstSeenAt", ${gcdBounds.first}::timestamp), ${gcdBounds.first}::timestamp),
+              "gcdLastSeenAt"  = GREATEST(COALESCE("gcdLastSeenAt", ${gcdBounds.last}::timestamp), ${gcdBounds.last}::timestamp)
+          WHERE id = ${dkimRecord.id}
+        `;
         logger.info('dkim_record_updated', {
           domain: data.metadata.domain,
           selector: data.metadata.selector,
