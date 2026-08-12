@@ -127,7 +127,7 @@ import { PrismaClient } from '@prisma/client/index.js';
 ## 🔗 External Services
 
 - **Gmail API**: `https://www.googleapis.com/gmail/v1/`
-- **Archive API**: `https://archive.prove.email/api`
+- **Archive API**: `https://archive.zk.email/api`
 - **Relayer API**: GCP Cloud Functions for DKIM processing
 
 ## 💡 Best Practices

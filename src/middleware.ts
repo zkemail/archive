@@ -31,6 +31,12 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // All public API routes except the cookie-based NextAuth handlers.
-  matcher: ['/api/((?!auth).*)'],
+  matcher: [
+    // All public API routes except the cookie-based NextAuth handlers.
+    '/api/((?!auth).*)',
+    // The statement verification key set (REG-736). Verifiers are
+    // browser-side, so fetching the JWKS is itself a cross-origin request; the
+    // matcher runs on the incoming path, before the rewrite to /api/statement.
+    '/.well-known/:path*',
+  ],
 };

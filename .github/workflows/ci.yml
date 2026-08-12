@@ -22,6 +22,12 @@ jobs:
         run: pnpm prettier:check
       - name: Check linting
         run: pnpm lint:check
+      # Guards the signed-statement format (REG-736): payload shape, envelope,
+      # channel separation, the fail-closed rules, and that the committed JWKS
+      # never carries private key material. Runs without a signing key
+      # configured, so it signs with an ephemeral one and needs no secret.
+      - name: Check signed-statement format
+        run: pnpm statement:check
 
   build:
     needs: [lint]
