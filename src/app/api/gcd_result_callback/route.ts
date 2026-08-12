@@ -226,23 +226,35 @@ async function storeCalculationResult(data: {
     // attacker who can get crafted EmailSignature rows in through the upload
     // path is still in scope until the callback itself is authenticated
     // (REG-737 part 2, a shared secret echoed by the Cloud Function).
-    const emailSignatureA = await prisma.emailSignature.findFirst({
-      where: {
-        domain: domain,
-        selector: selector,
-        headerHash: data.metadata.headerHash1,
-        dkimSignature: data.metadata.dkimSignature1,
-      },
-    });
-
-    const emailSignatureB = await prisma.emailSignature.findFirst({
-      where: {
-        domain: domain,
-        selector: selector,
-        headerHash: data.metadata.headerHash2,
-        dkimSignature: data.metadata.dkimSignature2,
-      },
-    });
+    // Matched on (headerHashV2, dkimSignature), which is the unique constraint
+    // on EmailSignature, rather than on (domain, selector, headerHash).
+    //
+    // Two reasons. The task-creation path sends `headerHashV2` values in the
+    // metadata for both halves of the pair (storeEmailSignature writes the same
+    // digest into both columns on insert and sends `dsp.headerHashV2`), so this
+    // is the column the values actually correspond to. And it goes straight to
+    // the unique index instead of the (domain, selector, timestamp) one.
+    //
+    // Deliberately not filtering on domain/selector here: the callback
+    // lowercases them, but 51 stored rows have a non-lowercase domain and 237 a
+    // non-lowercase selector, and Prisma's default equality is case-sensitive,
+    // so including them silently matched nothing for those recoveries. They are
+    // re-checked case-insensitively below, where a mismatch is a real signal
+    // rather than an accident of casing.
+    const [emailSignatureA, emailSignatureB] = await Promise.all([
+      prisma.emailSignature.findFirst({
+        where: {
+          headerHashV2: data.metadata.headerHash1,
+          dkimSignature: data.metadata.dkimSignature1,
+        },
+      }),
+      prisma.emailSignature.findFirst({
+        where: {
+          headerHashV2: data.metadata.headerHash2,
+          dkimSignature: data.metadata.dkimSignature2,
+        },
+      }),
+    ]);
 
     if (!emailSignatureA || !emailSignatureB) {
       // Not an exception: a callback naming signatures we never stored is
@@ -251,6 +263,24 @@ async function storeCalculationResult(data: {
         taskId: data.taskId,
         domain,
         selector,
+      });
+      return;
+    }
+
+    // The signatures exist, but they must also belong to the pair the caller
+    // claims. Without this a caller could point real signatures from one domain
+    // at a record for another. Compared case-insensitively because stored
+    // casing is inconsistent; the callback's own values are already lowercased.
+    const belongsToPair = (sig: { domain: string; selector: string }) =>
+      sig.domain.toLowerCase() === domain &&
+      sig.selector.toLowerCase() === selector;
+
+    if (!belongsToPair(emailSignatureA) || !belongsToPair(emailSignatureB)) {
+      logger.warn('gcd_callback_signature_pair_mismatch', {
+        taskId: data.taskId,
+        claimed: `${domain}/${selector}`,
+        actualA: `${emailSignatureA.domain}/${emailSignatureA.selector}`,
+        actualB: `${emailSignatureB.domain}/${emailSignatureB.selector}`,
       });
       return;
     }
