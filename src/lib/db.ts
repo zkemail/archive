@@ -88,6 +88,23 @@ export type RecordWithSelector = DkimRecord & {
   domainSelectorPair: DomainSelectorPair;
 };
 
+// Columns the public lookup path reads. The per-channel observation windows
+// and `id` are selected here so that everything served off these cached rows
+// sees provenance rather than just the union window, which mixes channels.
+// Nothing reads them yet on this branch: the API surface that exposes them
+// (/api/key's `observations`, and the signed-statement endpoint) is REG-736.
+// They are selected now so the cache shape does not change underneath it.
+const RECORD_LOOKUP_SELECT = {
+  id: true,
+  firstSeenAt: true,
+  lastSeenAt: true,
+  value: true,
+  dnsFirstSeenAt: true,
+  dnsLastSeenAt: true,
+  gcdFirstSeenAt: true,
+  gcdLastSeenAt: true,
+} as const;
+
 export async function findRecords(
   domainQuery: string
 ): Promise<RecordWithSelector[]> {
@@ -161,6 +178,10 @@ export async function createDkimRecord(
       lastSeenAt: dkimDsnRecord.timestamp,
       keyType: dkimDsnRecord.keyType,
       keyData: dkimDsnRecord.keyDataBase64,
+      // This is a direct sighting of the record in live DNS, so it opens the
+      // DNS channel's window as well as the union one (REG-735).
+      dnsFirstSeenAt: dkimDsnRecord.timestamp,
+      dnsLastSeenAt: dkimDsnRecord.timestamp,
     },
   });
 
@@ -285,7 +306,7 @@ export async function findRecordsWithCache(
       // STEP 2: Get DkimRecords by ID
       const dkimRecords = await prisma.dkimRecord.findMany({
         where: { domainSelectorPairId: dspId },
-        select: { firstSeenAt: true, lastSeenAt: true, value: true },
+        select: RECORD_LOOKUP_SELECT,
       });
 
       // Filter and combine (use normalized domain/selector)
@@ -311,12 +332,7 @@ export async function findRecordsWithCache(
 
       const dkimRecords = await prisma.dkimRecord.findMany({
         where: { domainSelectorPairId: { in: dsps.map((dsp) => dsp.id) } },
-        select: {
-          domainSelectorPairId: true,
-          firstSeenAt: true,
-          lastSeenAt: true,
-          value: true,
-        },
+        select: { ...RECORD_LOOKUP_SELECT, domainSelectorPairId: true },
       });
 
       const dspMap = new Map(dsps.map((dsp) => [dsp.id, dsp]));
@@ -324,9 +340,14 @@ export async function findRecordsWithCache(
       const result = filtered.map((record) => {
         const dsp = dspMap.get(record.domainSelectorPairId)!;
         return {
+          id: record.id,
           firstSeenAt: record.firstSeenAt,
           lastSeenAt: record.lastSeenAt,
           value: record.value,
+          dnsFirstSeenAt: record.dnsFirstSeenAt,
+          dnsLastSeenAt: record.dnsLastSeenAt,
+          gcdFirstSeenAt: record.gcdFirstSeenAt,
+          gcdLastSeenAt: record.gcdLastSeenAt,
           domainSelectorPair: { domain: dsp.domain, selector: dsp.selector },
         };
       }) as unknown as RecordWithSelector[];

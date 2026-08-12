@@ -8,7 +8,12 @@ import type { RateLimiterMemory } from 'rate-limiter-flexible';
 
 import type { DomainSelectorPair, KeyType } from '@/generated/prisma/client';
 
-import { createDkimRecord, prisma, updateDspTimestamp } from './db';
+import {
+  clearRecordsCache,
+  createDkimRecord,
+  prisma,
+  updateDspTimestamp,
+} from './db';
 import { logger } from './logger';
 import {
   type DnsDkimFetchResult,
@@ -98,6 +103,9 @@ export async function addDomainSelectorPair(
             lastSeenAt: record.timestamp,
             keyType: record.keyType,
             keyData: record.keyDataBase64,
+            // Direct live-DNS sighting, so it opens the DNS channel too (REG-735).
+            dnsFirstSeenAt: record.timestamp,
+            dnsLastSeenAt: record.timestamp,
           })),
         ],
       },
@@ -106,6 +114,13 @@ export async function addDomainSelectorPair(
       records: true,
     },
   });
+
+  // A lookup miss caches the empty result for the full 30-minute TTL, and
+  // /api/key/domain calls this immediately after such a miss. Without an
+  // explicit invalidation the pair we just created stays invisible for half an
+  // hour, even though the archive demonstrably holds it (REG-735).
+  clearRecordsCache(domain, selector);
+
   return { already_in_db: false, added: true };
 }
 
@@ -233,10 +248,26 @@ export async function fetchAndStoreDkimDnsRecord(dsp: DomainSelectorPair) {
     });
 
     if (dbRecord) {
-      await prisma.dkimRecord.update({
-        where: { id: dbRecord.id },
-        data: { lastSeenAt: dnsRecord.timestamp },
-      });
+      // REG-735: bump the DNS channel alongside the union window, and never
+      // touch gcd*. dnsFirstSeenAt is normally already set; it can be NULL on a
+      // legacy record whose DNS window the backfill could not disentangle from
+      // a GCD contribution. Opening it at this sighting understates how long we
+      // have really known the key, which is the safe direction: the claimed
+      // window is never wider than the truth.
+      //
+      // GREATEST rather than a plain assignment so two refreshes racing cannot
+      // move lastSeenAt backwards. Prisma has no atomic max for DateTime.
+      await prisma.$executeRaw`
+        UPDATE "DkimRecord"
+        SET "lastSeenAt"     = GREATEST(COALESCE("lastSeenAt", "firstSeenAt"), ${dnsRecord.timestamp}::timestamp),
+            "dnsFirstSeenAt" = COALESCE("dnsFirstSeenAt", ${dnsRecord.timestamp}::timestamp),
+            "dnsLastSeenAt"  = GREATEST(COALESCE("dnsLastSeenAt", ${dnsRecord.timestamp}::timestamp), ${dnsRecord.timestamp}::timestamp)
+        WHERE id = ${dbRecord.id}
+      `;
+      // createDkimRecord clears the cache itself, but this branch did not, so a
+      // re-observed key kept serving its previous window for up to the
+      // 30-minute TTL.
+      clearRecordsCache(dsp.domain, dsp.selector);
     } else {
       dbRecord = await createDkimRecord(dsp, dnsRecord);
     }
