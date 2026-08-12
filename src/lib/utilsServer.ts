@@ -118,8 +118,7 @@ export async function addDomainSelectorPair(
   // A lookup miss caches the empty result for the full 30-minute TTL, and
   // /api/key/domain calls this immediately after such a miss. Without an
   // explicit invalidation the pair we just created stays invisible for half an
-  // hour, which now also means /api/key/statement reports no observation for a
-  // key the archive demonstrably holds (REG-735).
+  // hour, even though the archive demonstrably holds it (REG-735).
   clearRecordsCache(domain, selector);
 
   return { already_in_db: false, added: true };
@@ -266,8 +265,8 @@ export async function fetchAndStoreDkimDnsRecord(dsp: DomainSelectorPair) {
         WHERE id = ${dbRecord.id}
       `;
       // createDkimRecord clears the cache itself, but this branch did not, so a
-      // re-observed key kept serving (and now signing) its previous window for
-      // up to the 30-minute TTL.
+      // re-observed key kept serving its previous window for up to the
+      // 30-minute TTL.
       clearRecordsCache(dsp.domain, dsp.selector);
     } else {
       dbRecord = await createDkimRecord(dsp, dnsRecord);

@@ -88,10 +88,12 @@ export type RecordWithSelector = DkimRecord & {
   domainSelectorPair: DomainSelectorPair;
 };
 
-// Columns the public lookup path needs. `id` and the per-channel observation
-// windows are here because /api/key exposes them and the signed-statement
-// endpoint (REG-736) is built on the same cached rows. A statement must never
-// be minted from the union window, which mixes provenance.
+// Columns the public lookup path reads. The per-channel observation windows
+// and `id` are selected here so that everything served off these cached rows
+// sees provenance rather than just the union window, which mixes channels.
+// Nothing reads them yet on this branch: the API surface that exposes them
+// (/api/key's `observations`, and the signed-statement endpoint) is REG-736.
+// They are selected now so the cache shape does not change underneath it.
 const RECORD_LOOKUP_SELECT = {
   id: true,
   firstSeenAt: true,

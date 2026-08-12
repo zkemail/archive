@@ -119,9 +119,13 @@ async function main() {
     // `source` records how a key first entered, not everything that happened
     // afterwards, so in principle a later live-DNS sighting could have widened
     // one of these windows and would then be misattributed to GCD. The
-    // `dnsFirstSeenAt IS NULL` guard closes that: the DNS write path stamps
-    // dns* on any record it touches, so a row DNS has claimed is left for
-    // phase 2 rather than swallowed whole here.
+    // `dnsFirstSeenAt IS NULL` guard closes that. The only way a GCD-created
+    // row has dns* set is a DNS refresh landing between the migration and this
+    // script, and such a row keeps the DNS window that refresh gave it and
+    // simply gets no GCD claim: phase 2 does not pick it up either, since it
+    // only considers non-GCD-sourced records. Silence on the GCD side is the
+    // conservative outcome, and the next recovery for that key sets gcd*
+    // properly through the callback.
     //
     // Measured on production before relying on this: of 392 GCD-created
     // records, none had been re-observed in the last 90 days, and their stored
@@ -302,4 +306,7 @@ async function main() {
   }
 }
 
-main();
+main().catch((err) => {
+  console.error('Backfill threw:', err);
+  process.exit(1);
+});
