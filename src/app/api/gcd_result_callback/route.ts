@@ -1,9 +1,12 @@
 import forge from 'node-forge';
 
+import { z } from 'zod';
+
 import { Prisma } from '@/generated/prisma/client';
 import { clearRecordsCache, prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { encodeRsaPkcs1Digest, pubKeyLength } from '@/lib/utilsServer';
+import { domainSchema, selectorSchema } from '@/lib/validation';
 
 interface GcdCallbackMetadata {
   domain: string;
@@ -19,6 +22,26 @@ interface GcdCallbackMetadata {
   timestamp1?: Date | null;
   timestamp2?: Date | null;
 }
+
+// Shape of the callback body's `metadata`, validated before use. The hashes are
+// hex digests and the signatures base64; both are compared against stored
+// values, so anything that is not a plain non-empty string is a malformed
+// request rather than something to coerce.
+const gcdCallbackMetadataSchema = z.object({
+  domain: domainSchema,
+  selector: selectorSchema,
+  headerHash1: z
+    .string()
+    .regex(/^[0-9a-fA-F]+$/, 'must be hex')
+    .max(256),
+  headerHash2: z
+    .string()
+    .regex(/^[0-9a-fA-F]+$/, 'must be hex')
+    .max(256),
+  dkimSignature1: z.string().min(1).max(4096),
+  dkimSignature2: z.string().min(1).max(4096),
+  signingAlgorithm: z.string().min(1).max(64),
+});
 
 function verifyRsaPublicKey(
   publicKeyHex: string,
@@ -90,6 +113,21 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Missing metadata' }, { status: 400 });
     }
 
+    // Validate the shape before anything reads it. The body is unauthenticated
+    // and every field below is used to build a database query or a digest, and
+    // Prisma treats `undefined` as "omit this filter" rather than "match
+    // nothing", so a missing field must never reach a `where` clause. Nothing
+    // downstream should have to rely on an earlier statement happening to throw
+    // on a bad type.
+    const parsed = gcdCallbackMetadataSchema.safeParse(metadata);
+    if (!parsed.success) {
+      logger.warn('gcd_callback_invalid_metadata', {
+        taskId,
+        issues: parsed.error.issues.map((i) => i.path.join('.')).join(','),
+      });
+      return Response.json({ error: 'Invalid metadata' }, { status: 400 });
+    }
+
     if (success) {
       logger.info('gcd_task_success', { taskId });
 
@@ -137,7 +175,7 @@ export async function POST(request: Request) {
         taskId,
         result,
         completedAt: new Date(),
-        metadata,
+        metadata: parsed.data,
         publicKey,
       });
     } else {
@@ -190,11 +228,23 @@ function gcdObservationWindow(
 
   const a = parse(timestamp1);
   const b = parse(timestamp2);
-  if (!a || !b) return null;
 
-  return a.getTime() <= b.getTime()
-    ? { first: a, last: b }
-    : { first: b, last: a };
+  // Reject only the out-of-range side. Discarding both would throw away a
+  // perfectly good observation because its partner was corrupt: production has
+  // 20 EmailSignature rows stamped 1969-12-31, all on accounts.google.com
+  // selector 20230601, which is a live high-traffic pair. Pairing one of those
+  // with a normally dated email would otherwise widen nothing at all.
+  //
+  // With one usable bound the window collapses to that instant, which is the
+  // narrow-but-true direction the rest of this change follows.
+  const usable = [a, b].filter((d): d is Date => d !== null);
+  if (usable.length === 0) return null;
+
+  const times = usable.map((d) => d.getTime());
+  return {
+    first: new Date(Math.min(...times)),
+    last: new Date(Math.max(...times)),
+  };
 }
 
 async function storeCalculationResult(data: {
@@ -205,11 +255,12 @@ async function storeCalculationResult(data: {
   metadata: GcdCallbackMetadata;
   publicKey: string;
 }) {
-  try {
-    // Normalize domain and selector to lowercase
-    const domain = data.metadata.domain.toLowerCase();
-    const selector = data.metadata.selector.toLowerCase();
+  // Hoisted out of the try so the finally below can invalidate the cache even
+  // when a write throws part way through.
+  const domain = data.metadata.domain.toLowerCase();
+  const selector = data.metadata.selector.toLowerCase();
 
+  try {
     // REG-737: resolve the evidence BEFORE writing anything.
     //
     // This endpoint is unauthenticated, and its only other gate is
@@ -236,22 +287,35 @@ async function storeCalculationResult(data: {
     // the unique index instead of the (domain, selector, timestamp) one.
     //
     // Deliberately not filtering on domain/selector here: the callback
-    // lowercases them, but 51 stored rows have a non-lowercase domain and 237 a
+    // lowercases them, but 198 stored rows have a non-lowercase domain and 689 a
     // non-lowercase selector, and Prisma's default equality is case-sensitive,
     // so including them silently matched nothing for those recoveries. They are
     // re-checked case-insensitively below, where a mismatch is a real signal
     // rather than an accident of casing.
+    // findUnique on the composite key, not findFirst: the pair IS the unique
+    // constraint, so this makes "exactly one match" a compile-time fact rather
+    // than a property someone has to re-derive. It also refuses to build a
+    // query at all if either component is missing, which findFirst would
+    // happily do — Prisma reads `undefined` as "omit this filter", so a payload
+    // without `headerHash1` would have degraded to findFirst({ where: {} }) and
+    // returned an arbitrary row. Unreachable today only because
+    // verifyRsaPublicKey throws on a non-string first; that is an accident of
+    // ordering, not a guarantee.
     const [emailSignatureA, emailSignatureB] = await Promise.all([
-      prisma.emailSignature.findFirst({
+      prisma.emailSignature.findUnique({
         where: {
-          headerHashV2: data.metadata.headerHash1,
-          dkimSignature: data.metadata.dkimSignature1,
+          headerHashV2_dkimSignature: {
+            headerHashV2: data.metadata.headerHash1,
+            dkimSignature: data.metadata.dkimSignature1,
+          },
         },
       }),
-      prisma.emailSignature.findFirst({
+      prisma.emailSignature.findUnique({
         where: {
-          headerHashV2: data.metadata.headerHash2,
-          dkimSignature: data.metadata.dkimSignature2,
+          headerHashV2_dkimSignature: {
+            headerHashV2: data.metadata.headerHash2,
+            dkimSignature: data.metadata.dkimSignature2,
+          },
         },
       }),
     ]);
@@ -426,10 +490,6 @@ async function storeCalculationResult(data: {
       }
     }
 
-    // Only now is every write done, so a stale cache entry cannot outlive a
-    // committed change and be served as the current window.
-    clearRecordsCache(domain, selector);
-
     logger.info('gcd_result_stored', { taskId: data.taskId });
   } catch (error) {
     logger.error('gcd_store_error', {
@@ -447,5 +507,13 @@ async function storeCalculationResult(data: {
     // rather than throw, precisely so a forged or unrecognised callback is not
     // retried.
     throw error;
+  } finally {
+    // In `finally` because a throw between the record write and here would
+    // otherwise leave a committed change behind a stale cache entry for the
+    // full 30-minute TTL. Clearing unnecessarily is free; clearing too late is
+    // not. This restores the ordering intent of the merged REG-735 fix, which
+    // an earlier revision of this branch reversed by moving the call to the
+    // end of the try block.
+    clearRecordsCache(domain, selector);
   }
 }
