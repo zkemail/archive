@@ -1,5 +1,6 @@
 import forge from 'node-forge';
 
+import { Prisma } from '@/generated/prisma/client';
 import { clearRecordsCache, prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { encodeRsaPkcs1Digest, pubKeyLength } from '@/lib/utilsServer';
@@ -12,8 +13,11 @@ interface GcdCallbackMetadata {
   dkimSignature1: string;
   dkimSignature2: string;
   signingAlgorithm: string;
-  timestamp1: Date | null;
-  timestamp2: Date | null;
+  // Present in the payload but deliberately unused. The observation window is
+  // taken from the stored EmailSignature rows instead, because these are
+  // caller-supplied and this endpoint is unauthenticated (REG-737).
+  timestamp1?: Date | null;
+  timestamp2?: Date | null;
 }
 
 function verifyRsaPublicKey(
@@ -171,10 +175,17 @@ function gcdObservationWindow(
   timestamp1: Date | string | null,
   timestamp2: Date | string | null
 ): { first: Date; last: Date } | null {
+  // DKIM predates neither of these. A value outside the range is a parse
+  // artefact or a crafted header, not a real signing date.
+  const FLOOR = Date.UTC(1990, 0, 1);
+  const CEILING = Date.now() + 24 * 60 * 60 * 1000;
+
   const parse = (value: Date | string | null): Date | null => {
     if (value === null || value === undefined) return null;
     const date = value instanceof Date ? value : new Date(value);
-    return Number.isNaN(date.getTime()) ? null : date;
+    const time = date.getTime();
+    if (Number.isNaN(time) || time < FLOOR || time > CEILING) return null;
+    return date;
   };
 
   const a = parse(timestamp1);
@@ -198,6 +209,51 @@ async function storeCalculationResult(data: {
     // Normalize domain and selector to lowercase
     const domain = data.metadata.domain.toLowerCase();
     const selector = data.metadata.selector.toLowerCase();
+
+    // REG-737: resolve the evidence BEFORE writing anything.
+    //
+    // This endpoint is unauthenticated, and its only other gate is
+    // verifyRsaPublicKey, which checks a signature against a modulus that also
+    // comes from the request body: an attacker signs their own digests with
+    // their own key and it passes. The write used to happen first and this
+    // lookup second, with the failure throwing into a catch that swallowed it
+    // after the record had already committed. So a request naming any domain
+    // could land a DkimRecord for a key nobody controls.
+    //
+    // Requiring both signatures to already exist in our own table means a
+    // recovery can only ever attach to email we stored, and no write happens
+    // for one we did not. This does not make the endpoint authenticated: an
+    // attacker who can get crafted EmailSignature rows in through the upload
+    // path is still in scope until the callback itself is authenticated
+    // (REG-737 part 2, a shared secret echoed by the Cloud Function).
+    const emailSignatureA = await prisma.emailSignature.findFirst({
+      where: {
+        domain: domain,
+        selector: selector,
+        headerHash: data.metadata.headerHash1,
+        dkimSignature: data.metadata.dkimSignature1,
+      },
+    });
+
+    const emailSignatureB = await prisma.emailSignature.findFirst({
+      where: {
+        domain: domain,
+        selector: selector,
+        headerHash: data.metadata.headerHash2,
+        dkimSignature: data.metadata.dkimSignature2,
+      },
+    });
+
+    if (!emailSignatureA || !emailSignatureB) {
+      // Not an exception: a callback naming signatures we never stored is
+      // exactly the shape a forged one takes. Refuse it and write nothing.
+      logger.warn('gcd_callback_unknown_signatures', {
+        taskId: data.taskId,
+        domain,
+        selector,
+      });
+      return;
+    }
 
     const domainSelectorPair = await prisma.domainSelectorPair.upsert({
       where: {
@@ -234,14 +290,19 @@ async function storeCalculationResult(data: {
     let dkimRecordId: number;
 
     // The two source emails' dates bound what this recovery actually proves:
-    // the key signed mail between them. They are the only timestamps a GCD
-    // recovery may claim. Either can be absent when the source email carried no
-    // parseable Date header, and previously `new Date(null!)` silently became the
-    // Unix epoch and dragged firstSeenAt back to 1970, so guard explicitly and
-    // skip the time attribution rather than record a false window.
+    // the key signed mail between them. Take them from the rows we just
+    // resolved, never from the request body. The caller supplies timestamps
+    // too, but trusting those let anyone holding two genuinely signed messages
+    // from a domain replay them with an arbitrary window and stretch the
+    // record's dates without bound.
+    //
+    // Either stored timestamp can still be null when the source email carried
+    // no parseable Date header. Previously `new Date(null!)` silently became
+    // the Unix epoch and dragged firstSeenAt back to 1970, so guard explicitly
+    // and skip the time attribution rather than record a false window.
     const gcdBounds = gcdObservationWindow(
-      data.metadata.timestamp1,
-      data.metadata.timestamp2
+      emailSignatureA.timestamp,
+      emailSignatureB.timestamp
     );
 
     if (!gcdBounds) {
@@ -310,47 +371,34 @@ async function storeCalculationResult(data: {
       });
     }
 
-    // Invalidate as soon as the record write has committed, not at the end of
-    // the function. Two statements below can throw after this point (the
-    // "Could not find email signatures" guard, and the composite-PK violation
-    // a retried callback hits), and the outer catch swallows both. Clearing
-    // late meant a committed change could leave a stale cache entry that the
-    // statement endpoint would then sign.
-    clearRecordsCache(domain, selector);
-
-    // Find the email signature entries
-    const emailSignatureA = await prisma.emailSignature.findFirst({
-      where: {
-        domain: domain,
-        selector: selector,
-        headerHash: data.metadata.headerHash1,
-        dkimSignature: data.metadata.dkimSignature1,
-      },
-    });
-
-    const emailSignatureB = await prisma.emailSignature.findFirst({
-      where: {
-        domain: domain,
-        selector: selector,
-        headerHash: data.metadata.headerHash2,
-        dkimSignature: data.metadata.dkimSignature2,
-      },
-    });
-
-    if (!emailSignatureA || !emailSignatureB) {
-      throw new Error('Could not find email signatures');
+    // Link the pair to the record. A retried callback hits the composite
+    // primary key, which is the intended idempotency: the recovery is already
+    // recorded, so treat the conflict as success rather than an error the
+    // Cloud Function should retry again.
+    try {
+      await prisma.emailPairGcdResult.create({
+        data: {
+          emailSignatureA_id: emailSignatureA.id,
+          emailSignatureB_id: emailSignatureB.id,
+          foundGcd: true,
+          dkimRecordId,
+          timestamp: data.completedAt,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        logger.info('gcd_result_already_recorded', { taskId: data.taskId });
+      } else {
+        throw error;
+      }
     }
 
-    // Create the GCD result entry linking the signatures
-    await prisma.emailPairGcdResult.create({
-      data: {
-        emailSignatureA_id: emailSignatureA.id,
-        emailSignatureB_id: emailSignatureB.id,
-        foundGcd: true,
-        dkimRecordId,
-        timestamp: data.completedAt,
-      },
-    });
+    // Only now is every write done, so a stale cache entry cannot outlive a
+    // committed change and be served as the current window.
+    clearRecordsCache(domain, selector);
 
     logger.info('gcd_result_stored', { taskId: data.taskId });
   } catch (error) {
