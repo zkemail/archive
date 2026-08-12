@@ -234,8 +234,15 @@ async function main() {
             -- this also covers "only one bound provable" (the window collapses
             -- to that instant) and "nothing to merge" (the column keeps its
             -- existing value, or stays NULL).
-            "dnsFirstSeenAt" = LEAST(r."dnsFirstSeenAt", a.dns_first_exact, a.dns_last_exact),
-            "dnsLastSeenAt"  = GREATEST(r."dnsLastSeenAt", a.dns_last_exact, a.dns_first_exact)
+            -- Both bounds are drawn from the SAME set of instants, so
+            -- first <= last holds by construction rather than by argument. An
+            -- earlier version took first from {existing first, reconstructed}
+            -- and last from {existing last, reconstructed}; those differ, and
+            -- an already-inverted existing pair would have stayed inverted.
+            -- Nothing can write such a pair today, but the ordering guarantee
+            -- should not depend on that remaining true.
+            "dnsFirstSeenAt" = LEAST(r."dnsFirstSeenAt", r."dnsLastSeenAt", a.dns_first_exact, a.dns_last_exact),
+            "dnsLastSeenAt"  = GREATEST(r."dnsFirstSeenAt", r."dnsLastSeenAt", a.dns_first_exact, a.dns_last_exact)
         FROM attributed a
         WHERE a.id = r.id`,
         [SANITY_FLOOR]
