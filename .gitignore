@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...except the committed template. Without this negation the conventionally
+# named .env.example is swallowed by the .env* rule above and can never be
+# tracked, which is how this repo ended up with a .sample.env instead.
+!.env.example
 
 # vercel
 .vercel
