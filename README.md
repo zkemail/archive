@@ -43,13 +43,21 @@ These instructions will guide you through setting up the project on your local m
    cp .env.example .env
    ```
 
-   Key variables to configure:
-   - `POSTGRES_PRISMA_URL`: Your PostgreSQL connection string for Prisma.
-   - `POSTGRES_URL_NON_POOLING`: Direct PostgreSQL connection string (used for migrations, etc.).
-   - `GOOGLE_CLIENT_ID` & `GOOGLE_CLIENT_SECRET`: Credentials for Gmail OAuth integration via NextAuth.js.
-   - `NEXTAUTH_URL`: The canonical URL of your deployment (e.g., `http://localhost:3000` for local development).
-   - `NEXTAUTH_SECRET`: A secret key for NextAuth.js session encryption.
-   - API keys or endpoint URLs for GCP Cloud Functions and other external services, if applicable.
+   `.env.example` lists every variable the codebase reads, grouped by what it
+   is for. Only one is required to get the app running:
+   - `DATABASE_URL`: PostgreSQL connection string. Read by `src/lib/db.ts` and
+     `prisma.config.ts`; if unset, Prisma falls back to
+     `postgresql://localhost/archive`.
+
+   The rest are per-feature and can stay empty until you need them:
+   - `AUTH_GOOGLE_ID` & `AUTH_GOOGLE_SECRET` & `AUTH_SECRET`: Gmail OAuth via
+     NextAuth v5. Note the `AUTH_` prefix; the older `NEXTAUTH_*` and
+     `GOOGLE_CLIENT_*` names are not read.
+   - `CRON_SECRET`: guards the scheduled `POST /api/batch_update` and
+     `POST /api/stats` endpoints.
+   - `GOOGLE_CLOUD_*`, `CLOUD_TASKS_QUEUE_NAME`, `CLOUD_FUNCTION_URL`,
+     `TASKS_SERVICE_ACCOUNT_EMAIL`: the GCD key-recovery pipeline.
+   - `NEXT_PUBLIC_POSTHOG_*`: analytics.
 
 4. **Run Prisma migrations** to initialize your database schema:
 
