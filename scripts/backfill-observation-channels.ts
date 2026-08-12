@@ -4,10 +4,11 @@
 // The 20260812120000_add_per_source_observation_times migration adds the four
 // columns and nothing else, on purpose: Prisma runs migrations in a
 // transaction, so an in-migration backfill would hold ACCESS EXCLUSIVE on
-// DkimRecord for its whole duration. Against production (1.48M rows) a probe
-// shaped like phase 3's anti-join ran past 300s, and the app pool's
-// statement_timeout is 90s, so every blocked read would 5xx. This script does
-// the same attribution in bounded batches that commit as they go.
+// DkimRecord for as long as it took to rewrite 1.48M rows. The app pool's
+// statement_timeout is 90s, so blocked reads would 5xx rather than wait, and
+// build:deploy runs migrate deploy inline, putting that on the deploy path.
+// This script does the same attribution in bounded batches that commit as they
+// go, so no statement holds a lock longer than one batch.
 //
 // Attribution, not guesswork. Each record's window is assigned to the channel
 // that can be shown to have produced it:
@@ -103,24 +104,22 @@ async function main() {
       `starting observation-channel backfill (batch size ${batchSize}${dryRun ? ', DRY RUN' : ''})`
     );
 
-    // ── Supporting index ────────────────────────────────────────────────────
-    // EmailPairGcdResult.dkimRecordId has a foreign key but no index, and
-    // PostgreSQL does not index FK columns automatically. Both the phase-2 join
-    // and the phase-3 anti-join go through it, so without this they are full
-    // scans. CONCURRENTLY cannot run inside a transaction, which is the other
-    // reason this cannot live in the migration file.
-    // Built in --dry-run too. The preview queries are the same anti-join the
-    // real run does, and without the index that anti-join runs past 300s on
-    // production, so a dry run would time out before reporting anything. The
-    // index is idempotent, non-locking, and a prerequisite of the operation
-    // either way, so building it is not the kind of change --dry-run exists to
-    // withhold.
-    log('ensuring index on EmailPairGcdResult("dkimRecordId")');
-    await pool.query(`
-      CREATE INDEX CONCURRENTLY IF NOT EXISTS
-        idx_email_pair_gcd_result_dkim_record_id
-        ON "EmailPairGcdResult" ("dkimRecordId")
-    `);
+    // No supporting index is built, and none is needed.
+    //
+    // EmailPairGcdResult.dkimRecordId carries a foreign key without an index
+    // (PostgreSQL does not index FK columns automatically), which looks like it
+    // should make the phase-2 join and phase-3 anti-join expensive. It does
+    // not: the table holds 901 rows, so the planner sorts or hashes the whole
+    // thing. Measured on production, the phase-3 batch selection plans as a
+    // merge anti-join off the existing primary key and returns in ~102ms, and
+    // an unbounded count of the same predicate takes ~1.5s.
+    //
+    // An earlier version of this script created the index first. That was
+    // justified by a probe that ran past 300s, but the probe stacked three
+    // correlated aggregates into one statement and was not the shape anything
+    // here runs. The index also required table ownership, which the
+    // application's database role does not have, so it turned a script that
+    // works into one that fails on its first statement.
 
     // ── Phase 1: records the GCD path created ───────────────────────────────
     // Their whole window came from email timestamps, so it is GCD's in full and
