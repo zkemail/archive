@@ -165,16 +165,11 @@ async function handleRequest(request: NextRequest) {
       ? `http://${host}/api/auth/callback/google`
       : `https://${host}/api/auth/callback/google`;
 
-  const clientId =
-    process.env.IS_PULL_REQUEST == 'true'
-      ? process.env.PREVIEW_GOOGLE_CLIENT_ID
-      : process.env.AUTH_GOOGLE_ID || '';
-  const clientSecret =
-    process.env.IS_PULL_REQUEST == 'true'
-      ? process.env.PREVIEW_GOOGLE_CLIENT_SECRET
-      : process.env.AUTH_GOOGLE_SECRET;
-
-  const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, baseUrl);
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.AUTH_GOOGLE_ID || '',
+    process.env.AUTH_GOOGLE_SECRET,
+    baseUrl
+  );
   const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
   oauth2Client.setCredentials({ access_token });
