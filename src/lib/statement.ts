@@ -34,14 +34,17 @@ import { logger } from './logger';
 export const STATEMENT_VERSION = 1;
 
 /**
- * Issuer. Verifiers pin this exact string, so it defaults to a hard constant:
- * a deployment that signs under a different issuer mints statements no consumer
- * accepts. The override exists only so a staging deployment can be made
- * deliberately non-verifiable against the production JWKS, and should never be
- * set in production.
+ * Issuer. Verifiers pin this exact string, so it is a constant and not
+ * configurable: a deployment signing under any other issuer mints statements
+ * no consumer accepts, and it would do so silently, since they verify
+ * cryptographically and fail only at the `iss` comparison.
+ *
+ * Separating a non-production deployment's statements is not this value's job.
+ * The signer refuses to sign under a kid absent from the committed JWKS, so a
+ * deployment with its own unpublished key cannot sign at all. See "Running
+ * another deployment" in docs/signed-observations.md.
  */
-export const STATEMENT_ISSUER =
-  process.env.ARCHIVE_STATEMENT_ISSUER || 'archive.zk.email';
+export const STATEMENT_ISSUER = 'archive.zk.email';
 
 /** Signature algorithms we are willing to sign with. */
 const SUPPORTED_ALGS = ['EdDSA', 'ES256'] as const;

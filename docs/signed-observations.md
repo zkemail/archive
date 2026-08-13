@@ -259,6 +259,32 @@ the signer will never use, since the set is append-only and matched by `kid`.
 Never delete a key from the published set: consumers archive statements for
 years, and removing a `kid` retroactively invalidates every statement it signed.
 
+### Running another deployment
+
+The key set is a committed file, so **every deployment of this code serves the
+same JWKS**. A statement signed anywhere verifies as genuine everywhere, no
+matter what data the signing deployment's database held.
+
+So the rule is: never give a non-production deployment the production signing
+key. Mint it its own and leave the public half unpublished, and it fails closed
+by itself, because the signer refuses to sign under a `kid` absent from the
+committed set. Publishing that key is a visible commit rather than something
+anyone forgets.
+
+The one case no code can catch is copying the production private key into
+another deployment. That is a secret-handling rule, not something the signer can
+detect, since by construction the key is valid. Keep the secret scoped to
+production wherever it is stored.
+
+`iss` is a constant in the source rather than configuration, so no deployment
+can quietly issue under a name consumers do not pin. If a signing non-production
+deployment is ever genuinely wanted, do not reintroduce an issuer environment
+variable: it would have to be set correctly on every deployment, and a wrong
+value fails silently, minting statements that verify cryptographically and are
+then rejected on the `iss` comparison. Bind issuer to key instead, giving the
+published JWK the `iss` it may sign under and having the signer refuse a
+mismatch, so the pairing is structural and fails closed.
+
 ## Deploying the schema change
 
 The migration adds four nullable columns and nothing else, so it is
