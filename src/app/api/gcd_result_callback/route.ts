@@ -491,24 +491,44 @@ async function storeCalculationResult(data: {
       // still appears in the archive) but leave the GCD channel empty, so
       // nothing downstream can mistake "when we computed it" for "when it
       // signed mail".
-      const created = await prisma.dkimRecord.create({
-        data: {
-          domainSelectorPairId: domainSelectorPair.id,
-          firstSeenAt: gcdBounds?.first ?? data.completedAt,
-          lastSeenAt: gcdBounds?.last ?? data.completedAt,
-          value: `p=${data.publicKey}`,
-          keyType: 'RSA',
-          keyData: data.publicKey,
-          source: 'public_key_gcd_cloud_function',
-          gcdFirstSeenAt: gcdBounds?.first,
-          gcdLastSeenAt: gcdBounds?.last,
-        },
-      });
-      dkimRecordId = created.id;
-      logger.info('dkim_record_created', {
-        domain: data.metadata.domain,
-        selector: data.metadata.selector,
-      });
+      // Upsert rather than create (REG-728). The lookup above is by `keyData`
+      // but uniqueness is on `value`, so those are different keys: a row can
+      // exist under (pair, value) and still not be found there, and a plain
+      // create would then fail the unique index every time the Cloud Function
+      // retried. On conflict this behaves exactly like the update branch above,
+      // touching gcd* and leaving the public window alone wherever a complete
+      // DNS window already exists.
+      const rows = await prisma.$queryRaw<{ id: number; inserted: boolean }[]>`
+        INSERT INTO "DkimRecord" (
+          "domainSelectorPairId", "value", "firstSeenAt", "lastSeenAt",
+          "keyType", "keyData", "source", "gcdFirstSeenAt", "gcdLastSeenAt"
+        )
+        VALUES (
+          ${domainSelectorPair.id}, ${`p=${data.publicKey}`},
+          ${gcdBounds?.first ?? data.completedAt}::timestamp,
+          ${gcdBounds?.last ?? data.completedAt}::timestamp,
+          'RSA'::"KeyType", ${data.publicKey}, 'public_key_gcd_cloud_function',
+          ${gcdBounds?.first ?? null}::timestamp, ${gcdBounds?.last ?? null}::timestamp
+        )
+        ON CONFLICT ("domainSelectorPairId", md5("value")) DO UPDATE SET
+          "gcdFirstSeenAt" = LEAST(COALESCE("DkimRecord"."gcdFirstSeenAt", EXCLUDED."gcdFirstSeenAt"), EXCLUDED."gcdFirstSeenAt"),
+          "gcdLastSeenAt"  = GREATEST(COALESCE("DkimRecord"."gcdLastSeenAt", EXCLUDED."gcdLastSeenAt"), EXCLUDED."gcdLastSeenAt"),
+          "firstSeenAt"    = CASE WHEN "DkimRecord"."dnsFirstSeenAt" IS NULL OR "DkimRecord"."dnsLastSeenAt" IS NULL
+                                  THEN LEAST("DkimRecord"."firstSeenAt", EXCLUDED."firstSeenAt")
+                                  ELSE "DkimRecord"."firstSeenAt" END,
+          "lastSeenAt"     = CASE WHEN "DkimRecord"."dnsFirstSeenAt" IS NULL OR "DkimRecord"."dnsLastSeenAt" IS NULL
+                                  THEN GREATEST(COALESCE("DkimRecord"."lastSeenAt", "DkimRecord"."firstSeenAt"), EXCLUDED."lastSeenAt")
+                                  ELSE "DkimRecord"."lastSeenAt" END
+        RETURNING "id", (xmax = 0) AS "inserted"
+      `;
+      dkimRecordId = rows[0].id;
+      logger.info(
+        rows[0].inserted ? 'dkim_record_created' : 'dkim_record_updated',
+        {
+          domain: data.metadata.domain,
+          selector: data.metadata.selector,
+        }
+      );
     }
 
     // Link the pair to the record. A retried callback hits the composite
