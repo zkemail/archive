@@ -47,6 +47,20 @@ model DkimRecord {
   domainSelectorPair  DomainSelectorPair   @relation(fields: [domainSelectorPairId], references: [id])
   emailPairGcdResults EmailPairGcdResult[]
 
+  // One row per key value per pair is enforced by a unique index the migration
+  // creates by hand (REG-728):
+  //
+  //   UNIQUE ("domainSelectorPairId", md5("value"))
+  //
+  // It is not declared here because Prisma cannot express an expression index,
+  // and the obvious @@unique([domainSelectorPairId, value]) cannot be built:
+  // btree refuses a value over ~2704 bytes and production holds one at 3199.
+  // Hashing sidesteps the limit and constrains the same thing.
+  //
+  // Without it the DNS refresh's find-then-create was not atomic, so two
+  // refreshes of the same pair landing together both saw nothing and both
+  // inserted: 3,824 redundant rows accumulated that way, 168 of them for a
+  // single pair. Both write paths now use ON CONFLICT against that index.
   @@index([domainSelectorPairId])
 }
 

@@ -1,0 +1,43 @@
+-- One DkimRecord per (domainSelectorPairId, value). REG-728.
+--
+-- The DNS refresh used find-then-create, which is not atomic, so two refreshes
+-- of the same pair landing together both saw nothing and both inserted.
+-- Production accumulated 3,849 redundant rows this way, 168 of them for a
+-- single pair. This index is what actually closes the race: it turns the loser
+-- into an ON CONFLICT update instead of a twin.
+--
+-- Indexed on md5("value"), not "value". A btree tuple cannot exceed roughly
+-- 2704 bytes and production holds a record at 3199, so the plain index cannot
+-- be built at all; the first attempt failed with _bt_check_third_page and left
+-- an invalid index behind. Hashing is length-independent and constrains the
+-- same thing. Both write paths target this expression in their ON CONFLICT.
+--
+-- It is therefore absent from schema.prisma, which cannot express an
+-- expression index. Prisma ignores indexes it does not know about.
+--
+-- ORDER OF OPERATIONS ON A POPULATED DATABASE. This migration cannot be the
+-- first step, and on production it should already be a no-op by the time it
+-- runs:
+--
+--   1. Merge the existing duplicates. The index cannot be created while any
+--      remain. The statements are recorded in REG-728.
+--   2. Create the index by hand as a role that owns the table:
+--        CREATE UNIQUE INDEX CONCURRENTLY "DkimRecord_pair_value_md5_key"
+--          ON "DkimRecord" ("domainSelectorPairId", md5("value"));
+--      CONCURRENTLY because a plain CREATE INDEX takes an ACCESS EXCLUSIVE lock
+--      for the duration of a 1.48M-row build, and every read of the table waits
+--      behind it. Prisma wraps each migration in a transaction and CONCURRENTLY
+--      cannot run inside one, which is why this is a manual step rather than
+--      the statement below.
+--   3. Deploy. The IF NOT EXISTS makes this file a no-op, and the schema and
+--      the database agree from then on.
+--
+-- A fresh database has no duplicates and no size problem, so it can simply run
+-- this file.
+--
+-- The application's database role does not own the table and cannot create
+-- indexes; step 2 needs the owner, the same limitation the per-source
+-- observation columns hit.
+
+CREATE UNIQUE INDEX IF NOT EXISTS "DkimRecord_pair_value_md5_key"
+  ON "DkimRecord" ("domainSelectorPairId", md5("value"));

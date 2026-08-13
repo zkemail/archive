@@ -10,7 +10,7 @@ import {
 } from '@/generated/prisma/client';
 
 import { logger } from './logger';
-import { DnsDkimFetchResult, fetchJsonWebKeySet, fetchx509Cert } from './utils';
+import { fetchJsonWebKeySet, fetchx509Cert } from './utils';
 
 // In process Cache configuration (LRU cache)
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
@@ -164,37 +164,6 @@ export async function updateDspTimestamp(
   });
 
   clearRecordsCache(dsp.domain, dsp.selector);
-}
-
-export async function createDkimRecord(
-  dsp: DomainSelectorPair,
-  dkimDsnRecord: DnsDkimFetchResult
-) {
-  const dkimRecord = await prisma.dkimRecord.create({
-    data: {
-      domainSelectorPairId: dsp.id,
-      value: dkimDsnRecord.value,
-      firstSeenAt: dkimDsnRecord.timestamp,
-      lastSeenAt: dkimDsnRecord.timestamp,
-      keyType: dkimDsnRecord.keyType,
-      keyData: dkimDsnRecord.keyDataBase64,
-      // This is a direct sighting of the record in live DNS, so it opens the
-      // DNS channel's window as well as the union one (REG-735).
-      dnsFirstSeenAt: dkimDsnRecord.timestamp,
-      dnsLastSeenAt: dkimDsnRecord.timestamp,
-    },
-  });
-
-  clearRecordsCache(dsp.domain, dsp.selector);
-
-  logger.info('dkim_record_created', {
-    recordId: dkimRecord.id,
-    domain: dsp.domain,
-    selector: dsp.selector,
-    keyType: dkimDsnRecord.keyType,
-  });
-
-  return dkimRecord;
 }
 
 export async function getLastJWKeySet() {

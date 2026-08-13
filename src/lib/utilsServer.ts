@@ -8,12 +8,7 @@ import type { RateLimiterMemory } from 'rate-limiter-flexible';
 
 import type { DomainSelectorPair, KeyType } from '@/generated/prisma/client';
 
-import {
-  clearRecordsCache,
-  createDkimRecord,
-  prisma,
-  updateDspTimestamp,
-} from './db';
+import { clearRecordsCache, prisma, updateDspTimestamp } from './db';
 import { logger } from './logger';
 import {
   type DnsDkimFetchResult,
@@ -240,44 +235,48 @@ export async function fetchAndStoreDkimDnsRecord(dsp: DomainSelectorPair) {
   const dnsRecords = await fetchDkimDnsRecord(dsp.domain, dsp.selector);
 
   for (const dnsRecord of dnsRecords) {
-    let dbRecord = await prisma.dkimRecord.findFirst({
-      where: {
-        domainSelectorPairId: dsp.id,
-        value: dnsRecord.value,
-      },
-    });
+    // One statement, so there is no window between deciding the row is absent
+    // and creating it (REG-728). The previous find-then-create let two
+    // refreshes of the same pair both see nothing and both insert; production
+    // collected 3,824 redundant rows that way. The unique index on
+    // (domainSelectorPairId, value) is what makes the loser of that race an
+    // update instead of a twin.
+    //
+    // On conflict this does what the old update branch did. dnsFirstSeenAt only
+    // ever opens, never moves, so a re-observation cannot narrow the DNS
+    // window's start. GREATEST on the end so two writers racing cannot move it
+    // backwards. The public window follows the DNS window whenever there is one
+    // (REG-743), which is also what corrects a record a GCD recovery had
+    // previously stretched. gcd* is never touched here.
+    const rows = await prisma.$queryRaw<{ id: number; inserted: boolean }[]>`
+      INSERT INTO "DkimRecord" (
+        "domainSelectorPairId", "value", "firstSeenAt", "lastSeenAt",
+        "keyType", "keyData", "dnsFirstSeenAt", "dnsLastSeenAt"
+      )
+      VALUES (
+        ${dsp.id}, ${dnsRecord.value},
+        ${dnsRecord.timestamp}::timestamp, ${dnsRecord.timestamp}::timestamp,
+        ${dnsRecord.keyType}::"KeyType", ${dnsRecord.keyDataBase64},
+        ${dnsRecord.timestamp}::timestamp, ${dnsRecord.timestamp}::timestamp
+      )
+      ON CONFLICT ("domainSelectorPairId", md5("value")) DO UPDATE SET
+        "dnsFirstSeenAt" = COALESCE("DkimRecord"."dnsFirstSeenAt", EXCLUDED."dnsFirstSeenAt"),
+        "dnsLastSeenAt"  = GREATEST(COALESCE("DkimRecord"."dnsLastSeenAt", EXCLUDED."dnsLastSeenAt"), EXCLUDED."dnsLastSeenAt"),
+        "firstSeenAt"    = COALESCE("DkimRecord"."dnsFirstSeenAt", EXCLUDED."dnsFirstSeenAt"),
+        "lastSeenAt"     = GREATEST(COALESCE("DkimRecord"."dnsLastSeenAt", EXCLUDED."dnsLastSeenAt"), EXCLUDED."dnsLastSeenAt")
+      RETURNING "id", (xmax = 0) AS "inserted"
+    `;
 
-    if (dbRecord) {
-      // REG-735: bump the DNS channel alongside the union window, and never
-      // touch gcd*. dnsFirstSeenAt is normally already set; it can be NULL on a
-      // legacy record whose DNS window the backfill could not disentangle from
-      // a GCD contribution. Opening it at this sighting understates how long we
-      // have really known the key, which is the safe direction: the claimed
-      // window is never wider than the truth.
-      //
-      // GREATEST rather than a plain assignment so two refreshes racing cannot
-      // move lastSeenAt backwards. Prisma has no atomic max for DateTime.
-      //
-      // The public window is the DNS window whenever we have one (REG-743), so
-      // it is assigned from the same expressions as dns*. On a record whose
-      // public window had been pulled back by a GCD recovery, this is the write
-      // that corrects it: firstSeenAt moves forward to the DNS sighting. That
-      // narrows the claim, which is the safe direction, and the GCD window
-      // itself is untouched in gcd*.
-      await prisma.$executeRaw`
-        UPDATE "DkimRecord"
-        SET "dnsFirstSeenAt" = COALESCE("dnsFirstSeenAt", ${dnsRecord.timestamp}::timestamp),
-            "dnsLastSeenAt"  = GREATEST(COALESCE("dnsLastSeenAt", ${dnsRecord.timestamp}::timestamp), ${dnsRecord.timestamp}::timestamp),
-            "firstSeenAt"    = COALESCE("dnsFirstSeenAt", ${dnsRecord.timestamp}::timestamp),
-            "lastSeenAt"     = GREATEST(COALESCE("dnsLastSeenAt", ${dnsRecord.timestamp}::timestamp), ${dnsRecord.timestamp}::timestamp)
-        WHERE id = ${dbRecord.id}
-      `;
-      // createDkimRecord clears the cache itself, but this branch did not, so a
-      // re-observed key kept serving its previous window for up to the
-      // 30-minute TTL.
-      clearRecordsCache(dsp.domain, dsp.selector);
-    } else {
-      dbRecord = await createDkimRecord(dsp, dnsRecord);
+    // Either branch changed the pair's window, so the read cache has to go.
+    clearRecordsCache(dsp.domain, dsp.selector);
+
+    if (rows[0]?.inserted) {
+      logger.info('dkim_record_created', {
+        recordId: rows[0].id,
+        domain: dsp.domain,
+        selector: dsp.selector,
+        keyType: dnsRecord.keyType,
+      });
     }
   }
 }
