@@ -1,5 +1,4 @@
 import { CloudTasksClient } from '@google-cloud/tasks';
-import { headers } from 'next/headers';
 
 import { logger } from './logger';
 
@@ -31,12 +30,20 @@ export async function createGcdCalculationTask(payload: GcdCalculationPayload) {
     client = new CloudTasksClient();
   }
 
-  const headersList = await headers();
-  const host = headersList.get('host');
+  // Where the Cloud Function posts its result. This must not come from the
+  // request. It was `https://${host}` off the incoming Host header, so a
+  // spoofed Host sent the recovery to a server of the caller's choosing
+  // (REG-737). The recovered key is public data, so the disclosure is minor,
+  // but the legitimate result then never arrives, and it pointed
+  // GCP-originated requests at arbitrary hosts on demand.
+  //
+  // Pinned to the canonical hostname, the same name statements are issued
+  // under. CALLBACK_URL still overrides it in development, where the function
+  // has to reach a tunnel rather than production.
   const baseUrl =
     process.env.NODE_ENV === 'development'
       ? process.env.CALLBACK_URL
-      : `https://${host}`;
+      : 'https://archive.zk.email';
 
   const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT_ID || '';
   const LOCATION = process.env.GOOGLE_CLOUD_REGION || 'us-central1';
