@@ -89,9 +89,11 @@ canonicalization scheme is involved.
   `archive.zk.email` before any statements were issued.)
 - `iat`: issuance time, Unix epoch **seconds** (RFC 7519 NumericDate).
   Unanchored; see above.
-- `record.id`: our internal record id as a string. Stable, opaque, and **not
-  unique on its own**: a record observed through both channels produces two
-  statements sharing an id. `(id, source)` identifies an observation.
+- `record.id`: our internal record id, as a **string** here and a JSON integer
+  in `/api/key`, so compare them as strings if you cross-reference. Stable and
+  opaque. While `live_dns` is the only signable channel a record yields at most
+  one statement, so an id identifies one; if another channel ever became
+  signable, `(id, source)` would. `source` is on every statement either way.
 - `record.domain` / `record.selector`: lowercase, exactly as in the DKIM `d=`
   and `s=` tags. Punycode for internationalized domains.
 - `record.value`: the stored key, as-is, concatenated if DNS split it into
@@ -175,10 +177,17 @@ from, so read that before treating the top-level dates as a DNS sighting.
 
 The reference consumer is
 [kysigned's `archiveStatement.ts`](https://github.com/kychee-com/kysigned/blob/main/src/bundle/archiveStatement.ts).
-Statements from a running instance were verified against it directly, fetching
-the key set from the well-known URL exactly as a consumer would: envelope,
-algorithm allowlist, `kid` resolution, field names, `iat` integrality, the
-RFC 3339 `Z` form, and every reject class.
+Production statements were run through it directly, fetching the key set from
+the well-known URL exactly as a consumer would.
+
+**As published, it rejects every statement we issue**, with reason
+`malformed-shape`. It pins `iss` to `archive.prove.email`, and that comparison
+lives inside its shape check, so our issuer surfaces as a malformed payload
+rather than as an issuer mismatch. Change that one constant and everything
+passes: envelope, algorithm allowlist, `kid` resolution, field names, `iat`
+integrality, the RFC 3339 `Z` form, and every reject class, including a
+tampered payload as `bad-signature`, `alg: none` as `unsupported-alg`, and an
+unpublished `kid` as `unknown-key`.
 
 That run was manual. The committed self-check (`pnpm statement:check`)
 **restates** the reference verifier's rules rather than importing it, so it can

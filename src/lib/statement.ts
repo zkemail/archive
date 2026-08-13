@@ -15,8 +15,9 @@
  *
  * Provenance is per channel, never the union window. See the DkimRecord
  * per-channel columns: a live-DNS sighting and a GCD recovery mean different
- * things and are attested separately, so a record seen both ways yields two
- * statements rather than one blended claim.
+ * things and are attested separately, so a statement carries one channel's
+ * window rather than a blended claim. Only `live_dns` is signable today, so a
+ * record yields at most one statement; see SIGNABLE_SOURCES.
  *
  * The payload shape is fixed by the format agreed on the issue; the reference
  * verifier is kychee-com/kysigned `src/bundle/archiveStatement.ts`. Changing
@@ -189,9 +190,11 @@ export function toRfc3339Utc(date: Date): string {
 /**
  * Build the payload for one (record, observation) pair.
  *
- * `id` is the archive's own record id as a string. It is stable but not unique
- * across statements on its own: a record observed through both channels yields
- * two statements sharing an id, distinguished by `source`.
+ * `id` is the archive's own record id as a string. It is stable, and unique
+ * per statement while `live_dns` is the only signable channel. Were another
+ * channel ever signable, one record could yield one statement per channel and
+ * `(id, source)` would be the identifier; `source` is on every statement so
+ * that stays readable either way.
  *
  * `issuedAt` is injected so a batch of statements from one request shares an
  * issuance instant and the whole thing stays deterministic under test.
@@ -388,8 +391,9 @@ export async function signStatement(
 }
 
 /**
- * Every statement issuable for a record: one per channel with a complete
- * window. A record with no attributable observation yields none.
+ * Every statement issuable for a record: one per *signable* channel with a
+ * complete window, which today means at most one. A record with no signable
+ * observation yields none, including one known only through GCD.
  */
 export async function signStatementsForRecord(
   domain: string,
