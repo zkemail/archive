@@ -439,11 +439,11 @@ export default function ApiDocsPage() {
             </p>
 
             <p className='text-sm text-secondary'>
-              Only <code className='text-primary'>live_dns</code> is signed
-              today. <code className='text-primary'>gcd_recovered</code>{' '}
-              observations stay unsigned until their ingest path meets the same
-              trust bar, so a key known only from a submitted email yields an
-              empty array here while still appearing in{' '}
+              Only <code className='text-primary'>live_dns</code> is signed.{' '}
+              <code className='text-primary'>gcd_recovered</code> observations
+              are not: their ingest path does not establish that the submitted
+              email is genuine. So a key known only from a submitted email
+              yields an empty array here while still appearing, unsigned, in{' '}
               <code className='text-primary'>/api/key</code>.
             </p>
 

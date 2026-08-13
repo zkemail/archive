@@ -41,16 +41,18 @@ validity on live DNS, filter on `source === 'live_dns'`.
 > can vouch for how its observations reached the database. `live_dns` rows are
 > written by our own resolver reading a TXT record, with no external input in
 > the path. A `gcd_recovered` window instead derives from email we were given,
-> and the ingest path that accepts that email does not yet establish it is
-> genuine. We are fixing that; until it lands, we are not putting our signature
-> on it.
+> and the ingest path that accepts that email does not establish that the email
+> is genuine. So we do not sign it. We are not committing to a date for
+> changing that, or to changing it at all: treat `live_dns` as the signed
+> channel and build on that.
 >
 > `gcd_recovered` observations are still returned, unsigned, in `/api/key`'s
-> `observations` array, so you can weigh them yourself. Nothing about the
-> format changes when signing is enabled: a key seen both ways will then yield
-> _two_ statements, same record `id`, different `source`, each with its own
-> window, which is what the `source` field exists to distinguish. If you only
-> consume `live_dns`, this restriction is invisible to you.
+> `observations` array, so you can weigh them yourself. The format already
+> allows for the other case, so nothing here changes shape if that ever
+> happens: a key seen both ways would yield _two_ statements, same record `id`,
+> different `source`, each with its own window, which is what the `source`
+> field exists to distinguish. If you only consume `live_dns`, this restriction
+> is invisible to you.
 
 For `gcd_recovered`, the times are **the source emails' dates**, not our
 processing time: the window is the span between the two messages whose
@@ -122,9 +124,9 @@ _signable_ channel, so rotation history is preserved and the consumer picks the
 entry whose key matches the signature being checked. An array entry is a bare
 string.
 
-Only `live_dns` is signable today, so a record observed solely via
-`gcd_recovered` yields no statement and the array can come back empty for a pair
-that `/api/key` does return. See
+Only `live_dns` is signable, so a record observed solely via `gcd_recovered`
+yields no statement and the array can come back empty for a pair that
+`/api/key` does return. See
 [Provenance](#provenance-two-channels-never-blended) for why. Read the
 `source` claim rather than assuming a channel.
 

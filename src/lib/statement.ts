@@ -55,17 +55,19 @@ type SupportedAlg = (typeof SUPPORTED_ALGS)[number];
  * qualifies: those rows are written by our own resolver reading a TXT record,
  * and no external input reaches them.
  *
- * `gcd_recovered` does not, yet. Its window derives from email we were given
- * rather than from anything we observed ourselves, and the ingest path that
- * accepts that email does not currently establish it is genuine (REG-739).
- * Until it does, those observations are still exposed unsigned through
- * /api/key's `observations` array, where a consumer can weigh them for
- * themselves, but we do not attest to them.
+ * `gcd_recovered` does not. Its window derives from email we were given rather
+ * than from anything we observed ourselves, and the ingest path that accepts
+ * that email does not establish that the email is genuine (REG-739). Those
+ * observations are still exposed unsigned through /api/key's `observations`
+ * array, where a consumer can weigh them for themselves, but we do not attest
+ * to them.
  *
- * Restoring `gcd_recovered` here is the last step of REG-739 and needs no
- * other change: the payload, the endpoint and the format already handle it,
- * and the format's `source` field exists precisely so the two can be told
- * apart.
+ * Whether that can be fixed is open: GCD proves a key signed two messages, not
+ * that the domain published it, so this may be a permanent distinction rather
+ * than a gap to close. Nothing outside this set assumes either answer. If
+ * `gcd_recovered` ever does qualify, adding it back here is the only change
+ * needed: the payload, the endpoint and the format already handle it, and the
+ * format's `source` field exists precisely so the two can be told apart.
  */
 const SIGNABLE_SOURCES: ReadonlySet<ObservationSource> =
   new Set<ObservationSource>(['live_dns']);
