@@ -248,10 +248,13 @@ The ceremony, in order (**publish before you sign**):
 
 The signer refuses to sign under a `kid` that is absent from the published set,
 and additionally checks that the key material matches the published entry, not
-just the name. Kids are date-stamped by default, so regenerating on the same day
-reuses one; without the material check that would mint statements which verify
-as `bad-signature` and only surface years later. Getting the order wrong now
-fails loudly instead.
+just the name. So getting the order wrong fails loudly at sign time instead of
+minting statements that verify as `bad-signature` and surface years later.
+
+Generated kids are date-stamped and carry a JWK thumbprint suffix, so two keys
+minted on the same day cannot collide, and `statement:genkey` refuses a `--kid`
+that is already published. Both cases would otherwise hand you a private key
+the signer will never use, since the set is append-only and matched by `kid`.
 
 Never delete a key from the published set: consumers archive statements for
 years, and removing a `kid` retroactively invalidates every statement it signed.
@@ -268,9 +271,15 @@ $ pnpm backfill:observation-channels --dry-run   # report what would change
 $ pnpm backfill:observation-channels
 ```
 
-The backfill builds its own supporting index `CONCURRENTLY` on first run. Until
-it has run, the per-channel columns are NULL and records simply yield no signed
-observation, which is the intended fail-closed state rather than a wrong one.
+Until the backfill has run, the per-channel columns are NULL and records simply
+yield no signed observation, which is the intended fail-closed state rather than
+a wrong one.
+
+The backfill builds no index: the table it joins against is small enough that
+the planner hashes it outright, and creating one would require table ownership
+that the application's database role does not have. The same ownership limit
+applies to `migrate deploy` on the hosted deployment, where the migration has to
+be applied by a role that owns `DkimRecord`.
 
 ## Legacy records
 
