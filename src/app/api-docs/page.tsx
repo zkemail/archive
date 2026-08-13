@@ -78,7 +78,7 @@ export default function ApiDocsPage() {
   };
 
   const statementExample = `[
-  "eyJhbGciOiJFZERTQSIsImtpZCI6ImFyY2hpdmUtc3RhdGVtZW50LTIwMjYtMDgtMTIifQ..."
+  "eyJhbGciOiJFZERTQSIsImtpZCI6ImFyY2hpdmUtc3RhdGVtZW50LTIwMjYtMDgtMTMtNTdZYjRrWDEifQ..."
 ]`;
 
   const statementPayloadExample = `{
@@ -213,7 +213,7 @@ export default function ApiDocsPage() {
           <div className='flex w-full flex-col gap-3 rounded-lg bg-background p-2'>
             <div className='flex items-center gap-2'>
               <Badge variant='api'>GET</Badge>
-              <code className='font-mono text-sm text-secondary'>/api</code>
+              <code className='font-mono text-sm text-secondary'>/api/key</code>
             </div>
           </div>
 
@@ -494,6 +494,20 @@ export default function ApiDocsPage() {
                     code={statementPayloadExample}
                     title='STATEMENT PAYLOAD'
                   />
+                  <p className='text-sm text-secondary'>
+                    A response is capped at 200 records, the most recent by
+                    first-seen, because each one costs a signature. Every
+                    response carries{' '}
+                    <code className='text-primary'>X-Total-Records</code>, and{' '}
+                    <code className='text-primary'>
+                      X-Records-Truncated: true
+                    </code>{' '}
+                    when the cap was hit. Note that{' '}
+                    <code className='text-primary'>X-Total-Records</code> counts
+                    stored records, not statements, so it is legitimately larger
+                    than the array whenever a pair has observations we do not
+                    sign.
+                  </p>
                 </div>
               </div>
 
