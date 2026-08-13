@@ -169,9 +169,10 @@ existing fields each record now has:
 - `observations`: at most one entry per channel, each
   `{ source, firstSeenAt, lastSeenAt }` with RFC 3339 UTC times.
 
-The top-level `firstSeenAt` / `lastSeenAt` are the **union across channels**,
-kept for backward compatibility and display. They deliberately mix provenance,
-so do not bound key validity on them. Use `observations`.
+The top-level `firstSeenAt` / `lastSeenAt` come from **one channel**: the live
+DNS window when we have one, the GCD window when we do not. They never mix the
+two. `observations` is what tells you which channel a given record's window came
+from, so read that before treating the top-level dates as a DNS sighting.
 
 ## Verifying
 

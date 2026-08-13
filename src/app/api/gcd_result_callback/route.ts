@@ -454,10 +454,28 @@ async function storeCalculationResult(data: {
         // discard the first one's widening. LEAST/GREATEST make the update
         // monotonic regardless of interleaving. Prisma has no atomic min/max
         // for DateTime, hence the raw statement.
+        //
+        // The public window (firstSeenAt/lastSeenAt) only moves when this key
+        // has no usable DNS window (REG-743). A recovery derives its dates
+        // from email we were given, which routinely predates our first DNS
+        // sighting by months, so letting it pull the public window back
+        // published a first-seen date we never actually observed. The gcd*
+        // columns still record it in full, and `observations` exposes it.
+        //
+        // Both bounds are checked, not just the first. Nothing in the schema
+        // stops a half-known DNS window, and every write path here happens to
+        // set the pair together, but a guard that depends on an invariant
+        // maintained somewhere else is one refactor away from being wrong.
+        // With one bound missing there is no DNS window to prefer, so GCD
+        // remains the public source.
         await prisma.$executeRaw`
           UPDATE "DkimRecord"
-          SET "firstSeenAt"    = LEAST("firstSeenAt", ${gcdBounds.first}::timestamp),
-              "lastSeenAt"     = GREATEST(COALESCE("lastSeenAt", "firstSeenAt"), ${gcdBounds.last}::timestamp),
+          SET "firstSeenAt"    = CASE WHEN "dnsFirstSeenAt" IS NULL OR "dnsLastSeenAt" IS NULL
+                                      THEN LEAST("firstSeenAt", ${gcdBounds.first}::timestamp)
+                                      ELSE "firstSeenAt" END,
+              "lastSeenAt"     = CASE WHEN "dnsFirstSeenAt" IS NULL OR "dnsLastSeenAt" IS NULL
+                                      THEN GREATEST(COALESCE("lastSeenAt", "firstSeenAt"), ${gcdBounds.last}::timestamp)
+                                      ELSE "lastSeenAt" END,
               "gcdFirstSeenAt" = LEAST(COALESCE("gcdFirstSeenAt", ${gcdBounds.first}::timestamp), ${gcdBounds.first}::timestamp),
               "gcdLastSeenAt"  = GREATEST(COALESCE("gcdLastSeenAt", ${gcdBounds.last}::timestamp), ${gcdBounds.last}::timestamp)
           WHERE id = ${existingRecord.id}
