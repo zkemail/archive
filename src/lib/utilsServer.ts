@@ -169,16 +169,25 @@ async function decodeKeyInfo(
   }
 }
 
-export async function fetchDkimDnsRecord(
-  domain: string,
-  selector: string
-): Promise<DnsDkimFetchResult[]> {
-  const resolver = new dns.promises.Resolver({ timeout: 2500 });
-  const qname = `${selector}._domainkey.${domain}`;
-  let records;
+/**
+ * DKIM keys are normally published under the standard `_domainkey` label, but
+ * some domains publish them under a bare `dkim` label instead
+ * (e.g. `selector.dkim.domain`). Returns the qnames to query in priority order:
+ * the standard `_domainkey` form first, then the `dkim` fallback.
+ */
+export function getDkimDnsQnames(domain: string, selector: string): string[] {
+  return [`${selector}._domainkey.${domain}`, `${selector}.dkim.${domain}`];
+}
 
+async function resolveTxtRecords(qname: string): Promise<string[]> {
+  // A fresh resolver per qname: the public-DNS fallback below mutates the
+  // resolver's servers, so reusing one across qnames would make every lookup
+  // after the first fallback skip the system/configured resolver. That breaks
+  // split-horizon / private-DNS setups where a `dkim`-label record only exists
+  // on the configured resolver.
+  const resolver = new dns.promises.Resolver({ timeout: 2500 });
   try {
-    records = (await resolver.resolve(qname, 'TXT')).map((record) =>
+    return (await resolver.resolve(qname, 'TXT')).map((record) =>
       record.join('')
     );
   } catch (error) {
@@ -189,7 +198,7 @@ export async function fetchDkimDnsRecord(
         reason: error instanceof Error ? error.message : String(error),
       });
       resolver.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1', '1.0.0.1']);
-      records = (await resolver.resolve(qname, 'TXT')).map((record) =>
+      return (await resolver.resolve(qname, 'TXT')).map((record) =>
         record.join('')
       );
     } catch (fallbackError) {
@@ -203,25 +212,44 @@ export async function fetchDkimDnsRecord(
       return [];
     }
   }
+}
 
+export async function fetchDkimDnsRecord(
+  domain: string,
+  selector: string
+): Promise<DnsDkimFetchResult[]> {
   const result: DnsDkimFetchResult[] = [];
-  for (const record of records) {
-    try {
-      const { keyType, keyDataBase64 } = await decodeKeyInfo(record);
-      result.push({
-        selector,
-        domain,
-        value: record,
-        timestamp: new Date(),
-        keyType,
-        keyDataBase64,
-      });
-    } catch (error) {
-      logger.warn('dkim_decode_failed', {
-        domain,
-        selector,
-        error: error instanceof Error ? error.message : String(error),
-      });
+  const seenRecords = new Set<string>();
+
+  for (const qname of getDkimDnsQnames(domain, selector)) {
+    const records = await resolveTxtRecords(qname);
+    for (const record of records) {
+      if (seenRecords.has(record)) {
+        continue;
+      }
+      seenRecords.add(record);
+      try {
+        const { keyType, keyDataBase64 } = await decodeKeyInfo(record);
+        result.push({
+          selector,
+          domain,
+          value: record,
+          timestamp: new Date(),
+          keyType,
+          keyDataBase64,
+        });
+      } catch (error) {
+        logger.warn('dkim_decode_failed', {
+          domain,
+          selector,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    // Stop once the standard `_domainkey` label yields usable records; only
+    // fall through to the `dkim` label when nothing was found there.
+    if (result.length > 0) {
+      break;
     }
   }
 
