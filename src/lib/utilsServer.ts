@@ -257,11 +257,19 @@ export async function fetchAndStoreDkimDnsRecord(dsp: DomainSelectorPair) {
       //
       // GREATEST rather than a plain assignment so two refreshes racing cannot
       // move lastSeenAt backwards. Prisma has no atomic max for DateTime.
+      //
+      // The public window is the DNS window whenever we have one (REG-743), so
+      // it is assigned from the same expressions as dns*. On a record whose
+      // public window had been pulled back by a GCD recovery, this is the write
+      // that corrects it: firstSeenAt moves forward to the DNS sighting. That
+      // narrows the claim, which is the safe direction, and the GCD window
+      // itself is untouched in gcd*.
       await prisma.$executeRaw`
         UPDATE "DkimRecord"
-        SET "lastSeenAt"     = GREATEST(COALESCE("lastSeenAt", "firstSeenAt"), ${dnsRecord.timestamp}::timestamp),
-            "dnsFirstSeenAt" = COALESCE("dnsFirstSeenAt", ${dnsRecord.timestamp}::timestamp),
-            "dnsLastSeenAt"  = GREATEST(COALESCE("dnsLastSeenAt", ${dnsRecord.timestamp}::timestamp), ${dnsRecord.timestamp}::timestamp)
+        SET "dnsFirstSeenAt" = COALESCE("dnsFirstSeenAt", ${dnsRecord.timestamp}::timestamp),
+            "dnsLastSeenAt"  = GREATEST(COALESCE("dnsLastSeenAt", ${dnsRecord.timestamp}::timestamp), ${dnsRecord.timestamp}::timestamp),
+            "firstSeenAt"    = COALESCE("dnsFirstSeenAt", ${dnsRecord.timestamp}::timestamp),
+            "lastSeenAt"     = GREATEST(COALESCE("dnsLastSeenAt", ${dnsRecord.timestamp}::timestamp), ${dnsRecord.timestamp}::timestamp)
         WHERE id = ${dbRecord.id}
       `;
       // createDkimRecord clears the cache itself, but this branch did not, so a
