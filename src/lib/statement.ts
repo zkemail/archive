@@ -48,7 +48,7 @@ const SUPPORTED_ALGS = ['EdDSA', 'ES256'] as const;
 type SupportedAlg = (typeof SUPPORTED_ALGS)[number];
 
 /**
- * Channels we are currently willing to put a signature on.
+ * Channels we put a signature on.
  *
  * A signature is a claim we stand behind, so a channel only belongs here once
  * we can vouch for how its observations got into the database. `live_dns`
@@ -57,17 +57,15 @@ type SupportedAlg = (typeof SUPPORTED_ALGS)[number];
  *
  * `gcd_recovered` does not. Its window derives from email we were given rather
  * than from anything we observed ourselves, and the ingest path that accepts
- * that email does not establish that the email is genuine (REG-739). Those
- * observations are still exposed unsigned through /api/key's `observations`
- * array, where a consumer can weigh them for themselves, but we do not attest
- * to them.
+ * that email does not establish that the email is genuine (REG-739). Separately
+ * from ingest, GCD proves a key signed two messages, not that the domain
+ * published it, so the two channels do not attest the same thing in any case.
+ * Those observations are still exposed unsigned through /api/key's
+ * `observations` array, where a consumer can weigh them for themselves.
  *
- * Whether that can be fixed is open: GCD proves a key signed two messages, not
- * that the domain published it, so this may be a permanent distinction rather
- * than a gap to close. Nothing outside this set assumes either answer. If
- * `gcd_recovered` ever does qualify, adding it back here is the only change
- * needed: the payload, the endpoint and the format already handle it, and the
- * format's `source` field exists precisely so the two can be told apart.
+ * This set is the only lever. The payload, the endpoint and the format are
+ * source-agnostic, and the format's `source` field exists so the channels can
+ * be told apart.
  */
 const SIGNABLE_SOURCES: ReadonlySet<ObservationSource> =
   new Set<ObservationSource>(['live_dns']);
