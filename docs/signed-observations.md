@@ -118,8 +118,15 @@ never retract one.
 ### `GET /api/key/statement?domain=<d>&selector=<s>`
 
 Returns a JSON array of compact JWS strings, one per stored key value per
-channel, so rotation history is preserved and the consumer picks the entry whose
-key matches the signature being checked. An array entry is a bare string.
+_signable_ channel, so rotation history is preserved and the consumer picks the
+entry whose key matches the signature being checked. An array entry is a bare
+string.
+
+Only `live_dns` is signable today, so a record observed solely via
+`gcd_recovered` yields no statement and the array can come back empty for a pair
+that `/api/key` does return. See
+[Provenance](#provenance-two-channels-never-blended) for why. Read the
+`source` claim rather than assuming a channel.
 
 Unlike `/api/key`, the selector is **required**: a statement attests one
 specific observation, and a domain-wide dump would sign an unbounded set on a

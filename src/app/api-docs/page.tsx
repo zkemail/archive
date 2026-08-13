@@ -431,11 +431,20 @@ export default function ApiDocsPage() {
             </p>
 
             <p className='text-sm text-secondary'>
-              One statement is issued per stored key value per observation
-              channel, so a key seen both in live DNS and recovered via GCD
-              yields two, with the same record id and a different{' '}
-              <code className='text-primary'>source</code>. Bound key validity
-              on the channel you trust rather than on a blended window.
+              One statement is issued per stored key value per signable
+              observation channel, each carrying the{' '}
+              <code className='text-primary'>source</code> it came from. Bound
+              key validity on the channel you trust rather than on a blended
+              window.
+            </p>
+
+            <p className='text-sm text-secondary'>
+              Only <code className='text-primary'>live_dns</code> is signed
+              today. <code className='text-primary'>gcd_recovered</code>{' '}
+              observations stay unsigned until their ingest path meets the same
+              trust bar, so a key known only from a submitted email yields an
+              empty array here while still appearing in{' '}
+              <code className='text-primary'>/api/key</code>.
             </p>
 
             {/* Parameters Section */}

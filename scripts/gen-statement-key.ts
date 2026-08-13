@@ -18,12 +18,40 @@
  * every statement it signed.
  */
 
-import { exportJWK, generateKeyPair, type JWK } from 'jose';
+import { readFileSync } from 'node:fs';
+
+import {
+  calculateJwkThumbprint,
+  exportJWK,
+  generateKeyPair,
+  type JWK,
+} from 'jose';
 
 const SUPPORTED_ALGS = ['EdDSA', 'ES256'] as const;
 type SupportedAlg = (typeof SUPPORTED_ALGS)[number];
 
-function parseArgs(): { alg: SupportedAlg; kid: string } {
+const JWKS_PATH = new URL(
+  '../src/lib/archive-statement-jwks.json',
+  import.meta.url
+);
+
+/** kids already committed to the published set, which is append-only. */
+function publishedKids(): string[] {
+  try {
+    const parsed = JSON.parse(readFileSync(JWKS_PATH, 'utf8')) as {
+      keys?: JWK[];
+    };
+    return (parsed.keys ?? [])
+      .map((k) => k.kid)
+      .filter((k): k is string => Boolean(k));
+  } catch {
+    // A missing or unreadable set is not fatal here: the signer is the one
+    // that enforces publication, and it fails closed.
+    return [];
+  }
+}
+
+function parseArgs(): { alg: SupportedAlg; kid: string | undefined } {
   const args = process.argv.slice(2);
   let alg: SupportedAlg = 'EdDSA';
   let kid: string | undefined;
@@ -41,30 +69,41 @@ function parseArgs(): { alg: SupportedAlg; kid: string } {
     }
   }
 
-  // A date-stamped default keeps kids sortable and self-documenting, and makes
-  // it obvious at a glance which key an archived statement was signed under.
-  if (!kid) {
-    const stamp = new Date().toISOString().slice(0, 10);
-    kid = `archive-statement-${stamp}`;
-  }
-
   return { alg, kid };
 }
 
 async function main() {
-  const { alg, kid } = parseArgs();
+  const { alg, kid: requestedKid } = parseArgs();
 
   const { privateKey, publicKey } = await generateKeyPair(alg, {
     extractable: true,
   });
 
+  const rawPublicJwk = await exportJWK(publicKey);
+
+  // A date stamp keeps kids sortable and self-documenting; the thumbprint
+  // prefix keeps them unique. Date alone collides when two keys are minted on
+  // the same day, and since the published set is append-only the signer would
+  // then match the older entry and reject the new private key as mismatched
+  // key material, i.e. a rotation that fails closed at deploy time.
+  const stamp = new Date().toISOString().slice(0, 10);
+  const thumbprint = (await calculateJwkThumbprint(rawPublicJwk)).slice(0, 8);
+  const kid = requestedKid ?? `archive-statement-${stamp}-${thumbprint}`;
+
+  // Same failure, reached the other way: an explicit --kid that is already
+  // published. Refuse rather than hand over a key whose statements the signer
+  // will never mint.
+  if (publishedKids().includes(kid)) {
+    console.error(
+      `kid "${kid}" is already in src/lib/archive-statement-jwks.json.\n` +
+        'The published set is append-only and the signer matches by kid, so ' +
+        'reusing one means it would keep using the older key. Pick another.'
+    );
+    process.exit(1);
+  }
+
   const privateJwk: JWK = { ...(await exportJWK(privateKey)), kid, alg };
-  const publicJwk: JWK = {
-    ...(await exportJWK(publicKey)),
-    kid,
-    alg,
-    use: 'sig',
-  };
+  const publicJwk: JWK = { ...rawPublicJwk, kid, alg, use: 'sig' };
 
   console.log(
     `\nGenerated a ${alg} statement signing key with kid "${kid}".\n`
