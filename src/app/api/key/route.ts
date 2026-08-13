@@ -9,8 +9,8 @@ import {
 import { findRecordsWithCache } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import {
-  type ObservationSource,
   observationsForRecord,
+  type ObservationSource,
   toRfc3339Utc,
 } from '@/lib/statement';
 import { dspQuerySchema } from '@/lib/validation';
