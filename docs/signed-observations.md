@@ -132,8 +132,11 @@ single request.
 A single response is capped at 200 records (the most recent by first-seen),
 because each one costs a signature per channel. Every response carries
 `X-Total-Records`, and `X-Records-Truncated: true` when the cap was hit, so a
-truncated rotation history never reads as a complete one. No real pair comes
-close to the cap.
+truncated rotation history never reads as a complete one.
+
+A few high-rotation pairs come close to the cap, so check
+`X-Records-Truncated` whenever a response comes back at 200 records rather than
+assuming it is the complete history.
 
 Returns `503 signing_unavailable` if the deployment has no signing key
 configured. There is deliberately no unsigned fallback. A pair with no
