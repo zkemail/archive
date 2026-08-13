@@ -113,7 +113,12 @@ async function main() {
   console.log('   under "keys", then commit and deploy BEFORE the secret:\n');
   console.log(JSON.stringify(publicJwk, null, 2));
   console.log('\n' + '─'.repeat(72));
-  console.log('2. PRIVATE half: set as ARCHIVE_STATEMENT_SIGNING_JWK.');
+  // The variable name sits alone on its line, with no adjacent punctuation.
+  // It used to end a sentence, and the full stop was copied into the name in
+  // a real deployment, which silently left the key unread.
+  console.log('2. PRIVATE half. Set it on the production service only, as');
+  console.log('   the environment variable named exactly:\n');
+  console.log('   ARCHIVE_STATEMENT_SIGNING_JWK\n');
   console.log('   Shown once, not stored. Keep it out of git:\n');
   console.log(JSON.stringify(privateJwk));
   console.log('\n' + '─'.repeat(72));
