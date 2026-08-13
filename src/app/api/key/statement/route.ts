@@ -31,11 +31,15 @@ const MAX_RECORDS_PER_REQUEST = 200;
  * GET /api/key/statement?domain=<d>&selector=<s>
  *
  * Signed, offline-verifiable observation statements for one (domain, selector)
- * pair (REG-736). Returns a JSON array of compact JWS strings, one
- * per stored key value per observation channel, so a key we saw both in live
- * DNS and recovered via GCD yields two statements with the same record id and
- * different `source`. Rotation history is preserved; the consumer picks the
- * entry whose key matches the signature they are checking.
+ * pair (REG-736). Returns a JSON array of compact JWS strings, one per stored
+ * key value per signable observation channel, each naming its own `source`.
+ * Only `live_dns` is signable; see SIGNABLE_SOURCES in lib/statement.ts.
+ * Rotation history is preserved; the consumer picks the entry whose key
+ * matches the signature they are checking.
+ *
+ * Statements are minted per request, not stored: the window they attest moves
+ * whenever DNS is re-observed, so a persisted statement would be stale the
+ * moment it was written.
  *
  * Verify against the published key set at
  * `/.well-known/dkim-archive-jwks.json`.
