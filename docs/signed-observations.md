@@ -94,10 +94,11 @@ canonicalization scheme is involved.
   statements sharing an id. `(id, source)` identifies an observation.
 - `record.domain` / `record.selector`: lowercase, exactly as in the DKIM `d=`
   and `s=` tags. Punycode for internationalized domains.
-- `record.value`: the stored DKIM TXT record as-is, concatenated if DNS split
-  it into multiple strings. **For `gcd_recovered` records there is no TXT record
-  to store**, so the value is the synthesized `p=<base64 SPKI>` form. Compare
-  the `p=` key bytes rather than the whole string.
+- `record.value`: the stored key, as-is, concatenated if DNS split it into
+  multiple strings. **Do not assume a shape.** It may be a full `v=DKIM1; ...`
+  record, or start at `k=`, or be a bare `p=<base64 SPKI>`, and `source` does
+  not tell you which. Parse out the `p=` tag and compare the key bytes rather
+  than matching the whole string or expecting a prefix.
 - `record.first_seen_at` / `record.last_seen_at`: RFC 3339 UTC with a `Z`
   suffix, for that channel only.
 
