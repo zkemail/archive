@@ -14,6 +14,10 @@ const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, x-api-key',
   'Access-Control-Max-Age': '86400',
+  // Only the CORS-safelisted response headers are readable cross-origin by
+  // default, so a browser consumer of /api/key/statement would see null for
+  // these and silently miss that its result was capped.
+  'Access-Control-Expose-Headers': 'X-Total-Records, X-Records-Truncated',
 };
 
 export function middleware(request: NextRequest) {
@@ -31,6 +35,12 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // All public API routes except the cookie-based NextAuth handlers.
-  matcher: ['/api/((?!auth).*)'],
+  matcher: [
+    // All public API routes except the cookie-based NextAuth handlers.
+    '/api/((?!auth).*)',
+    // The statement verification key set (REG-736). Verifiers are
+    // browser-side, so fetching the JWKS is itself a cross-origin request; the
+    // matcher runs on the incoming path, before the rewrite to /api/statement.
+    '/.well-known/:path*',
+  ],
 };

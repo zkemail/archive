@@ -26,11 +26,19 @@ export default function ApiDocsPage() {
 
   const exampleResponse = `[
   {
+    "id": 4711,
     "value": "string",
     "domain": "string",
     "selector": "string",
     "lastSeenAt": "2025-06-25T13:03:56.862Z",
-    "firstSeenAt": "2025-06-25T13:03:56.862Z"
+    "firstSeenAt": "2025-06-25T13:03:56.862Z",
+    "observations": [
+      {
+        "source": "live_dns",
+        "firstSeenAt": "2025-06-25T13:03:56.862Z",
+        "lastSeenAt": "2025-06-25T13:03:56.862Z"
+      }
+    ]
   }
 ]`;
 
@@ -39,15 +47,54 @@ export default function ApiDocsPage() {
     items: {
       type: 'object',
       properties: {
+        id: { type: 'integer' },
         value: { type: 'string' },
         domain: { type: 'string' },
         selector: { type: 'string' },
         lastSeenAt: { type: 'string', format: 'date-time' },
         firstSeenAt: { type: 'string', format: 'date-time' },
+        observations: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              source: { type: 'string', enum: ['live_dns', 'gcd_recovered'] },
+              firstSeenAt: { type: 'string', format: 'date-time' },
+              lastSeenAt: { type: 'string', format: 'date-time' },
+            },
+            required: ['source', 'firstSeenAt', 'lastSeenAt'],
+          },
+        },
       },
-      required: ['value', 'domain', 'selector', 'lastSeenAt', 'firstSeenAt'],
+      required: [
+        'value',
+        'domain',
+        'selector',
+        'lastSeenAt',
+        'firstSeenAt',
+        'observations',
+      ],
     },
   };
+
+  const statementExample = `[
+  "eyJhbGciOiJFZERTQSIsImtpZCI6ImFyY2hpdmUtc3RhdGVtZW50LTIwMjYtMDgtMTIifQ..."
+]`;
+
+  const statementPayloadExample = `{
+  "v": 1,
+  "iss": "archive.zk.email",
+  "iat": 1789000000,
+  "record": {
+    "id": "4711",
+    "domain": "example.com",
+    "selector": "mail2026",
+    "value": "v=DKIM1; k=rsa; p=MIIB...",
+    "source": "live_dns",
+    "first_seen_at": "2026-06-01T00:00:00.000Z",
+    "last_seen_at": "2026-07-15T08:00:00.000Z"
+  }
+}`;
 
   const dkimKeysSchemaString = JSON.stringify(dkimKeysSchema, null, 2);
 
@@ -64,7 +111,7 @@ export default function ApiDocsPage() {
 
     try {
       const response = await fetch(
-        `https://archive.prove.email/api/key?domain=${encodeURIComponent(domainInput)}`
+        `https://archive.zk.email/api/key?domain=${encodeURIComponent(domainInput)}`
       );
 
       if (!response.ok) {
@@ -151,9 +198,9 @@ export default function ApiDocsPage() {
           <div className='h-px w-full border-border bg-border'></div>
           <div className='flex items-center justify-between'>
             <code className='font-mono text-sm text-secondary'>
-              https://archive.prove.email/api
+              https://archive.zk.email/api
             </code>
-            <CopyButton text='https://archive.prove.email/api' />
+            <CopyButton text='https://archive.zk.email/api' />
           </div>
         </div>
         <div className='h-px w-full border-border bg-border'></div>
@@ -356,6 +403,171 @@ export default function ApiDocsPage() {
                 <Badge variant='api'>500</Badge>
                 <span className='text-sm text-secondary'>Unexpected error</span>
               </div>
+            </div>
+          </div>
+
+          <div className='h-px w-full border-border bg-border'></div>
+
+          {/* Signed-statement Endpoint */}
+          <div className='flex w-full flex-col gap-4'>
+            <h3 className='text-base font-semibold text-secondary'>
+              Signed observation statements
+            </h3>
+
+            <div className='flex w-full flex-col gap-3 rounded-lg bg-background p-2'>
+              <div className='flex items-center gap-2'>
+                <Badge variant='api'>GET</Badge>
+                <code className='font-mono text-sm text-secondary'>
+                  /api/key/statement
+                </code>
+              </div>
+            </div>
+
+            <p className='text-sm text-secondary'>
+              Returns signed, offline-verifiable statements for one domain and
+              selector, as a JSON array of compact JWS strings. Embed them in
+              your own evidence and re-verify them later without calling this
+              service.
+            </p>
+
+            <p className='text-sm text-secondary'>
+              One statement is issued per stored key value per signable
+              observation channel, each carrying the{' '}
+              <code className='text-primary'>source</code> it came from. Bound
+              key validity on the channel you trust rather than on a blended
+              window.
+            </p>
+
+            <p className='text-sm text-secondary'>
+              Only <code className='text-primary'>live_dns</code> is signed.{' '}
+              <code className='text-primary'>gcd_recovered</code> observations
+              are not: their ingest path does not establish that the submitted
+              email is genuine. So a key known only from a submitted email
+              yields an empty array here while still appearing, unsigned, in{' '}
+              <code className='text-primary'>/api/key</code>.
+            </p>
+
+            {/* Parameters Section */}
+            <div className='flex flex-col gap-3'>
+              <h4 className='text-sm font-semibold text-primary'>Parameters</h4>
+              <div className='flex flex-col gap-2 px-4'>
+                <div className='flex items-center gap-2'>
+                  <span className='text-sm font-medium text-primary'>
+                    domain
+                  </span>
+                  <span className='text-sm text-accent-foreground-green'>
+                    string
+                  </span>
+                  (query)
+                  <Badge variant='api'>REQUIRED</Badge>
+                </div>
+                <div className='flex items-center gap-2'>
+                  <span className='text-sm font-medium text-primary'>
+                    selector
+                  </span>
+                  <span className='text-sm text-accent-foreground-green'>
+                    string
+                  </span>
+                  (query)
+                  <Badge variant='api'>REQUIRED</Badge>
+                </div>
+              </div>
+            </div>
+
+            {/* Responses Section */}
+            <div className='flex flex-col gap-4'>
+              <h4 className='text-sm font-semibold text-primary'>Responses</h4>
+
+              <div className='flex flex-col gap-3'>
+                <div className='flex items-center gap-2'>
+                  <Badge variant='api'>200</Badge>
+                  <span className='text-sm text-secondary'>
+                    Successful operation
+                  </span>
+                </div>
+                <div className='ml-8 flex flex-col gap-3'>
+                  <CodeBlock code={statementExample} title='EXAMPLE VALUE' />
+                  <div className='text-xs text-secondary'>
+                    Decoded JWS payload:
+                  </div>
+                  <CodeBlock
+                    code={statementPayloadExample}
+                    title='STATEMENT PAYLOAD'
+                  />
+                </div>
+              </div>
+
+              <div className='flex items-center gap-2'>
+                <Badge variant='api'>400</Badge>
+                <span className='text-sm text-secondary'>
+                  Missing or invalid parameter
+                </span>
+              </div>
+              <div className='flex items-center gap-2'>
+                <Badge variant='api'>429</Badge>
+                <span className='text-sm text-secondary'>
+                  Rate limit exceeded
+                </span>
+              </div>
+              <div className='flex items-center gap-2'>
+                <Badge variant='api'>503</Badge>
+                <span className='text-sm text-secondary'>
+                  Statement signing is not configured on this deployment
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className='h-px w-full border-border bg-border'></div>
+
+          {/* Verification keys */}
+          <div className='flex w-full flex-col gap-4'>
+            <h3 className='text-base font-semibold text-secondary'>
+              Statement verification keys
+            </h3>
+
+            <div className='flex w-full flex-col gap-3 rounded-lg bg-background p-2'>
+              <div className='flex items-center gap-2'>
+                <Badge variant='api'>GET</Badge>
+                <code className='font-mono text-sm text-secondary'>
+                  /.well-known/dkim-archive-jwks.json
+                </code>
+              </div>
+            </div>
+
+            <p className='text-sm text-secondary'>
+              The public keys statements are verified against, as a JWKS. Any
+              stock JOSE library can use it. Resolve the key by the{' '}
+              <code className='text-primary'>kid</code> in the JWS header, and
+              accept only <code className='text-primary'>EdDSA</code> or{' '}
+              <code className='text-primary'>ES256</code>.
+            </p>
+
+            <p className='text-sm text-secondary'>
+              The set is append-only: rotation adds a key and never removes one,
+              so statements signed by a retired key stay verifiable. It is also
+              mirrored in the repository, so you can pin it instead of fetching
+              it at verification time.
+            </p>
+
+            <div className='flex items-center justify-between rounded-lg bg-background p-4'>
+              <p className='flex-1 text-sm text-secondary'>
+                Full format specification, provenance semantics, and freshness
+                guarantees.
+              </p>
+              <Button
+                variant='default'
+                size='sm'
+                className='bg-primary text-background'
+                onClick={() =>
+                  window.open(
+                    'https://github.com/zkemail/archive/blob/main/docs/signed-observations.md',
+                    '_blank'
+                  )
+                }
+              >
+                Read the spec
+              </Button>
             </div>
           </div>
 

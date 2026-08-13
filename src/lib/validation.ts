@@ -30,6 +30,15 @@ export const dspBodySchema = z.object({
   selector: selectorSchema,
 });
 
+// Query schema for GET routes that need a specific pair rather than a whole
+// domain. /api/key/statement uses this: a statement attests one specific
+// observation, so the selector is required there even though /api/key treats
+// it as optional.
+export const dspQueryRequiredSchema = z.object({
+  domain: domainSchema,
+  selector: selectorSchema,
+});
+
 // Type exports
 export type DspQuery = z.infer<typeof dspQuerySchema>;
 export type DspBody = z.infer<typeof dspBodySchema>;

@@ -9,6 +9,7 @@ import {
 } from '@/lib/client-identity';
 import { findRecordsWithCache, type RecordWithSelector } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { observationsForRecord, toRfc3339Utc } from '@/lib/statement';
 import { addDomainSelectorPair, fetchDkimDnsRecord } from '@/lib/utilsServer';
 import { dspQuerySchema } from '@/lib/validation';
 
@@ -59,6 +60,12 @@ export async function GET(request: NextRequest) {
       firstSeenAt: record.firstSeenAt,
       lastSeenAt: record.lastSeenAt,
       value: record.value,
+      id: record.id,
+      observations: observationsForRecord(record).map((observation) => ({
+        source: observation.source,
+        firstSeenAt: toRfc3339Utc(observation.firstSeenAt),
+        lastSeenAt: toRfc3339Utc(observation.lastSeenAt),
+      })),
     }));
 
     // If selector is provided, also fetch from DNS
@@ -72,6 +79,16 @@ export async function GET(request: NextRequest) {
           firstSeenAt: record.timestamp,
           lastSeenAt: record.timestamp,
           value: record.value,
+          // No `id`: this key was just read from DNS and the archive write is
+          // still in flight below. It is a genuine live-DNS sighting though,
+          // so it carries the matching single-instant observation.
+          observations: [
+            {
+              source: 'live_dns' as const,
+              firstSeenAt: toRfc3339Utc(record.timestamp),
+              lastSeenAt: toRfc3339Utc(record.timestamp),
+            },
+          ],
         }));
 
         // Async call to add DSP to database (fire and forget)

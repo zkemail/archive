@@ -1,0 +1,4 @@
+{
+  "_note": "Verification keys for signed archive observation statements (github.com/zkemail/archive/issues/46). Served at https://archive.zk.email/.well-known/dkim-archive-jwks.json and mirrored here so consumers can pin it from git. APPEND-ONLY: rotation adds a kid and never removes one, so statements signed by a retired key stay verifiable forever. Public halves only, never a `d` member. Add a key with `pnpm statement:genkey`.",
+  "keys": []
+}
