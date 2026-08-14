@@ -9,6 +9,7 @@ import {
 } from '@/lib/api-response';
 import {
   checkClientRateLimit,
+  READ_BUDGET,
   resolveClientIdentity,
 } from '@/lib/client-identity';
 import { findRecordsWithCache } from '@/lib/db';
@@ -52,10 +53,9 @@ export async function GET(request: NextRequest) {
   const hdrs = await headers();
   const identity = await resolveClientIdentity(hdrs);
 
-  try {
-    await checkClientRateLimit(identity);
-  } catch {
-    return rateLimited();
+  const limit = await checkClientRateLimit(identity, READ_BUDGET);
+  if (!limit.allowed) {
+    return rateLimited(limit);
   }
 
   const params = Object.fromEntries(request.nextUrl.searchParams.entries());
