@@ -7,7 +7,6 @@ import { SetStateAction, useEffect, useState } from 'react';
 
 import { DomainSearchInput } from '@/components/DomainSearchInput';
 import { AnimatedNumber } from '@/components/ui/animated-number';
-import { analytics } from '@/lib/analytics';
 import { type ArchiveStats } from '@/lib/db';
 
 interface HomeClientProps {
@@ -27,7 +26,6 @@ export default function HomeClient({ stats }: HomeClientProps) {
   const handleSearch = (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return;
-    analytics.capture('search', { query: trimmed, source: 'homepage' });
     setIsNavigating(true);
     window.location.href = `/search?q=${encodeURIComponent(trimmed)}`;
   };

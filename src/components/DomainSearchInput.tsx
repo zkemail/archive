@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { autocomplete } from '@/app/actions';
 import { Input } from '@/components/ui/input';
-import { analytics } from '@/lib/analytics';
 
 // Hard cap on each autocomplete request so a hung server action can't
 // permanently stall the in-flight ref (and therefore the dropdown).
@@ -198,7 +197,6 @@ export function DomainSearchInput({
     setSearchValue(suggestion);
     setSuggestions([]);
     commit(suggestion);
-    analytics.capture('autocomplete_selected', { domain: suggestion });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
