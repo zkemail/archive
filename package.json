@@ -63,7 +63,6 @@
     "pg": "^8.16.3",
     "postcss": "^8.5.6",
     "posthog-js": "^1.299.0",
-    "posthog-node": "^5.17.0",
     "rate-limiter-flexible": "^9.0.0",
     "react": "^19.2.0",
     "react-day-picker": "^9.11.3",
