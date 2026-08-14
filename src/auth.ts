@@ -1,6 +1,8 @@
 import NextAuth from 'next-auth';
 import Google from 'next-auth/providers/google';
 
+import { logger } from '@/lib/logger';
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     Google({
@@ -62,7 +64,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             scope: tokens.scope ?? token.scope,
           };
         } catch (error) {
-          console.error('Error refreshing token:', error);
+          logger.error('google_token_refresh_failed', {
+            error: error instanceof Error ? error.message : String(error),
+          });
           return { ...token, error: 'RefreshTokenError' };
         }
       }

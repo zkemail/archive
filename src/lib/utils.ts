@@ -5,6 +5,8 @@ import { twMerge } from 'tailwind-merge';
 
 import type { KeyType } from '@/generated/prisma/client';
 
+import { logger } from './logger';
+
 // Regex to extract DKIM-Signature header blocks
 export const DKIM_HEADER_REGEX = /^DKIM-Signature:\s*(.+?)(?=\r?\n[^ \t])/gims;
 
@@ -209,7 +211,9 @@ export async function fetchJsonWebKeySet(): Promise<string> {
     const jsonWebKeySet = JSON.stringify(jsonData, null, 2);
     return jsonWebKeySet;
   } catch (error) {
-    console.error('Error fetching JSON Web Key Set:', error);
+    logger.error('google_jwks_fetch_failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return '';
   }
 }
@@ -224,7 +228,9 @@ export async function fetchx509Cert(): Promise<string> {
     const x509Cert = JSON.stringify(jsonData, Object.keys(jsonData).sort(), 2);
     return x509Cert;
   } catch (error) {
-    console.error('Error fetching X.509 certificate:', error);
+    logger.error('google_x509_fetch_failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return '';
   }
 }
