@@ -58,7 +58,6 @@ These instructions will guide you through setting up the project on your local m
      `POST /api/stats` endpoints.
    - `GOOGLE_CLOUD_*`, `CLOUD_TASKS_QUEUE_NAME`, `CLOUD_FUNCTION_URL`,
      `TASKS_SERVICE_ACCOUNT_EMAIL`: the GCD key-recovery pipeline.
-   - `NEXT_PUBLIC_POSTHOG_*`: analytics.
 
 4. **Run Prisma migrations** to initialize your database schema:
 

@@ -13,7 +13,6 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
-import { analytics } from '@/lib/analytics';
 import { dspSourceIdentifierToHumanReadable, formatDate } from '@/lib/utils';
 
 import { Badge } from '../../components/ui/badge';
@@ -70,9 +69,6 @@ const SelectorDetails = ({ data }: SelectorDetailsProps) => {
       ...prev,
       [itemId]: !prev[itemId],
     }));
-    if (isOpening) {
-      analytics.capture('selector_expanded', { domain, selector });
-    }
   };
 
   const scrollToDomain = (domain: string) => {

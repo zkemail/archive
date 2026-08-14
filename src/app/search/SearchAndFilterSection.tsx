@@ -8,7 +8,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { analytics } from '@/lib/analytics';
 
 import Calendar from './Calendar';
 
@@ -38,29 +37,16 @@ export function SearchAndFilterSection({
   const handleFilterChange = (value: string) => {
     setFilterValue(value);
     onFilterChange?.(value);
-    analytics.capture('filter_applied', { filterType: 'status', value });
   };
 
   const handleFromDateChange = (date: Date | undefined) => {
     setFromDate(date);
     onDateRangeChange?.(date, toDate);
-    if (date) {
-      analytics.capture('filter_applied', {
-        filterType: 'fromDate',
-        value: date.toISOString(),
-      });
-    }
   };
 
   const handleToDateChange = (date: Date | undefined) => {
     setToDate(date);
     onDateRangeChange?.(fromDate, date);
-    if (date) {
-      analytics.capture('filter_applied', {
-        filterType: 'toDate',
-        value: date.toISOString(),
-      });
-    }
   };
 
   return (

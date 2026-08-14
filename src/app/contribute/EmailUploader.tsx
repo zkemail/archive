@@ -31,7 +31,6 @@ import {
 } from '@/components/ui/tooltip';
 import { RawEmailResponse } from '@/hooks/useGmailClient';
 import { fetchEmailList, fetchEmailsRaw } from '@/hooks/useGmailClient';
-import { analytics } from '@/lib/analytics';
 import {
   type DomainSelectorPair,
   getFileContent,
@@ -209,8 +208,6 @@ const EmailUploader = ({
   };
 
   const handleStartUpload = () => {
-    analytics.capture('email_process_start', { source: 'gmail' });
-
     // Validate date range
     if (startDate && endDate && endDate < startDate) {
       setUploadError('End date must be after start date');
@@ -374,7 +371,6 @@ const EmailUploader = ({
   const handleProcessFile = async () => {
     if (!file || !uploadMode) return;
 
-    analytics.capture('file_process_start', { source: uploadMode });
     setUploadStarted(true);
     setIsProcessingEmails(true);
     setIsDataFetching(true);
@@ -441,10 +437,6 @@ const EmailUploader = ({
       return;
     }
     setUploadError(null);
-    analytics.capture('file_upload_start', {
-      fileType: selected.name.split('.').pop(),
-      mode,
-    });
     setFile(selected);
     setUploadMode(mode);
   };
@@ -494,7 +486,6 @@ const EmailUploader = ({
         <div className='flex flex-row justify-center gap-2'>
           <Button
             onClick={() => {
-              analytics.capture('gmail_connect');
               setIsFetchEmailLoading(true);
               setFile(null);
               setUploadMode(null);
