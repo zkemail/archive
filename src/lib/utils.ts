@@ -295,7 +295,12 @@ export function keySourceIdentifierToHumanReadable(
 }
 
 // Note: This follows RFC 5322 for parsing the Email header, it keeps the white spaces and CRLF for simple/relaxed canonicalization
-export function parseEmailHeader(rawEmail: { toString: () => string }) {
+/** A `[name, value]` email header pair, as produced by header parsing. */
+export type HeaderPair = [string, string];
+
+export function parseEmailHeader(rawEmail: {
+  toString: () => string;
+}): HeaderPair[] {
   const emailContent =
     typeof rawEmail === 'string' ? rawEmail : rawEmail.toString();
 
@@ -329,7 +334,7 @@ export function parseEmailHeader(rawEmail: { toString: () => string }) {
   }
 
   // Parse each header line into [name, value] pairs
-  const headers: [string, string][] = [];
+  const headers: HeaderPair[] = [];
 
   for (const headerLine of headerLines) {
     const colonIndex = headerLine.indexOf(':');

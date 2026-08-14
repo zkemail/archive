@@ -8,7 +8,7 @@ export interface GcdCalculationPayload {
   em1: string | number;
   em2: string | number;
   taskId?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export async function createGcdCalculationTask(payload: GcdCalculationPayload) {

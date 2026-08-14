@@ -8,6 +8,7 @@ import {
   GcdCalculationPayload,
 } from './calculateGcdTask';
 import { logger } from './logger';
+import type { HeaderPair } from './utils';
 import {
   AddResult,
   canonicalizeHeaders,
@@ -24,7 +25,7 @@ const CANON_INFO_VERSION = '@zk-email/helpers@6.3.3';
 export type ProcessResult = ReturnType<typeof processAndStoreEmailSignature>;
 
 export async function processAndStoreEmailSignature(
-  headerStrings: string[][],
+  headerStrings: HeaderPair[],
   dkimSignature: string,
   tags: Record<string, string>,
   timestamp: Date | null,
