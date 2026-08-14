@@ -24,7 +24,7 @@ interface ProcessedLogsProps {
   onClearLog?: () => void;
 }
 
-const LogItem = ({ item }: any) => {
+const LogItem = ({ item }: { item: LogResultItem }) => {
   const formatDate = (timestamp: string | number | Date) => {
     const date = new Date(timestamp);
     return date.toLocaleDateString('en-GB', {
@@ -34,13 +34,13 @@ const LogItem = ({ item }: any) => {
     });
   };
 
-  const getBadgeVariant = (item: { isAdded: any; isUpdated: any }) => {
+  const getBadgeVariant = (item: LogResultItem) => {
     if (item.isAdded) return 'active';
     if (item.isUpdated) return 'updated';
     return 'present';
   };
 
-  const getBadgeText = (item: { isAdded: any; isUpdated: any }) => {
+  const getBadgeText = (item: LogResultItem) => {
     if (item.isAdded) return 'Added';
     if (item.isUpdated) return 'Updated';
     return 'Present';

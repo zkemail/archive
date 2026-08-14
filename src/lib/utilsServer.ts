@@ -12,6 +12,7 @@ import { logger } from './logger';
 import {
   type DnsDkimFetchResult,
   type DspSourceIdentifier,
+  type HeaderPair,
   kValueToKeyType,
   parseDkimTagList,
 } from './utils';
@@ -280,7 +281,7 @@ export async function fetchAndStoreDkimDnsRecord(dsp: DomainSelectorPair) {
   }
 }
 
-export function pubKeyLength(signature: any) {
+export function pubKeyLength(signature: string | null | undefined) {
   const minBytes = Buffer.from(signature || '', 'base64').length;
   const candidates = [128, 256, 512, 1024];
   for (const candidate of candidates) {
@@ -364,10 +365,10 @@ export function parseDkimSignature(dkimHeader: string): [[string, string]] {
 // the selected signed header is selectd according to rfc:-
 // RFC 6376 - https://datatracker.ietf.org/doc/html/rfc6376#section-5.4.2
 export function selectSignedHeadersNew(
-  allHeaders: string[][],
+  allHeaders: HeaderPair[],
   wantedHeaders: string[]
-): string[][] {
-  const signHeaders: string[][] = [];
+): HeaderPair[] {
+  const signHeaders: HeaderPair[] = [];
   const lastIndex: Record<string, number> = {};
 
   // Process each wanted header in order
@@ -399,7 +400,10 @@ export function selectSignedHeadersNew(
  * Supports both "simple" and "relaxed" canonicalization algorithms
  * for email headers used in DKIM email signatures.
  */
-export function canonicalizeHeaders(headers: any, algorithm: string) {
+export function canonicalizeHeaders(
+  headers: HeaderPair[],
+  algorithm: string
+): HeaderPair[] {
   if (algorithm === 'simple') {
     return canonicalizeHeadersSimple(headers);
   } else if (algorithm === 'relaxed') {
@@ -409,14 +413,14 @@ export function canonicalizeHeaders(headers: any, algorithm: string) {
   }
 }
 
-function canonicalizeHeadersSimple(headers: [any, any][]) {
+function canonicalizeHeadersSimple(headers: HeaderPair[]): HeaderPair[] {
   // RFC 6376: Simple canonicalization makes no changes to headers
-  return headers.map(([name, value]) => [name, value]);
+  return headers.map(([name, value]): HeaderPair => [name, value]);
 }
 
 // RFC 6376: relaxed canonicalization
-function canonicalizeHeadersRelaxed(headers: [any, any][]) {
-  return headers.map(([name, value]) => {
+function canonicalizeHeadersRelaxed(headers: HeaderPair[]): HeaderPair[] {
+  return headers.map(([name, value]): HeaderPair => {
     // 1. Convert header field names to lowercase
     const lowerName = name.toLowerCase().trim();
 
@@ -446,8 +450,8 @@ function unfoldHeaderValue(content: string) {
 // This computes a cryptographic hash of email headers using either "simple" or "relaxed" DKIM canonicalization methods.
 export function computeCanonicalizedHeaderHash(
   hash: crypto.Hash,
-  headers: Array<Array<any>>,
-  sigHdr: Array<Array<any>>,
+  headers: HeaderPair[],
+  sigHdr: HeaderPair[],
   canon: string
 ) {
   for (const hdr of headers) {
