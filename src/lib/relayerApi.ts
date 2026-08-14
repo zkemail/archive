@@ -1,6 +1,8 @@
 import * as relayerUtils from '@zk-email/relayer-utils';
 import { NextApiRequest, NextApiResponse } from 'next';
 
+import { logger } from './logger';
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -21,7 +23,9 @@ export default async function handler(
 
     res.status(200).json(accountCode);
   } catch (error) {
-    console.error('Error generating circuit inputs:', error);
+    logger.error('circuit_input_generation_failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     res.status(500).json({ error: 'Failed to generate inputs' });
   }
 }

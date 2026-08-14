@@ -1,3 +1,9 @@
+/* eslint-disable no-console --
+ * This module is the console sink. The rule exists to catch stray debugging
+ * statements elsewhere, and it should keep doing that, so it is disabled here
+ * rather than relaxed globally. Everything else calls this logger.
+ */
+
 const isDev = process.env.NODE_ENV === 'development';
 
 type LogProperties = Record<string, unknown>;
