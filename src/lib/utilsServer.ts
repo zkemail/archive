@@ -302,37 +302,24 @@ export function pubKeyLength(signature: any) {
  * and the `x-forwarded-for` fallback reads the entry contributed by the nearest
  * infrastructure rather than the first one in the list. See REG-748 for the
  * rationale.
+ *
+ * Confirmed in production: `cf-connecting-ip` is present and is what resolves,
+ * so the fallbacks below are for local development and any path that does not
+ * traverse the edge.
  */
-// One-shot, so the first request after a deploy records which header the
-// resolution actually came from without logging on every request. Confirms the
-// deployed environment matches what this function expects; remove once
-// confirmed (REG-748).
-let clientIpSourceLogged = false;
-
-function noteClientIpSource(source: string, value: string) {
-  if (clientIpSourceLogged) return;
-  clientIpSourceLogged = true;
-  console.log(
-    `[getClientIp] resolved via ${source} -> ${value} (one-shot diagnostic, REG-748)`
-  );
-}
-
 export function getClientIp(headers: ReadonlyHeaders): string {
   const cfConnectingIp = headers.get('cf-connecting-ip');
   if (cfConnectingIp?.trim()) {
-    noteClientIpSource('cf-connecting-ip', cfConnectingIp.trim());
     return cfConnectingIp.trim();
   }
 
   const trueClientIp = headers.get('true-client-ip');
   if (trueClientIp?.trim()) {
-    noteClientIpSource('true-client-ip', trueClientIp.trim());
     return trueClientIp.trim();
   }
 
   const realIp = headers.get('x-real-ip');
   if (realIp?.trim()) {
-    noteClientIpSource('x-real-ip', realIp.trim());
     return realIp.trim();
   }
 
@@ -343,16 +330,11 @@ export function getClientIp(headers: ReadonlyHeaders): string {
       .map((hop) => hop.trim())
       .filter(Boolean);
     if (hops.length > 0) {
-      noteClientIpSource(
-        `x-forwarded-for[${hops.length - 1}] of ${hops.length}`,
-        hops[hops.length - 1]
-      );
       return hops[hops.length - 1];
     }
   }
 
   // No usable header. Shared bucket rather than failing open.
-  noteClientIpSource('none', 'unknown-ip');
   return 'unknown-ip';
 }
 
