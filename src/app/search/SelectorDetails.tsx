@@ -59,12 +59,7 @@ const SelectorDetails = ({ data }: SelectorDetailsProps) => {
     </div>
   );
 
-  const toggleAccordion = (
-    itemId: string,
-    domain: string,
-    selector: string
-  ) => {
-    const isOpening = !openItems[itemId];
+  const toggleAccordion = (itemId: string) => {
     setOpenItems((prev) => ({
       ...prev,
       [itemId]: !prev[itemId],
@@ -250,9 +245,7 @@ const SelectorDetails = ({ data }: SelectorDetailsProps) => {
                       ? `selector-detail-${item.id}`
                       : ''
                   }
-                  onValueChange={() =>
-                    toggleAccordion(String(item.id), domain, item.selector)
-                  }
+                  onValueChange={() => toggleAccordion(String(item.id))}
                 >
                   <AccordionItem value={`selector-detail-${item.id}`}>
                     <AccordionTrigger className='p-4 font-normal tracking-tight text-secondary hover:no-underline'>
