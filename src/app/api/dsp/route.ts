@@ -9,6 +9,7 @@ import {
 } from '@/lib/api-response';
 import {
   checkClientRateLimit,
+  CONTRIBUTE_BUDGET,
   resolveClientIdentity,
 } from '@/lib/client-identity';
 import { logger } from '@/lib/logger';
@@ -24,10 +25,9 @@ export async function POST(request: NextRequest) {
   const hdrs = await headers();
   const identity = await resolveClientIdentity(hdrs);
 
-  try {
-    await checkClientRateLimit(identity);
-  } catch {
-    return rateLimited();
+  const limit = await checkClientRateLimit(identity, CONTRIBUTE_BUDGET);
+  if (!limit.allowed) {
+    return rateLimited(limit);
   }
 
   let body: unknown;

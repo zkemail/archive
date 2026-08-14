@@ -4,7 +4,6 @@ import { domainToUnicode } from 'node:url';
 import * as crypto from 'crypto';
 import dns from 'dns';
 import type { ReadonlyHeaders } from 'next/dist/server/web/spec-extension/adapters/headers';
-import type { RateLimiterMemory } from 'rate-limiter-flexible';
 
 import type { DomainSelectorPair, KeyType } from '@/generated/prisma/client';
 
@@ -296,28 +295,65 @@ export function pubKeyLength(signature: any) {
 // Rate Limiting Helper
 // ═══════════════════════════════════════════════════════════════════════════
 
+/**
+ * The caller's IP, resolved from the headers our edge provides.
+ *
+ * Order matters: the headers set by the edge on every request are preferred,
+ * and the `x-forwarded-for` fallback reads the entry contributed by the nearest
+ * infrastructure rather than the first one in the list. See REG-748 for the
+ * rationale.
+ */
+// One-shot, so the first request after a deploy records which header the
+// resolution actually came from without logging on every request. Confirms the
+// deployed environment matches what this function expects; remove once
+// confirmed (REG-748).
+let clientIpSourceLogged = false;
+
+function noteClientIpSource(source: string, value: string) {
+  if (clientIpSourceLogged) return;
+  clientIpSourceLogged = true;
+  console.log(
+    `[getClientIp] resolved via ${source} -> ${value} (one-shot diagnostic, REG-748)`
+  );
+}
+
 export function getClientIp(headers: ReadonlyHeaders): string {
-  const forwardedFor = headers.get('x-forwarded-for');
-  if (forwardedFor) {
-    return forwardedFor.split(',')[0].trim();
+  const cfConnectingIp = headers.get('cf-connecting-ip');
+  if (cfConnectingIp?.trim()) {
+    noteClientIpSource('cf-connecting-ip', cfConnectingIp.trim());
+    return cfConnectingIp.trim();
+  }
+
+  const trueClientIp = headers.get('true-client-ip');
+  if (trueClientIp?.trim()) {
+    noteClientIpSource('true-client-ip', trueClientIp.trim());
+    return trueClientIp.trim();
   }
 
   const realIp = headers.get('x-real-ip');
-  if (realIp) {
+  if (realIp?.trim()) {
+    noteClientIpSource('x-real-ip', realIp.trim());
     return realIp.trim();
   }
 
-  // Fallback: use a global key to still enforce rate limiting
-  return 'unknown-ip';
-}
+  const forwardedFor = headers.get('x-forwarded-for');
+  if (forwardedFor) {
+    const hops = forwardedFor
+      .split(',')
+      .map((hop) => hop.trim())
+      .filter(Boolean);
+    if (hops.length > 0) {
+      noteClientIpSource(
+        `x-forwarded-for[${hops.length - 1}] of ${hops.length}`,
+        hops[hops.length - 1]
+      );
+      return hops[hops.length - 1];
+    }
+  }
 
-export async function checkRateLimiter(
-  rateLimiter: RateLimiterMemory,
-  headers: ReadonlyHeaders,
-  consumePoints: number
-) {
-  const clientIp = getClientIp(headers);
-  await rateLimiter.consume(clientIp, consumePoints);
+  // No usable header. Shared bucket rather than failing open.
+  noteClientIpSource('none', 'unknown-ip');
+  return 'unknown-ip';
 }
 
 // Function to parse DKIM header into [[header_name, header_value]] format

@@ -1,24 +1,67 @@
 import crypto from 'crypto';
 import { LRUCache } from 'lru-cache';
 import type { ReadonlyHeaders } from 'next/dist/server/web/spec-extension/adapters/headers';
-import { RateLimiterMemory } from 'rate-limiter-flexible';
+import { RateLimiterMemory, type RateLimiterRes } from 'rate-limiter-flexible';
 
 import type { ApiKey } from '@/generated/prisma/client';
 
 import { prisma } from './db';
 import { getClientIp } from './utilsServer';
 
-// ─── Constants ───────────────────────────────────────────────────────────────
+// ─── Budgets ─────────────────────────────────────────────────────────────────
 
-const DEFAULT_RATE_LIMIT = 100; // req/sec for anonymous origin / IP callers
+/** A points-per-window allowance. Routes pick one; see REG-748. */
+export type RateBudget = { points: number; durationSeconds: number };
+
+/** Reads. Deliberately tight; the previous allowance was 100 req/sec. */
+export const READ_BUDGET: RateBudget = { points: 10, durationSeconds: 60 };
+
+/**
+ * Contribution. `submitPairs` in the contribute page issues one sequential
+ * POST /api/dsp per extracted domain/selector pair, and a mailbox upload
+ * routinely yields hundreds, so this cannot share the read budget.
+ *
+ * The number is set from measurement, not taste. Against the production
+ * database, /api/dsp settles at ~0.146s per call once warm, so a sequential
+ * client achieves ~410 req/min, and production will be faster still because the
+ * app sits closer to the database than a laptop does. A 300/min budget (the
+ * first value tried) failed a legitimate upload after ~44 seconds. This leaves
+ * roughly 3x headroom over the measured ceiling while still cutting the old
+ * 100 req/sec allowance by 5x.
+ *
+ * Lowering this is a follow-up: batching the uploader into one request instead
+ * of N would remove the need for a large budget entirely.
+ */
+export const CONTRIBUTE_BUDGET: RateBudget = {
+  points: 1200,
+  durationSeconds: 60,
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type ClientIdentity = {
   type: 'api_key' | 'origin' | 'ip';
-  identifier: string; // key name, origin string, or IP
-  rateLimit: number; // req/sec for this client
+  /** Human-facing label: key name, origin string, or IP. Used for logging. */
+  identifier: string;
+  /**
+   * What the rate limiter counts against. For anonymous callers this is the
+   * client IP rather than the origin, so that one busy caller cannot consume
+   * the allowance belonging to everyone else on the same site. `identifier`
+   * still records the origin, which is useful for logging.
+   */
+  rateLimitKey: string;
+  /** req/sec, api_key callers only. Absent means "use the route's budget". */
+  apiKeyRateLimit?: number;
 };
+
+export type RateLimitResult =
+  | { allowed: true }
+  | {
+      allowed: false;
+      limit: number;
+      windowSeconds: number;
+      retryAfterSeconds: number;
+    };
 
 // ─── API Key Cache ────────────────────────────────────────────────────────────
 
@@ -55,20 +98,38 @@ async function lookupApiKey(rawKey: string): Promise<ApiKey | null> {
   return record;
 }
 
-// ─── Per-Client Rate Limiters ─────────────────────────────────────────────────
+// ─── Rate Limiters ────────────────────────────────────────────────────────────
 
-const clientLimiters = new Map<string, RateLimiterMemory>();
+// One limiter per budget, each holding many client keys internally with
+// automatic expiry. Replaces a per-client Map that was both redundant and
+// unbounded (REG-748).
+const limitersByBudget = new Map<RateBudget, RateLimiterMemory>();
 
-function getLimiter(clientId: string, rateLimit: number): RateLimiterMemory {
-  const existing = clientLimiters.get(clientId);
+function limiterForBudget(budget: RateBudget): RateLimiterMemory {
+  const existing = limitersByBudget.get(budget);
+  if (existing) return existing;
+
+  const limiter = new RateLimiterMemory({
+    points: budget.points,
+    duration: budget.durationSeconds,
+  });
+  limitersByBudget.set(budget, limiter);
+  return limiter;
+}
+
+// API keys carry their own per-second rate, so they cannot share a limiter.
+// Bounded, mirroring apiKeyCache above.
+const apiKeyLimiters = new LRUCache<string, RateLimiterMemory>({ max: 200 });
+
+function limiterForApiKey(name: string, rateLimit: number): RateLimiterMemory {
+  const existing = apiKeyLimiters.get(name);
   if (existing) return existing;
 
   const limiter = new RateLimiterMemory({
     points: rateLimit,
-    duration: 1, // per second
-    keyPrefix: clientId,
+    duration: 1, // per second, unchanged from the original semantics
   });
-  clientLimiters.set(clientId, limiter);
+  apiKeyLimiters.set(name, limiter);
   return limiter;
 }
 
@@ -108,38 +169,61 @@ export async function resolveClientIdentity(
       return {
         type: 'api_key',
         identifier: record.name,
-        rateLimit: record.rateLimit,
+        rateLimitKey: `key:${record.name}`,
+        apiKeyRateLimit: record.rateLimit,
       };
     }
     // Invalid key: fall through to origin / IP
   }
 
-  // 2. Origin header
-  const origin = extractOrigin(headers);
-  if (origin) {
-    return {
-      type: 'origin',
-      identifier: origin,
-      rateLimit: DEFAULT_RATE_LIMIT,
-    };
-  }
-
-  // 3. IP fallback
+  // 2 & 3. Anonymous. See ClientIdentity.rateLimitKey for what is counted.
   const ip = getClientIp(headers);
-  return {
-    type: 'ip',
-    identifier: ip,
-    rateLimit: DEFAULT_RATE_LIMIT,
-  };
+  const origin = extractOrigin(headers);
+
+  return origin
+    ? { type: 'origin', identifier: origin, rateLimitKey: ip }
+    : { type: 'ip', identifier: ip, rateLimitKey: ip };
 }
 
 /**
- * Consumes 1 point from this client's per-client rate limiter.
- * Throws RateLimiterRes if the limit is exceeded.
+ * Consumes one point against this client's budget.
+ *
+ * An api_key caller uses its own configured req/sec and ignores `budget`.
+ * Everyone else is counted per IP against the route's budget.
+ *
+ * Returns a decision rather than throwing: being rate limited is an expected
+ * outcome, and the caller needs the numbers to build a useful 429.
  */
 export async function checkClientRateLimit(
-  identity: ClientIdentity
-): Promise<void> {
-  const limiter = getLimiter(identity.identifier, identity.rateLimit);
-  await limiter.consume(identity.identifier, 1);
+  identity: ClientIdentity,
+  budget: RateBudget
+): Promise<RateLimitResult> {
+  const isApiKey =
+    identity.type === 'api_key' && identity.apiKeyRateLimit !== undefined;
+
+  const effective: RateBudget = isApiKey
+    ? { points: identity.apiKeyRateLimit!, durationSeconds: 1 }
+    : budget;
+
+  const limiter = isApiKey
+    ? limiterForApiKey(identity.identifier, identity.apiKeyRateLimit!)
+    : limiterForBudget(budget);
+
+  try {
+    await limiter.consume(identity.rateLimitKey, 1);
+    return { allowed: true };
+  } catch (rejection) {
+    // rate-limiter-flexible rejects with a RateLimiterRes when the limit is
+    // hit, and with a real Error only when the store itself failed. Do not
+    // swallow the latter as a 429.
+    if (rejection instanceof Error) throw rejection;
+
+    const msBeforeNext = (rejection as RateLimiterRes)?.msBeforeNext ?? 0;
+    return {
+      allowed: false,
+      limit: effective.points,
+      windowSeconds: effective.durationSeconds,
+      retryAfterSeconds: Math.max(1, Math.ceil(msBeforeNext / 1000)),
+    };
+  }
 }
