@@ -1,0 +1,13 @@
+{
+  "name": "archive-ingestion-audit",
+  "private": true,
+  "scripts": {
+    "test": "node --test audit.test.cjs",
+    "invariants": "AUDIT_EXPECT_FIXED=1 node --test audit.test.cjs",
+    "debug": "AUDIT_DEBUG=1 node --test --test-name-pattern='queue failure|failed message|listing failure' audit.test.cjs"
+  },
+  "dependencies": {
+    "typescript": "5.9.3",
+    "zod": "4.2.1"
+  }
+}
