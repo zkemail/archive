@@ -305,8 +305,14 @@ export function parseEmailHeader(rawEmail: {
     typeof rawEmail === 'string' ? rawEmail : rawEmail.toString();
 
   // Split email into headers and body at first blank line
-  const headerBodySplit = emailContent.split(/\r?\n\r?\n/);
-  const headerSection = headerBodySplit[0];
+  const separator = /\r?\n\r?\n/.exec(emailContent);
+  // Keep the last header's line ending for DKIM simple canonicalization.
+  const headerSection = separator
+    ? emailContent.slice(
+        0,
+        separator.index + (separator[0].startsWith('\r') ? 2 : 1)
+      )
+    : emailContent;
 
   // Split headers by lines, but handle folded headers (RFC 5322)
   const headerLines: string[] = [];
@@ -351,13 +357,14 @@ export function parseEmailHeader(rawEmail: {
 // Extract all DKIM-Signature blocks and return [rawHeader].
 // Note: Multiple signatures may exist and can share the same {domain, selector}.
 export function getDkimSigsArray(rawEmail: string): string[] {
-  const blocks: string[] = [];
-  let match: RegExpExecArray | null;
-  while ((match = DKIM_HEADER_REGEX.exec(rawEmail))) {
-    const rawHeader = match[0];
-    blocks.push(rawHeader);
-  }
-  return blocks;
+  return (
+    parseEmailHeader(rawEmail)
+      .filter(([name]) => name.toLowerCase() === 'dkim-signature')
+      // The signature header's final CRLF is excluded from the signed input.
+      // Parsing headers also handles a last-position signature without scanning
+      // the message body for unrelated DKIM-looking text.
+      .map(([name, value]) => `${name}:${value.replace(/\r?\n$/, '')}`)
+  );
 }
 
 export function parseDkimTagListV2(rawHeader: string): Record<string, string> {
@@ -419,6 +426,33 @@ export function splitMboxMessages(content: string): string[] {
   // No mbox separators present at all → treat the whole file as one
   // message (covers raw .eml uploads).
   return messages.length > 0 ? messages : [normalised.trim()].filter(Boolean);
+}
+
+// Evidence uploads preserve header bytes and every signature, including
+// rotations under the same domain/selector. Bodies never leave the browser.
+export function parseMailboxEvidence(content: string) {
+  const messages = content
+    .split(/(?:^|\r?\n)From [^\r\n]*\r?\n/)
+    .filter((m) => m.trim());
+  return messages
+    .filter((message) => getDkimSigsArray(message).length > 0)
+    .map((message) => {
+      const separator = /\r?\n\r?\n/.exec(message);
+      const headers = separator
+        ? message.slice(
+            0,
+            separator.index + (separator[0].startsWith('\r') ? 2 : 1)
+          )
+        : message;
+      const dateValue = parseEmailHeader(headers).find(
+        ([name]) => name.toLowerCase() === 'date'
+      )?.[1];
+      const date = dateValue ? new Date(dateValue) : null;
+      return {
+        headers,
+        timestamp: date && !isNaN(date.getTime()) ? date.toISOString() : null,
+      };
+    });
 }
 
 // Walk an mbox/.eml file, extract every DKIM-Signature, and return the

@@ -1,4 +1,22 @@
-# Concrete ingestion audit and surgical fix proposals
+# Ingestion fix and historical reproduction audit
+
+## Implemented October 13
+
+The confirmed failure paths are fixed in the application source. Gmail and
+mailbox files share per-signature ingestion; optional DNS/recovery failures do
+not abort archival storage; partial pages are visible and retryable; listing
+errors retain their failure status and cursor. Mailbox submissions send headers
+only and preserve signatures across rotations of the same selector. TSV remains
+selector discovery and now stops on failed HTTP responses with retry support.
+
+Regression coverage includes simple canonicalization's final header line
+ending, no body transmission, partial-page retries without duplicate rows,
+and contribution rate limiting. Type checking and the production build passed
+locally; production deployment is a separate state.
+
+The remainder is the **October 11 pre-fix audit**, retained with its original
+observations and limitations. Statements below about unimplemented proposals
+refer to that historical checkpoint.
 
 All three previously claimed Gmail failure paths are reproduced against
 unchanged application source. There are 12 passing reproduction/control tests.

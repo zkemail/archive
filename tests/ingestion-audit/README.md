@@ -1,46 +1,32 @@
-# Inbox ingestion reproduction audit
+# Inbox ingestion regression tests
 
-These tests reproduce existing behavior; they do not patch the application.
+These tests execute the actual ingestion implementation with controlled Gmail,
+DNS, Cloud Tasks and database boundaries. They cover missing-key storage,
+duplicate scans, independent signatures, visible partial-page failures,
+pagination retries, header-only mailbox evidence, rate limits and byte-preserving
+canonicalization.
+
+Run without production credentials or generated Prisma files:
 
 ```sh
 cd tests/ingestion-audit
 npm ci --ignore-scripts
 npm test
-npm run debug
-npm run invariants
 ```
 
-`npm test` asserts the observed pre-fix behavior and the positive controls.
-`npm run invariants` asserts the desired behavior for the five failing
-scenarios. On the audited source, it deliberately fails five tests. A passing
-reproduction suite is **not** evidence that the application has been fixed.
+The suite runs in the ingestion CI job on non-draft PRs and default-branch pushes.
+The CI workflow includes ready_for_review, and skips draft PR updates.
 
-The harness compiles and executes the actual Gmail route, signature storage,
-canonicalization, DNS-discovery and GCD task-creation modules. It also executes
-the actual client fetch and file-submit closures selected by TypeScript AST,
-without rewriting their bodies. It mocks Gmail/DNS/Cloud Tasks SDK boundaries,
-database calls, auth, Next response/headers boundaries, React setters and timers.
-It does not render React or run a real Gmail/Render/PostgreSQL session.
+The original audit and debugger observations remain in REPORT.md and
+reproduction.log/debugger.log. Five desired-behavior checks failed on the
+pre-fix implementation (pre-fix.log). post-fix.log records the fixed suite.
+Historical logs are evidence of earlier revisions, not current expectations.
 
-All messages are synthetic. RSA signatures are generated with ephemeral keys;
-positive controls decrypt each stored signature's PKCS#1 block with its public
-key and check that its digest matches the stored hash. No credentials or real
-mailbox contents are needed. Dependencies are pinned and locked independently
-of production dependencies.
+The harness compiles complete server modules and selects actual client closures
+by TypeScript AST without rewriting their bodies. It mocks external provider,
+auth, Next response/headers, React setter and timer boundaries. RSA signatures
+are synthetic and valid; controls compare their decrypted PKCS#1 digest blocks
+with the saved header hashes. It does not prove production upload completeness,
+actual PostgreSQL durability, or browser rendering.
 
-Node used for the audit: 26.11.1. Audited integration revision:
-`172218814d5ed608b41c35d6380907f11ab37a68`. The ingestion files are byte-identical
-to production/main revision `aeff0fa5002d0e3b5f51d3edb54ec8c15cc575a0`.
-Each run prints SHA-256 hashes of the relevant source files.
-
-See [findings and proposals](REPORT.md), [reproduction output](reproduction.log),
-[debugger observations](debugger.log), and [failing desired invariants](invariants-before.log).
-The same results were reproduced from a clean `git archive` with `npm ci`:
-[clean reproduction](clean-reproduction.log) and
-[clean failing invariants](clean-invariants-before.log).
-
-No CI workflow has been changed because this request is to verify bugs and
-propose fixes. When implementing the fixes, run the fixed-expectations mode in
-the repository's non-draft PR CI; preserve the successful-storage/duplicate/
-pagination controls. The current reproduction assertions will need to be
-converted to the corrected expectations rather than left as bug expectations.
+Dependencies are pinned and locked. No raw real emails or credentials are used.

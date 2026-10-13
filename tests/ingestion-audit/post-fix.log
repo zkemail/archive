@@ -1,0 +1,35 @@
+SOURCE_HASHES {"src/app/api/gmail/route.ts":"3fb863b16261c89fc8de213e1b8122ee44f6218a3584e9376427199a0df2a9e3","src/app/api/email/route.ts":"3a4b9afeafebbebc584400825163e806177f437cf5759e5c5c5b84ef2172ee25","src/lib/ingestEmail.ts":"62e46da5fec795d1fa755871871c926c96e205c3eb30b18a7593a7b141e6dc6e","src/lib/storeEmailSignature.ts":"cec2c912fb5ec0b85654577f9cc875cf3200ce2305698b82bb2a42c5e565b85c","src/lib/utils.ts":"eca0a93f8f7f55305656f18a125beb7e2ced9391e677fce8cd3426c74ef125e5","src/lib/utilsServer.ts":"4a70066b37d221e3cd14faebcdab7a746532e6d6513b2b7e80a399f82e5e2209","src/app/contribute/EmailUploader.tsx":"626ac62b2e795523fe577154778024c4b279453f0de18ca3aee3c582262e93b8"}
+QUEUE_FAILURE {"http":200,"savedNew":2,"laterSignatureSaved":true,"messagesProcessed":1,"resultCount":2,"errors":[]}
+FAILED_MESSAGE {"http":200,"messagesProcessed":2,"successfulSignatureResults":1,"storedRows":1,"messagesFailed":1,"clientProcessed":0,"clientError":"1 of 2 messages could not be fully saved. Retry this page; saved signatures will not be duplicated.","clientBusy":false}
+LIST_FAILURE {"http":503,"body":{"error":"gmail_list_failed","message":"Could not list Gmail messages. Retry this page."},"requestCursor":"resume-cursor","clientError":"Could not list Gmail messages. Retry this page.","clientCursor":"resume-cursor","clientBusy":false}
+✔ control: missing DNS key still stores a cryptographically usable signature and hash (265.843834ms)
+✔ control: exact rescan deduplicates evidence without deleting the saved row (95.79975ms)
+✔ control: two signatures with known keys are both saved (75.787333ms)
+✔ queue failure: queue failure preserves both signatures and reports recovery failure (67.362542ms)
+✔ database insertion failure is isolated from later valid signature (111.651083ms)
+✔ DNS lookup failure does not block either signature insert (161.35375ms)
+✔ failed message is reported and stops page advancement (75.070917ms)
+✔ listing failure is non-success and preserves the resume cursor (78.942917ms)
+✔ control: real empty final page correctly ends the scan (70.764292ms)
+✔ control: client already displays non-2xx errors and retains its retry cursor (67.211042ms)
+✔ mailbox upload retains two signatures under one selector without sending bodies (102.297875ms)
+✔ TSV rate limit is visible and retries failed pair without a success log (100.930917ms)
+✔ mailbox retry resumes failed message without resending prior saved messages (82.723334ms)
+✔ mailbox simple canonicalization preserves last signed header line ending (72.454792ms)
+✔ header-only ingestion rejects an email body (77.920167ms)
+✔ Gmail preserves authentication and rate-limit error statuses (207.848375ms)
+✔ partial Gmail page retries without duplicate rows or inflated progress (87.929542ms)
+✔ mailbox evidence endpoint applies contribution rate limits (84.590833ms)
+✔ last-position DKIM signature survives a header-only mailbox upload (73.2765ms)
+✔ DKIM-looking text in the body is not ingested as another signature (62.561667ms)
+✔ undated header upload stores evidence without pairing the signature with itself (64.193792ms)
+✔ rendered log heading distinguishes incomplete and completed uploads (222.829625ms)
+✔ rendered unknown-key evidence is labelled as a saved signature (77.086667ms)
+ℹ tests 23
+ℹ suites 0
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2809.210166
