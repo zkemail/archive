@@ -1,0 +1,30 @@
+
+> test
+> node --test audit.test.cjs
+
+SOURCE_HASHES {"src/app/api/gmail/route.ts":"1744c437269c9c6168f26c2750049cce3282540d303c6edbc8566736db6f9435","src/lib/storeEmailSignature.ts":"91dad323a7531176a712ec0d2832216020d4f62e4b57f7f13a9746d74b10a558","src/lib/utils.ts":"a6a7afd0b670c9fd99c07636970f1c39051a392bb4bc16fbebbb8ee6b6e1d5cf","src/lib/utilsServer.ts":"4a70066b37d221e3cd14faebcdab7a746532e6d6513b2b7e80a399f82e5e2209","src/app/contribute/EmailUploader.tsx":"989d48b838b14aee9dd33ba7511a4a11027d5bcd3edad561aa27d3d2d08f7002"}
+QUEUE_FAILURE {"http":200,"savedNew":1,"laterSignatureSaved":false,"messagesProcessed":1,"resultCount":0,"errors":["Failed to create task: Could not load the default credentials"]}
+FAILED_MESSAGE {"http":200,"messagesProcessed":2,"successfulSignatureResults":1,"storedRows":1,"messagesFailed":null,"clientProcessed":2,"clientError":null,"clientBusy":false}
+LIST_FAILURE {"http":200,"body":{"addDspResults":[],"nextPageToken":null,"messagesProcessed":0},"requestCursor":"resume-cursor","clientError":null,"clientCursor":null,"clientBusy":false}
+MAILBOX_PATH {"inputMessages":2,"uniquePairs":1,"transmittedFields":["domain","selector"],"savedSignatureRows":0,"http":[200]}
+MAILBOX_429 {"http":[429],"processed":1,"ordinaryLogRows":1,"savedSignatureRows":0}
+✔ control: missing DNS key still stores a cryptographically usable signature and hash (351.724708ms)
+✔ control: exact rescan deduplicates evidence without deleting the saved row (122.19975ms)
+✔ control: two signatures with known keys are both saved (104.989792ms)
+✔ queue failure: first unknown signature persists but later signature is skipped (77.403083ms)
+✔ database insert failure: later valid signature is skipped (69.305458ms)
+✔ DNS-path database failure: persistence is not reached for current or later signature (65.880375ms)
+✔ failed message: API and client count failure without communicating it (99.8205ms)
+✔ listing failure: HTTP 200 empty page clears client cursor as if scan finished (83.888084ms)
+✔ control: real empty final page correctly ends the scan (76.829083ms)
+✔ control: client already displays non-2xx errors and retains its retry cursor (64.735334ms)
+✔ additional path: mailbox upload sends selector discovery only, not signature/hash evidence (64.11975ms)
+✔ additional path: mailbox upload treats a 429 response as a normal log row (68.551625ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1647.808959

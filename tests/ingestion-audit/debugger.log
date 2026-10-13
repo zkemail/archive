@@ -1,0 +1,22 @@
+
+> debug
+> AUDIT_DEBUG=1 node --test --test-name-pattern='queue failure|failed message|listing failure' audit.test.cjs
+
+SOURCE_HASHES {"src/app/api/gmail/route.ts":"1744c437269c9c6168f26c2750049cce3282540d303c6edbc8566736db6f9435","src/lib/storeEmailSignature.ts":"91dad323a7531176a712ec0d2832216020d4f62e4b57f7f13a9746d74b10a558","src/lib/utils.ts":"a6a7afd0b670c9fd99c07636970f1c39051a392bb4bc16fbebbb8ee6b6e1d5cf","src/lib/utilsServer.ts":"4a70066b37d221e3cd14faebcdab7a746532e6d6513b2b7e80a399f82e5e2209","src/app/contribute/EmailUploader.tsx":"989d48b838b14aee9dd33ba7511a4a11027d5bcd3edad561aa27d3d2d08f7002"}
+QUEUE_FAILURE {"http":200,"savedNew":1,"laterSignatureSaved":false,"messagesProcessed":1,"resultCount":0,"errors":["Failed to create task: Could not load the default credentials"]}
+DEBUGGER_OBSERVATIONS [{"reason":"promiseRejection","exception":"Error: DNS: public key not found","frames":["verifyDKIMSignature","handleMessage","processTicksAndRejections"],"values":[{"function":"handleMessage","values":{"domain":"first.example.test","selector":"old","signatureCount":2}}]},{"reason":"promiseRejection","exception":"Error: Could not load the default credentials","frames":["createTask","createGcdCalculationTask","processAndStoreEmailSignature","processTicksAndRejections"],"values":[{"function":"processAndStoreEmailSignature","values":{"domain":"first.example.test","selector":"old","neighbors":1,"resultsBeforeQueue":0}}]},{"reason":"promiseRejection","exception":"Error: Failed to create task: Could not load the default credentials","frames":["createGcdCalculationTask","processTicksAndRejections"],"values":[]}]
+FAILED_MESSAGE {"http":200,"messagesProcessed":2,"successfulSignatureResults":1,"storedRows":1,"messagesFailed":null,"clientProcessed":2,"clientError":null,"clientBusy":false}
+DEBUGGER_OBSERVATIONS [{"reason":"promiseRejection","exception":"Error: Gmail API: message fetch unavailable (503)","frames":["get","handleMessage","handleRequest","processTicksAndRejections"],"values":[{"function":"handleRequest","values":{"isFirstPage":true}}]},{"reason":"promiseRejection","exception":"Error: DNS: public key not found","frames":["verifyDKIMSignature","handleMessage","processTicksAndRejections"],"values":[{"function":"handleMessage","values":{"domain":"good.example.test","selector":"old","signatureCount":1}}]},{"reason":"promiseRejection","exception":"Error: Gmail API: message fetch unavailable (503)","frames":["get","handleMessage","handleRequest","processTicksAndRejections"],"values":[{"function":"handleRequest","values":{"isFirstPage":true}}]},{"reason":"promiseRejection","exception":"Error: DNS: public key not found","frames":["verifyDKIMSignature","handleMessage","processTicksAndRejections"],"values":[{"function":"handleMessage","values":{"domain":"good.example.test","selector":"old","signatureCount":1}}]}]
+LIST_FAILURE {"http":200,"body":{"addDspResults":[],"nextPageToken":null,"messagesProcessed":0},"requestCursor":"resume-cursor","clientError":null,"clientCursor":null,"clientBusy":false}
+DEBUGGER_OBSERVATIONS [{"reason":"promiseRejection","exception":"Error: Gmail API: quota exceeded (429)","frames":["list","handleRequest","processTicksAndRejections"],"values":[{"function":"handleRequest","values":{"pageToken":"resume-cursor","isFirstPage":false}}]},{"reason":"promiseRejection","exception":"Error: Gmail API: quota exceeded (429)","frames":["list","handleRequest","processTicksAndRejections"],"values":[{"function":"handleRequest","values":{"pageToken":"resume-cursor","isFirstPage":false}}]}]
+✔ queue failure: first unknown signature persists but later signature is skipped (413.885583ms)
+✔ failed message: API and client count failure without communicating it (121.383375ms)
+✔ listing failure: HTTP 200 empty page clears client cursor as if scan finished (113.365667ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1048.639917

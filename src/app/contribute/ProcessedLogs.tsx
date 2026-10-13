@@ -13,6 +13,7 @@ export interface LogResultItem {
   timestamp: string;
   isAdded?: boolean;
   isUpdated?: boolean;
+  signatureStatus?: 'stored' | 'duplicate' | 'skipped';
 }
 
 interface ProcessedLogsProps {
@@ -22,6 +23,7 @@ interface ProcessedLogsProps {
   onPause?: () => void;
   onResume?: () => void;
   onClearLog?: () => void;
+  hasError?: boolean;
 }
 
 const LogItem = ({ item }: { item: LogResultItem }) => {
@@ -35,12 +37,16 @@ const LogItem = ({ item }: { item: LogResultItem }) => {
   };
 
   const getBadgeVariant = (item: LogResultItem) => {
+    if (item.signatureStatus === 'stored') return 'active';
     if (item.isAdded) return 'active';
     if (item.isUpdated) return 'updated';
     return 'present';
   };
 
   const getBadgeText = (item: LogResultItem) => {
+    if (item.signatureStatus === 'stored') return 'Signature saved';
+    if (item.signatureStatus === 'duplicate') return 'Signature present';
+    if (item.signatureStatus === 'skipped') return 'Signature skipped';
     if (item.isAdded) return 'Added';
     if (item.isUpdated) return 'Updated';
     return 'Present';
@@ -89,14 +95,15 @@ const ProcessedLogs = ({
   onPause,
   onResume,
   onClearLog,
+  hasError = false,
 }: ProcessedLogsProps) => {
-  const statusText = isProcessing
-    ? 'Uploading emails...'
-    : isPaused
-      ? 'Paused'
-      : logResults.length > 0
-        ? 'Upload complete'
-        : 'Uploading emails';
+  const statusText = hasError
+    ? 'Upload incomplete'
+    : isProcessing
+      ? 'Uploading emails...'
+      : isPaused
+        ? 'Paused'
+        : 'Upload complete';
 
   return (
     <div className='w-full rounded-lg border border-border bg-foreground dark:bg-background'>

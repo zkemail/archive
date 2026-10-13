@@ -34,7 +34,7 @@ import { fetchEmailList, fetchEmailsRaw } from '@/hooks/useGmailClient';
 import {
   type DomainSelectorPair,
   getFileContent,
-  parseMailboxPairs,
+  parseMailboxEvidence,
   parseTsvPairs,
 } from '@/lib/utils';
 
@@ -84,6 +84,8 @@ const EmailUploader = ({
   const [totalMessages, setTotalMessages] = useState<number | null>(null);
   const [addedCount, setAddedCount] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [recoveryFailureCount, setRecoveryFailureCount] = useState(0);
+  const fileResumeIndexRef = useRef(0);
   const [isPaused, setIsPaused] = useState(false);
   const isPausedRef = useRef(false);
   // Persists true once upload starts - prevents reverting to filter screen on error
@@ -217,6 +219,7 @@ const EmailUploader = ({
     const query = constructGmailQuery();
     setEmailQuery(query || null);
 
+    setRecoveryFailureCount(0);
     setUploadStarted(true); // Persist view transition
     setIsProcessingEmails(true);
     setIsPaused(false);
@@ -240,6 +243,7 @@ const EmailUploader = ({
       if (pageToken) params.set('pageToken', pageToken);
       if (gmailQuery) params.set('gmailQuery', gmailQuery);
 
+      setApiPageToken(pageToken || null);
       const response = await fetch(`/api/gmail?${params.toString()}`);
 
       if (!response.ok) {
@@ -263,16 +267,22 @@ const EmailUploader = ({
           timestamp: result.mailTimestamp || new Date().toISOString(),
           isAdded: result.addResult.added,
           isUpdated: result.addResult.already_in_db && !result.addResult.added,
+          signatureStatus: result.processResult.signatureStatus,
         })
       );
 
       setLogResults((prev) => [...prev, ...newLogItems]);
-      setProcessedCount((prev) => prev + data.messagesProcessed);
+      setRecoveryFailureCount((prev) => prev + data.recoveryFailures);
       setAddedCount(
         (prev) =>
           prev + data.addDspResults.filter((r) => r.addResult.added).length
       );
-
+      if (data.messagesFailed > 0) {
+        throw new Error(
+          `${data.messagesFailed} of ${data.messagesProcessed} messages could not be fully saved. Retry this page; saved signatures will not be duplicated.`
+        );
+      }
+      setProcessedCount((prev) => prev + data.messagesProcessed);
       // Continue fetching if there's more
       if (data.nextPageToken && !isPausedRef.current) {
         setApiPageToken(data.nextPageToken);
@@ -326,6 +336,8 @@ const EmailUploader = ({
     setIsDataFetching(false);
     setFile(null);
     setUploadMode(null);
+    fileResumeIndexRef.current = 0;
+    setRecoveryFailureCount(0);
   };
 
   // Submit a list of pre-extracted {domain, selector} pairs to /api/dsp,
@@ -337,15 +349,19 @@ const EmailUploader = ({
     source: UploadMode
   ) => {
     setTotalMessages(pairs.length);
-    for (let i = 0; i < pairs.length; i++) {
+    for (let i = fileResumeIndexRef.current; i < pairs.length; i++) {
       const { domain, selector } = pairs[i];
-      setProcessedCount(i + 1);
+      fileResumeIndexRef.current = i;
       try {
         const response = await fetch('/api/dsp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ domain, selector }),
         });
+        if (!response.ok)
+          throw new Error(
+            `Submission failed (HTTP ${response.status}). Retry to continue from this pair.`
+          );
         const data: AddDspResponse = await response.json();
         const logItem: LogResultItem = {
           id: `${source}-${Date.now()}-${i}-${domain}-${selector}`,
@@ -358,13 +374,55 @@ const EmailUploader = ({
             !(data.addResult?.added ?? false),
         };
         setLogResults((prev) => [...prev, logItem]);
+        setProcessedCount(i + 1);
+        fileResumeIndexRef.current = i + 1;
         if (data.addResult?.added) {
           setAddedCount((prev) => prev + 1);
         }
       } catch (err) {
         console.error(`Error adding ${domain}/${selector}:`, err);
-        // Continue with next pair
+        throw err; // Preserve the failed index; do not silently skip evidence.
       }
+    }
+  };
+
+  const submitEvidence = async (
+    evidence: Awaited<ReturnType<typeof parseMailboxEvidence>>
+  ) => {
+    setTotalMessages(evidence.length);
+    for (let i = fileResumeIndexRef.current; i < evidence.length; i++) {
+      fileResumeIndexRef.current = i;
+      const response = await fetch('/api/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(evidence[i]),
+      });
+      if (!response.ok)
+        throw new Error(
+          `Signature could not be saved (HTTP ${response.status}). Retry to continue from this signature.`
+        );
+      const data = (await response.json()) as Awaited<
+        ReturnType<typeof import('@/lib/ingestEmail').ingestEmail>
+      >;
+      setLogResults((prev) => [
+        ...prev,
+        ...data.addDspResults.map((r, index) => ({
+          id: `mailbox-${i}-${index}`,
+          domain: r.domainSelectorPair.domain,
+          selector: r.domainSelectorPair.selector,
+          timestamp: r.mailTimestamp || new Date().toISOString(),
+          isAdded: r.addResult.added,
+          isUpdated: r.addResult.already_in_db && !r.addResult.added,
+          signatureStatus: r.processResult.signatureStatus,
+        })),
+      ]);
+      setAddedCount(
+        (prev) =>
+          prev + data.addDspResults.filter((r) => r.addResult.added).length
+      );
+      setRecoveryFailureCount((prev) => prev + data.recoveryFailures);
+      setProcessedCount(i + 1);
+      fileResumeIndexRef.current = i + 1;
     }
   };
 
@@ -375,9 +433,12 @@ const EmailUploader = ({
     setIsProcessingEmails(true);
     setIsDataFetching(true);
     setUploadError(null);
-    setLogResults([]);
-    setAddedCount(0);
-    setProcessedCount(0);
+    if (fileResumeIndexRef.current === 0) {
+      setLogResults([]);
+      setAddedCount(0);
+      setProcessedCount(0);
+      setRecoveryFailureCount(0);
+    }
 
     try {
       const content = await getFileContent(file);
@@ -385,20 +446,20 @@ const EmailUploader = ({
         throw new Error('Could not read file content');
       }
 
-      const pairs =
-        uploadMode === 'tsv'
-          ? parseTsvPairs(content)
-          : parseMailboxPairs(content);
-
-      if (pairs.length === 0) {
-        throw new Error(
-          uploadMode === 'tsv'
-            ? 'No domain/selector pairs found in TSV file'
-            : 'No DKIM signatures found in mailbox file'
-        );
+      if (uploadMode === 'tsv') {
+        const pairs = parseTsvPairs(content);
+        if (!pairs.length)
+          throw new Error('No domain/selector pairs found in TSV file');
+        await submitPairs(pairs, uploadMode);
+      } else {
+        const messages = await parseMailboxEvidence(content);
+        if (!messages.length)
+          throw new Error(
+            'No supported RSA DKIM signatures found in mailbox file'
+          );
+        await submitEvidence(messages);
       }
-
-      await submitPairs(pairs, uploadMode);
+      fileResumeIndexRef.current = 0;
       setIsProcessingEmails(false);
     } catch (error) {
       console.error('Error processing file:', error);
@@ -437,6 +498,7 @@ const EmailUploader = ({
       return;
     }
     setUploadError(null);
+    fileResumeIndexRef.current = 0;
     setFile(selected);
     setUploadMode(mode);
   };
@@ -520,7 +582,7 @@ const EmailUploader = ({
           <>
             {uploadSectionLabel(
               'Upload mailbox file (.mbox or .eml)',
-              'Drop a Gmail Takeout / Apple Mail / Thunderbird export (.mbox) or a single saved email (.eml). We read each message and extract its DKIM domain + selector pairs locally before uploading them.',
+              'Drop a Gmail Takeout / Apple Mail / Thunderbird export (.mbox) or a single saved email (.eml). We compute DKIM header hashes on your device and upload hashes, signatures, domains, selectors, algorithms and dates. Raw headers, bodies and attachments stay on your device.',
               SCRAPER_README_URL,
               'How to export your mailbox?'
             )}
@@ -580,8 +642,11 @@ const EmailUploader = ({
             <div className='text-base leading-tight font-medium text-secondary'>
               When you sign in with your Gmail account or upload a mailbox file,
               the site reads the DKIM-Signature header from each email message
-              and extracts only the domain and selector. A signature can look
-              something like this:
+              and retains the domain, selector, RSA signature, signed-header
+              hash, algorithm and date. Mailbox files are hashed on your device;
+              raw headers, bodies and attachments are not uploaded. Gmail
+              messages are processed transiently on the server. A signature can
+              look something like this:
             </div>
             <div className='rounded-lg border border-border p-4 text-xs leading-none font-light'>
               DKIM-Signature: v=1; a=rsa-sha256; d=example.net; s=brisbane;
@@ -595,8 +660,9 @@ const EmailUploader = ({
             </div>
             <div className='text-base leading-tight font-medium text-secondary'>
               In the example above, the domain is example.net and the selector
-              is brisbane. These are the values that will be extracted and
-              uploaded to the archive.
+              is brisbane. The archive also retains the derived hash and
+              signature as evidence for public-key recovery. A saved signature
+              is verified against any recovered key before that key is accepted.
             </div>
           </AccordionContent>
         </AccordionItem>
@@ -744,7 +810,11 @@ const EmailUploader = ({
         </div>
         <div className='flex w-full items-center justify-between'>
           <div className='justify-start text-base leading-tight font-normal tracking-tight'>
-            Emails Processed
+            {uploadMode === 'mailbox'
+              ? 'Signatures saved'
+              : uploadMode === 'tsv'
+                ? 'Pairs processed'
+                : 'Emails processed'}
           </div>
           <div className='justify-start text-right text-base leading-tight font-normal tracking-tight'>
             {processedCount}
@@ -752,7 +822,29 @@ const EmailUploader = ({
           </div>
         </div>
         {uploadError && (
-          <div className='w-full text-sm text-destructive'>{uploadError}</div>
+          <div
+            className='flex w-full flex-col gap-2 text-sm text-destructive'
+            role='alert'
+          >
+            {uploadError}
+            <Button
+              onClick={uploadMode ? handleProcessFile : handleResumeUpload}
+              variant='outline'
+            >
+              Retry failed{' '}
+              {uploadMode === 'tsv'
+                ? 'pair'
+                : uploadMode
+                  ? 'signature'
+                  : 'page'}
+            </Button>
+          </div>
+        )}
+        {recoveryFailureCount > 0 && (
+          <p className='text-sm' role='status'>
+            Signatures were saved, but {recoveryFailureCount} recovery jobs
+            could not be scheduled.
+          </p>
         )}
       </div>
       <div className='flex items-center justify-between self-stretch'>
@@ -780,6 +872,7 @@ const EmailUploader = ({
           logResults={logResults}
           isProcessing={isProcessingEmails}
           isPaused={isPaused}
+          hasError={!!uploadError}
           onPause={handlePauseUpload}
           onResume={handleResumeUpload}
           onClearLog={handleClearLog}

@@ -7,19 +7,8 @@ import { z } from 'zod';
 
 import { auth } from '@/auth';
 import { badRequest, serverError } from '@/lib/api-response';
+import { ingestEmail, type SignatureResult } from '@/lib/ingestEmail';
 import { logger } from '@/lib/logger';
-import { processAndStoreEmailSignature } from '@/lib/storeEmailSignature';
-import {
-  type DomainAndSelector,
-  getDkimSigsArray,
-  parseDkimTagListV2,
-  parseEmailHeader,
-} from '@/lib/utils';
-import {
-  addDomainSelectorPair,
-  type AddResult,
-  type ProcessResult,
-} from '@/lib/utilsServer';
 
 // Input validation schema. We deliberately don't whitelist characters in
 // gmailQuery: Gmail's search syntax includes parens, quotes, comparison
@@ -31,105 +20,31 @@ const queryParamsSchema = z.object({
   gmailQuery: z.string().max(200).optional(),
 });
 
-async function handleMessage(
-  messageId: string,
-  gmail: gmail_v1.Gmail,
-  resultArray: AddDspResult[]
-) {
+async function handleMessage(messageId: string, gmail: gmail_v1.Gmail) {
   const messageRes = await gmail.users.messages.get({
     userId: 'me',
     id: messageId,
     format: 'raw',
   });
-  const encodedEmailRaw = messageRes.data.raw;
-  const decodedEmailRaw = Buffer.from(encodedEmailRaw!, 'base64').toString(
-    'utf-8'
+  if (!messageRes.data.raw) throw new Error('Missing raw message');
+  const raw = Buffer.from(messageRes.data.raw, 'base64').toString('utf-8');
+  const date = new Date(Number(messageRes.data.internalDate));
+  return ingestEmail(raw, isNaN(date.getTime()) ? null : date, (domain) =>
+    verifyDKIMSignature(raw, domain, true, true, true)
   );
-
-  const emailHeaders = parseEmailHeader(decodedEmailRaw);
-  if (!emailHeaders) {
-    throw new Error('missing headers');
-  }
-  let internalDate: Date | null = new Date(
-    Number(messageRes.data.internalDate)
-  );
-  internalDate =
-    internalDate instanceof Date && !isNaN(internalDate.getTime())
-      ? internalDate
-      : null;
-
-  const dkimSigsArray: string[] = getDkimSigsArray(decodedEmailRaw);
-
-  for (const dkimSig of dkimSigsArray) {
-    if (!dkimSig) {
-      logger.debug('missing_dkim_signature', { messageId });
-      continue;
-    }
-    const tags = parseDkimTagListV2(dkimSig);
-
-    const domain = tags.d;
-    if (!domain) {
-      logger.debug('missing_d_tag', { messageId });
-      continue;
-    }
-    const selector = tags.s;
-    if (!selector) {
-      logger.debug('missing_s_tag', { messageId });
-      continue;
-    }
-    let addResult: AddResult = { already_in_db: false, added: false };
-    let processResultBadSignatureError = false;
-
-    try {
-      // Verify DKIM signature; skip DNS if signature is bad
-      await verifyDKIMSignature(decodedEmailRaw, domain, true, true, true);
-    } catch (error) {
-      logger.warn('dkim_verify_failed', {
-        domain,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      if (error instanceof Error && error.message?.includes('bad signature')) {
-        processResultBadSignatureError = true;
-      }
-    }
-
-    if (!processResultBadSignatureError) {
-      addResult = await addDomainSelectorPair(domain, selector, 'api');
-    }
-
-    // If DNS check fails, and dkim key is not in DB, we calculate gcd via calling the processAndStoreEmailSignature function else we just store the email signature
-
-    const processResult = await processAndStoreEmailSignature(
-      emailHeaders,
-      dkimSig,
-      tags,
-      internalDate,
-      addResult,
-      processResultBadSignatureError
-    );
-
-    const domainSelectorPair = { domain, selector };
-    resultArray.push({
-      addResult,
-      processResult,
-      domainSelectorPair,
-      mailTimestamp: internalDate?.toString(),
-    });
-  }
-  return resultArray;
 }
-
-type AddDspResult = {
-  addResult: AddResult;
-  processResult: ProcessResult;
-  domainSelectorPair: DomainAndSelector;
-  mailTimestamp?: string;
-};
 
 export type GmailResponse = {
   messagesProcessed: number;
+  messagesSucceeded: number;
+  messagesFailed: number;
+  signaturesStored: number;
+  signaturesDuplicate: number;
+  signaturesSkipped: number;
+  signaturesFailed: number;
+  recoveryFailures: number;
   messagesTotal?: number;
-  addDspResults: AddDspResult[];
+  addDspResults: SignatureResult[];
   nextPageToken: string | null;
 };
 
@@ -235,37 +150,57 @@ async function handleRequest(request: NextRequest) {
     logger.error('gmail_list_error', {
       error: error instanceof Error ? error.message : String(error),
     });
-    listResults = { data: { messages: [], nextPageToken: null } };
+    const code =
+      typeof error === 'object' && error !== null && 'code' in error
+        ? Number(error.code)
+        : 0;
+    const status =
+      code === 429 ? 429 : code === 401 || code === 403 ? code : 503;
+    return NextResponse.json(
+      {
+        error: 'gmail_list_failed',
+        message: 'Could not list Gmail messages. Retry this page.',
+      },
+      { status }
+    );
   }
 
   const messages = listResults?.data?.messages || [];
   logger.debug('gmail_messages_fetched', { count: messages.length });
 
-  const addDspResults: AddDspResult[] = [];
-
-  // Process messages in parallel for better performance
-  const messagePromises = messages
-    .filter(
-      (message): message is { id: string; threadId?: string } => !!message.id
-    )
-    .map(async (message) => {
-      try {
-        await handleMessage(message.id, gmail, addDspResults);
-      } catch (e) {
-        logger.warn('gmail_message_error', {
-          messageId: message.id,
-          error: e instanceof Error ? e.message : String(e),
-        });
-      }
-    });
-
-  await Promise.allSettled(messagePromises);
-  const nextPageToken = listResults.data.nextPageToken || null;
-  const messagesProcessed = messages.length;
+  const outcomes = await Promise.all(
+    messages
+      .filter((message) => !!message.id)
+      .map(async (message) => {
+        try {
+          return await handleMessage(message.id!, gmail);
+        } catch (error) {
+          logger.warn('gmail_message_error', {
+            messageId: message.id,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return null;
+        }
+      })
+  );
+  const valid = outcomes.filter((outcome) => outcome !== null);
   const response: GmailResponse = {
-    addDspResults,
-    nextPageToken,
-    messagesProcessed,
+    messagesProcessed: messages.length,
+    messagesSucceeded: valid.filter((outcome) => outcome.signaturesFailed === 0)
+      .length,
+    messagesFailed: outcomes.filter(
+      (outcome) => outcome === null || outcome.signaturesFailed > 0
+    ).length,
+    signaturesStored: valid.reduce((sum, r) => sum + r.signaturesStored, 0),
+    signaturesDuplicate: valid.reduce(
+      (sum, r) => sum + r.signaturesDuplicate,
+      0
+    ),
+    signaturesSkipped: valid.reduce((sum, r) => sum + r.signaturesSkipped, 0),
+    signaturesFailed: valid.reduce((sum, r) => sum + r.signaturesFailed, 0),
+    recoveryFailures: valid.reduce((sum, r) => sum + r.recoveryFailures, 0),
+    addDspResults: valid.flatMap((r) => r.addDspResults),
+    nextPageToken: listResults.data.nextPageToken || null,
     ...messageTotalParam,
   };
   return NextResponse.json(response, { status: 200 });

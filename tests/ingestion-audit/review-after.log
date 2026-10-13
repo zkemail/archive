@@ -1,0 +1,43 @@
+SOURCE_HASHES {"src/app/api/gmail/route.ts":"3fb863b16261c89fc8de213e1b8122ee44f6218a3584e9376427199a0df2a9e3","src/app/api/email/route.ts":"016cdc3b5495a9217a7c418b17093a498e8b82b9d09abbea128a185790d58b3e","src/lib/ingestEmail.ts":"acfc33eacaac2a5930fd7db167d69f51da283a35bb07fbc13b331f1b8122923a","src/lib/storeEmailSignature.ts":"200225859a57afb56ace4cb6ceb8acc36f9fbd71c2abde4a63afd7c7ab7fcfa4","src/lib/utils.ts":"fd2b21ab2311837e5e000b7cfaf18a8614b8cf6a2cd2636b611b0bf9d314cecc","src/lib/utilsServer.ts":"9753b8183bbae077311bbdba1a867e5b415a68786da9fbc3bd127090ac61e838","src/lib/dkimHeaderHash.ts":"de0c60c92fe7dfd74537a78d403cdf5aa80c826bbe56a6ee11a3ea433992f1cd","src/app/contribute/EmailUploader.tsx":"49afe651d1bd7050e28f8e2baaf35dbd15d3e401f335164019423e32fad2302e"}
+QUEUE_FAILURE {"http":200,"savedNew":2,"laterSignatureSaved":true,"messagesProcessed":1,"resultCount":2,"errors":[]}
+FAILED_MESSAGE {"http":200,"messagesProcessed":2,"successfulSignatureResults":1,"storedRows":1,"messagesFailed":1,"clientProcessed":0,"clientError":"1 of 2 messages could not be fully saved. Retry this page; saved signatures will not be duplicated.","clientBusy":false}
+LIST_FAILURE {"http":503,"body":{"error":"gmail_list_failed","message":"Could not list Gmail messages. Retry this page."},"requestCursor":"resume-cursor","clientError":"Could not list Gmail messages. Retry this page.","clientCursor":"resume-cursor","clientBusy":false}
+✔ control: missing DNS key still stores a cryptographically usable signature and hash (269.802208ms)
+✔ control: exact rescan deduplicates evidence without deleting the saved row (132.864ms)
+✔ control: two signatures with known keys are both saved (107.871708ms)
+✔ queue failure: queue failure preserves both signatures and reports recovery failure (117.273ms)
+✔ database insertion failure is isolated from later valid signature (82.43675ms)
+✔ DNS lookup failure does not block either signature insert (109.642917ms)
+✔ failed message is reported and stops page advancement (86.574584ms)
+✔ listing failure is non-success and preserves the resume cursor (79.415875ms)
+✔ control: real empty final page correctly ends the scan (96.113458ms)
+✔ control: client already displays non-2xx errors and retains its retry cursor (99.658625ms)
+✔ mailbox upload retains two signatures under one selector without sending bodies (178.532667ms)
+✔ TSV rate limit is visible and retries failed pair without a success log (179.643834ms)
+✔ mailbox retry resumes failed message without resending prior saved messages (122.814417ms)
+✔ mailbox simple canonicalization preserves last signed header line ending (112.892917ms)
+✔ header-only ingestion rejects an email body (77.254291ms)
+✔ Gmail preserves authentication and rate-limit error statuses (257.142583ms)
+✔ partial Gmail page retries without duplicate rows or inflated progress (103.690584ms)
+✔ mailbox evidence endpoint applies contribution rate limits (119.657167ms)
+✔ last-position DKIM signature survives a header-only mailbox upload (113.80775ms)
+✔ DKIM-looking text in the body is not ingested as another signature (75.798083ms)
+✔ undated header upload stores evidence without pairing the signature with itself (116.193666ms)
+✔ rendered log heading distinguishes incomplete and completed uploads (154.689417ms)
+✔ rendered unknown-key evidence is labelled as a saved signature (127.3845ms)
+✔ mailbox upload sends no raw header values (147.08875ms)
+✔ undated signature schedules each distinct neighbor only once (99.512833ms)
+✔ one email with twelve DKIM signatures retains every signature (147.61375ms)
+✔ browser hashes match independently signed repeated, oversigned and folded headers (134.778083ms)
+✔ evidence endpoint rejects batches, raw headers, wrong digest lengths and oversized bodies (104.346084ms)
+✔ file and Gmail rescans deduplicate the same folded signature evidence (107.455334ms)
+✔ chunked oversized evidence is cancelled before parsing or storage (118.277125ms)
+✔ ;bh= in Subject and unrelated headers cannot replace DKIM evidence (255.978125ms)
+ℹ tests 31
+ℹ suites 0
+ℹ pass 31
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4527.789333
