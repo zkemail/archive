@@ -17,6 +17,7 @@ const sourceFiles = [
   'src/lib/storeEmailSignature.ts',
   'src/lib/utils.ts',
   'src/lib/utilsServer.ts',
+  'src/lib/dkimHeaderHash.ts',
   'src/app/contribute/EmailUploader.tsx',
 ];
 console.log(
@@ -280,12 +281,20 @@ function createWorld(options = {}) {
         return require(name);
       throw new Error('Unexpected dependency: ' + name);
     }
-    const code = compile(fs.readFileSync(file, 'utf8'), file);
+    let code = compile(fs.readFileSync(file, 'utf8'), file);
+    if (debug)
+      code = code.replace(
+        'const dsps = [...futureEmailSigs, ...pastEmailSigs];',
+        '$&\ndebugger;'
+      );
     new vm.Script(code, { filename: file }).runInNewContext({
       require: requireBoundary,
       exports: mod.exports,
       module: mod,
       Buffer,
+      crypto: crypto.webcrypto,
+      TextEncoder,
+      Uint8Array,
       console,
       performance,
       Response,
@@ -380,7 +389,16 @@ function createWorld(options = {}) {
       { key: signingKey.publicKey, padding: crypto.constants.RSA_NO_PADDING },
       Buffer.from(row.dkimSignature, 'base64')
     );
-    assert.equal(digestInfo.subarray(-32).toString('hex'), row.headerHashV2);
+    assert.equal(
+      digestInfo
+        .subarray(
+          -{ 'rsa-sha1': 20, 'rsa-sha256': 32, 'rsa-sha512': 64 }[
+            row.signingAlgorithm
+          ]
+        )
+        .toString('hex'),
+      row.headerHashV2
+    );
     assert.equal(row.headerHash, row.headerHashV2);
   }
   async function getPage(pageToken) {
@@ -402,7 +420,14 @@ function createWorld(options = {}) {
     ProcessedLogs: () => load('src/app/contribute/ProcessedLogs.tsx').default,
     rawEmail,
     postEmail: (body) =>
-      load('src/app/api/email/route.ts').POST({ json: async () => body }),
+      load('src/app/api/email/route.ts').POST(
+        body instanceof Request
+          ? body
+          : new Request('https://archive.zk.email/api/email', {
+              method: 'POST',
+              body: JSON.stringify(body),
+            })
+      ),
     postPair: (body) =>
       load('src/app/api/dsp/route.ts').POST({ json: async () => body }),
   };
@@ -496,7 +521,7 @@ async function withDebug(action) {
         handleMessage:
           'JSON.stringify({domain, selector, signatureCount:dkimSigsArray.length})',
         processAndStoreEmailSignature:
-          'JSON.stringify({domain, selector, neighbors:dsps.length, resultsBeforeQueue:result.length})',
+          'JSON.stringify({domain, selector, neighbors:dsps.length, distinctNeighbors:new Set(dsps.map(row => row.id)).size, undated:timestamp === null})',
         handleRequest: 'JSON.stringify({pageToken, isFirstPage})',
       }[frame.functionName];
       if (expression)
@@ -790,9 +815,14 @@ test('mailbox upload retains two signatures under one selector without sending b
   assert.equal(state.processed, 2);
   assert.equal(state.sent.length, 2);
   for (const body of state.sent) {
-    assert.deepEqual(Object.keys(body).sort(), ['headers', 'timestamp']);
-    assert.ok(!body.headers.includes('fixture body'));
-    assert.ok(body.headers.includes('\r\n'));
+    assert.deepEqual(Object.keys(body).sort(), [
+      'dkimSignature',
+      'domain',
+      'headerHash',
+      'selector',
+      'signingAlgorithm',
+      'timestamp',
+    ]);
   }
 });
 
@@ -922,10 +952,12 @@ test('DKIM-looking text in the body is not ingested as another signature', async
 
 test('undated header upload stores evidence without pairing the signature with itself', async () => {
   const w = createWorld({ queueFailure: true });
-  const evidence = w.utils.parseMailboxEvidence(
-    w.rawEmail(['unknown.example.test'])
+  const evidence = (
+    await w.utils.parseMailboxEvidence(w.rawEmail(['unknown.example.test']))
   )[0];
-  const response = await w.postEmail({ ...evidence, timestamp: null });
+  const response = await withDebug(() =>
+    w.postEmail({ ...evidence, timestamp: null })
+  );
   assert.equal(response.status, 200);
   assert.equal(w.rows.length, 1);
   assert.equal(w.queueCalls.length, 0);
@@ -977,4 +1009,175 @@ test('rendered unknown-key evidence is labelled as a saved signature', () => {
     })
   );
   assert.match(html, /Signature saved/);
+});
+
+test('mailbox upload sends no raw header values', async () => {
+  const w = createWorld();
+  const client = await fileClient(
+    w,
+    w.rawEmail(['unknown.example.test'], 'private subject')
+  );
+  const serialized = JSON.stringify(client.state.sent);
+  for (const privateText of [
+    'private subject',
+    'sender@example.test',
+    'recipient@example.test',
+    'fixture body',
+  ]) {
+    assert.ok(
+      !serialized.includes(privateText),
+      'uploaded private header/body value: ' + privateText
+    );
+  }
+  assert.equal(w.rows.length, 1);
+  w.assertValidStored(w.rows[0]);
+});
+
+test('undated signature schedules each distinct neighbor only once', async () => {
+  const w = createWorld();
+  await w.seed('unknown.example.test');
+  const evidence = (
+    await w.utils.parseMailboxEvidence(w.rawEmail(['unknown.example.test']))
+  )[0];
+  const response = await withDebug(() =>
+    w.postEmail({ ...evidence, timestamp: null })
+  );
+  assert.equal(response.status, 200);
+  assert.equal(w.rows.length, 2);
+  assert.equal(w.queueCalls.length, 1);
+});
+
+test('one email with twelve DKIM signatures retains every signature', async () => {
+  const w = createWorld();
+  const domains = Array.from(
+    { length: 12 },
+    (_, i) => `signer${i}.example.test`
+  );
+  const client = await fileClient(w, w.rawEmail(domains));
+  assert.equal(client.state.error, null);
+  assert.equal(w.rows.length, 12);
+  assert.equal(client.state.sent.length, 12);
+  for (const row of w.rows) w.assertValidStored(row);
+});
+
+test('browser hashes match independently signed repeated, oversigned and folded headers', async () => {
+  const w = createWorld();
+  const key = crypto.generateKeyPairSync('rsa', { modulusLength: 1024 });
+  for (const canon of ['simple', 'relaxed']) {
+    for (const algorithm of ['rsa-sha1', 'rsa-sha256', 'rsa-sha512']) {
+      const unsigned = `DKIM-Signature: v=1; a=${algorithm}; c=${canon}/simple; d=unknown.example.test; s=selector.with.dots; h=from:subject:subject:subject:date; bh=abc; b=`;
+      const from = 'From: sender@example.test\r\n';
+      const first = 'Subject: private café\r\n';
+      const last = 'Subject: second\r\n\tprivate subject\r\n';
+      const date = 'Date: Sat, 10 Oct 2026 12:00:00 +0000\r\n';
+      const signed =
+        canon === 'simple'
+          ? from + last + first + date + unsigned
+          : 'from:sender@example.test\r\nsubject:second private subject\r\nsubject:private café\r\ndate:Sat, 10 Oct 2026 12:00:00 +0000\r\n' +
+            unsigned
+              .toLowerCase()
+              .replace('dkim-signature: ', 'dkim-signature:');
+      const digest = crypto
+        .createHash(algorithm.replace('rsa-', ''))
+        .update(signed)
+        .digest('hex');
+      const signature = crypto
+        .sign(
+          algorithm.replace('rsa-', ''),
+          Buffer.from(signed),
+          key.privateKey
+        )
+        .toString('base64');
+      const raw =
+        unsigned +
+        signature +
+        '\r\n' +
+        from +
+        first +
+        last +
+        date +
+        '\r\nprivate body';
+      const evidence = await w.utils.parseMailboxEvidence(raw);
+      assert.equal(evidence.length, 1);
+      assert.equal(evidence[0].headerHash, digest);
+      assert.equal((await w.postEmail(evidence[0])).status, 200);
+      const decrypted = crypto.publicDecrypt(
+        { key: key.publicKey, padding: crypto.constants.RSA_NO_PADDING },
+        Buffer.from(evidence[0].dkimSignature, 'base64')
+      );
+      assert.equal(
+        decrypted.subarray(-digest.length / 2).toString('hex'),
+        digest
+      );
+    }
+  }
+});
+
+test('evidence endpoint rejects batches, raw headers, wrong digest lengths and oversized bodies', async () => {
+  const w = createWorld();
+  const evidence = (
+    await w.utils.parseMailboxEvidence(w.rawEmail(['unknown.example.test']))
+  )[0];
+  for (const payload of [
+    [evidence, evidence],
+    { ...evidence, headers: 'Subject: private' },
+    { ...evidence, headerHash: 'ff' },
+    { ...evidence, dkimSignature: 'a'.repeat(9000) },
+  ])
+    assert.equal((await w.postEmail(payload)).status, 400);
+  assert.equal(w.rows.length, 0);
+  assert.equal(w.queueCalls.length, 0);
+});
+
+test('file and Gmail rescans deduplicate the same folded signature evidence', async () => {
+  const w = createWorld();
+  const raw = w.addMessage('one', ['unknown.example.test']);
+  const folded = raw.replace(/b=([A-Za-z0-9+/]{40})/, 'b=$1\r\n\t');
+  w.messages.get('one').raw = Buffer.from(folded).toString('base64url');
+  await w.getPage();
+  const client = await fileClient(w, folded);
+  assert.equal(client.state.error, null);
+  assert.equal(w.rows.length, 1);
+  assert.equal(client.state.logs[0].signatureStatus, 'duplicate');
+});
+
+test('chunked oversized evidence is cancelled before parsing or storage', async () => {
+  const w = createWorld();
+  let cancelled = false;
+  const body = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(' '.repeat(4000)));
+      controller.enqueue(new TextEncoder().encode(' '.repeat(5000)));
+      controller.enqueue(new TextEncoder().encode('never parsed'));
+    },
+    cancel() {
+      cancelled = true;
+    },
+  });
+  const request = new Request('https://archive.zk.email/api/email', {
+    method: 'POST',
+    body,
+    duplex: 'half',
+  });
+  assert.equal(request.headers.get('content-length'), null);
+  assert.equal((await w.postEmail(request)).status, 400);
+  assert.equal(cancelled, true);
+  assert.equal(w.rows.length, 0);
+  assert.equal(w.queueCalls.length, 0);
+});
+
+test(';bh= in Subject and unrelated headers cannot replace DKIM evidence', async () => {
+  for (const subject of ['private;bh=fake', 'private;bh=\r\n\tfake']) {
+    const w = createWorld();
+    const raw = w
+      .rawEmail(['unknown.example.test'], subject)
+      .replace(
+        '\r\n\r\nfixture body',
+        '\r\nX-Unrelated: text;bh=unrelated\r\n\r\nfixture body'
+      );
+    const client = await fileClient(w, raw);
+    assert.equal(client.state.error, null);
+    assert.equal(w.rows.length, 1);
+    w.assertValidStored(w.rows[0]);
+  }
 });

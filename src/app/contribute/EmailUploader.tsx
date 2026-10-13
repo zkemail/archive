@@ -387,19 +387,19 @@ const EmailUploader = ({
   };
 
   const submitEvidence = async (
-    messages: ReturnType<typeof parseMailboxEvidence>
+    evidence: Awaited<ReturnType<typeof parseMailboxEvidence>>
   ) => {
-    setTotalMessages(messages.length);
-    for (let i = fileResumeIndexRef.current; i < messages.length; i++) {
+    setTotalMessages(evidence.length);
+    for (let i = fileResumeIndexRef.current; i < evidence.length; i++) {
       fileResumeIndexRef.current = i;
       const response = await fetch('/api/email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(messages[i]),
+        body: JSON.stringify(evidence[i]),
       });
       if (!response.ok)
         throw new Error(
-          `Email could not be fully saved (HTTP ${response.status}). Retry to continue from this message.`
+          `Signature could not be saved (HTTP ${response.status}). Retry to continue from this signature.`
         );
       const data = (await response.json()) as Awaited<
         ReturnType<typeof import('@/lib/ingestEmail').ingestEmail>
@@ -452,9 +452,11 @@ const EmailUploader = ({
           throw new Error('No domain/selector pairs found in TSV file');
         await submitPairs(pairs, uploadMode);
       } else {
-        const messages = parseMailboxEvidence(content);
+        const messages = await parseMailboxEvidence(content);
         if (!messages.length)
-          throw new Error('No DKIM signatures found in mailbox file');
+          throw new Error(
+            'No supported RSA DKIM signatures found in mailbox file'
+          );
         await submitEvidence(messages);
       }
       fileResumeIndexRef.current = 0;
@@ -580,7 +582,7 @@ const EmailUploader = ({
           <>
             {uploadSectionLabel(
               'Upload mailbox file (.mbox or .eml)',
-              'Drop a Gmail Takeout / Apple Mail / Thunderbird export (.mbox) or a single saved email (.eml). We process email headers to archive DKIM signatures and hashes. Email bodies and attachments stay on your device.',
+              'Drop a Gmail Takeout / Apple Mail / Thunderbird export (.mbox) or a single saved email (.eml). We compute DKIM header hashes on your device and upload hashes, signatures, domains, selectors, algorithms and dates. Raw headers, bodies and attachments stay on your device.',
               SCRAPER_README_URL,
               'How to export your mailbox?'
             )}
@@ -640,8 +642,11 @@ const EmailUploader = ({
             <div className='text-base leading-tight font-medium text-secondary'>
               When you sign in with your Gmail account or upload a mailbox file,
               the site reads the DKIM-Signature header from each email message
-              and extracts only the domain and selector. A signature can look
-              something like this:
+              and retains the domain, selector, RSA signature, signed-header
+              hash, algorithm and date. Mailbox files are hashed on your device;
+              raw headers, bodies and attachments are not uploaded. Gmail
+              messages are processed transiently on the server. A signature can
+              look something like this:
             </div>
             <div className='rounded-lg border border-border p-4 text-xs leading-none font-light'>
               DKIM-Signature: v=1; a=rsa-sha256; d=example.net; s=brisbane;
@@ -655,8 +660,9 @@ const EmailUploader = ({
             </div>
             <div className='text-base leading-tight font-medium text-secondary'>
               In the example above, the domain is example.net and the selector
-              is brisbane. These are the values that will be extracted and
-              uploaded to the archive.
+              is brisbane. The archive also retains the derived hash and
+              signature as evidence for public-key recovery. A saved signature
+              is verified against any recovered key before that key is accepted.
             </div>
           </AccordionContent>
         </AccordionItem>
@@ -804,7 +810,11 @@ const EmailUploader = ({
         </div>
         <div className='flex w-full items-center justify-between'>
           <div className='justify-start text-base leading-tight font-normal tracking-tight'>
-            Emails Processed
+            {uploadMode === 'mailbox'
+              ? 'Signatures saved'
+              : uploadMode === 'tsv'
+                ? 'Pairs processed'
+                : 'Emails processed'}
           </div>
           <div className='justify-start text-right text-base leading-tight font-normal tracking-tight'>
             {processedCount}
@@ -822,7 +832,11 @@ const EmailUploader = ({
               variant='outline'
             >
               Retry failed{' '}
-              {uploadMode === 'tsv' ? 'pair' : uploadMode ? 'message' : 'page'}
+              {uploadMode === 'tsv'
+                ? 'pair'
+                : uploadMode
+                  ? 'signature'
+                  : 'page'}
             </Button>
           </div>
         )}

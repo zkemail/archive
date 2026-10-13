@@ -5,13 +5,20 @@
 The confirmed failure paths are fixed in the application source. Gmail and
 mailbox files share per-signature ingestion; optional DNS/recovery failures do
 not abort archival storage; partial pages are visible and retryable; listing
-errors retain their failure status and cursor. Mailbox submissions send headers
-only and preserve signatures across rotations of the same selector. TSV remains
+errors retain their failure status and cursor. Mailbox submissions compute
+header hashes locally and upload only derived signature/hash evidence plus
+domain, selector, algorithm and date. No raw headers are transmitted. They
+preserve every supported signature across rotations of the same selector. TSV remains
 selector discovery and now stops on failed HTTP responses with retry support.
 
 Regression coverage includes simple canonicalization's final header line
-ending, no body transmission, partial-page retries without duplicate rows,
-and contribution rate limiting. Type checking and the production build passed
+ending, no raw-header or body transmission, partial-page retries without duplicate
+rows, and contribution rate limiting. There is no per-message signature-count
+cap: each evidence request contains one bounded signature. Undated recovery
+neighbors are deduplicated by ID before enqueueing. Independent RSA fixtures
+verify simple/relaxed SHA1/256/512 hashes with repeated, oversigned and folded
+headers; review-before.log and review-debugger.log retain the two reproduced
+review defects on unchanged 0e14147 application source. Type checking and the production build passed
 locally; production deployment is a separate state.
 
 The remainder is the **October 11 pre-fix audit**, retained with its original

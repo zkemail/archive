@@ -1,0 +1,46 @@
+SOURCE_HASHES {"src/app/api/gmail/route.ts":"3fb863b16261c89fc8de213e1b8122ee44f6218a3584e9376427199a0df2a9e3","src/app/api/email/route.ts":"3a4b9afeafebbebc584400825163e806177f437cf5759e5c5c5b84ef2172ee25","src/lib/ingestEmail.ts":"62e46da5fec795d1fa755871871c926c96e205c3eb30b18a7593a7b141e6dc6e","src/lib/storeEmailSignature.ts":"cec2c912fb5ec0b85654577f9cc875cf3200ce2305698b82bb2a42c5e565b85c","src/lib/utils.ts":"eca0a93f8f7f55305656f18a125beb7e2ced9391e677fce8cd3426c74ef125e5","src/lib/utilsServer.ts":"4a70066b37d221e3cd14faebcdab7a746532e6d6513b2b7e80a399f82e5e2209","src/app/contribute/EmailUploader.tsx":"626ac62b2e795523fe577154778024c4b279453f0de18ca3aee3c582262e93b8"}
+✖ mailbox upload sends no raw header values (422.433917ms)
+✖ undated signature schedules each distinct neighbor only once (111.079166ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 0
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1005.204333
+
+✖ failing tests:
+
+test at tests/ingestion-audit/audit.test.cjs:983:1
+✖ mailbox upload sends no raw header values (422.433917ms)
+  AssertionError [ERR_ASSERTION]: uploaded private header/body value: private subject
+      at TestContext.<anonymous> (/Users/aayushgupta/Documents/.projects.nosync/zkemail/archive-ingestion-repro-worktree/tests/ingestion-audit/audit.test.cjs:988:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at tests/ingestion-audit/audit.test.cjs:994:1
+✖ undated signature schedules each distinct neighbor only once (111.079166ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  2 !== 1
+  
+      at TestContext.<anonymous> (/Users/aayushgupta/Documents/.projects.nosync/zkemail/archive-ingestion-repro-worktree/tests/ingestion-audit/audit.test.cjs:1001:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 2,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

@@ -2,12 +2,14 @@ import { logger } from './logger';
 import {
   processAndStoreEmailSignature,
   type ProcessResult,
+  storeSignatureEvidence,
 } from './storeEmailSignature';
 import {
   type DomainAndSelector,
   getDkimSigsArray,
   parseDkimTagListV2,
   parseEmailHeader,
+  type SignatureEvidence,
 } from './utils';
 import { addDomainSelectorPair, type AddResult } from './utilsServer';
 
@@ -96,5 +98,41 @@ export async function ingestEmail(
       (sum, r) => sum + r.processResult.recoveryFailures,
       0
     ),
+  };
+}
+
+export async function ingestSignatureEvidence(
+  evidence: SignatureEvidence,
+  timestamp: Date | null
+) {
+  const { domain, selector } = evidence;
+  let addResult: AddResult = { added: false, already_in_db: false };
+  try {
+    addResult = await addDomainSelectorPair(domain, selector, 'api');
+  } catch (error) {
+    logger.warn('dns_discovery_failed_before_storage', {
+      domain,
+      selector,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+  const processResult = await storeSignatureEvidence(
+    evidence,
+    timestamp,
+    addResult
+  );
+  const result: SignatureResult = {
+    addResult,
+    processResult,
+    domainSelectorPair: { domain, selector },
+    mailTimestamp: timestamp?.toISOString(),
+  };
+  return {
+    addDspResults: [result],
+    signaturesFailed: 0,
+    signaturesStored: Number(processResult.signatureStatus === 'stored'),
+    signaturesDuplicate: Number(processResult.signatureStatus === 'duplicate'),
+    signaturesSkipped: Number(processResult.signatureStatus === 'skipped'),
+    recoveryFailures: processResult.recoveryFailures,
   };
 }

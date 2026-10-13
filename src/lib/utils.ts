@@ -5,6 +5,12 @@ import { twMerge } from 'tailwind-merge';
 
 import type { KeyType } from '@/generated/prisma/client';
 
+import {
+  canonicalizedHeaderData,
+  canonicalizeHeaders,
+  parseDkimSignature,
+  selectSignedHeadersNew,
+} from './dkimHeaderHash';
 import { logger } from './logger';
 
 // Regex to extract DKIM-Signature header blocks
@@ -428,31 +434,64 @@ export function splitMboxMessages(content: string): string[] {
   return messages.length > 0 ? messages : [normalised.trim()].filter(Boolean);
 }
 
-// Evidence uploads preserve header bytes and every signature, including
-// rotations under the same domain/selector. Bodies never leave the browser.
-export function parseMailboxEvidence(content: string) {
+export type SignatureEvidence = {
+  domain: string;
+  selector: string;
+  headerHash: string;
+  dkimSignature: string;
+  signingAlgorithm: 'rsa-sha256' | 'rsa-sha1' | 'rsa-sha512';
+};
+
+// Hash locally. Raw headers, bodies and attachments never enter the payload.
+// Each signature is submitted separately so rate limits bound server work
+// without discarding signatures from messages with many DKIM headers.
+export async function parseMailboxEvidence(content: string) {
+  const evidence: (SignatureEvidence & { timestamp: string | null })[] = [];
   const messages = content
     .split(/(?:^|\r?\n)From [^\r\n]*\r?\n/)
     .filter((m) => m.trim());
-  return messages
-    .filter((message) => getDkimSigsArray(message).length > 0)
-    .map((message) => {
-      const separator = /\r?\n\r?\n/.exec(message);
-      const headers = separator
-        ? message.slice(
-            0,
-            separator.index + (separator[0].startsWith('\r') ? 2 : 1)
-          )
-        : message;
-      const dateValue = parseEmailHeader(headers).find(
-        ([name]) => name.toLowerCase() === 'date'
-      )?.[1];
-      const date = dateValue ? new Date(dateValue) : null;
-      return {
-        headers,
-        timestamp: date && !isNaN(date.getTime()) ? date.toISOString() : null,
-      };
-    });
+  for (const message of messages) {
+    const headers = parseEmailHeader(message);
+    const dateValue = headers.find(
+      ([name]) => name.toLowerCase() === 'date'
+    )?.[1];
+    const date = dateValue ? new Date(dateValue) : null;
+    const timestamp =
+      date && !isNaN(date.getTime()) ? date.toISOString() : null;
+    for (const signature of getDkimSigsArray(message)) {
+      const tags = parseDkimTagListV2(signature);
+      const algorithm = tags.a?.toLowerCase();
+      if (
+        !tags.d ||
+        !tags.s ||
+        !tags.b ||
+        !tags.h ||
+        !['rsa-sha256', 'rsa-sha1', 'rsa-sha512'].includes(algorithm)
+      )
+        continue;
+      const canon = tags.c ? tags.c.split('/')[0] : 'simple';
+      const signed = canonicalizeHeaders(
+        selectSignedHeadersNew(headers, tags.h.split(':')),
+        canon
+      );
+      const sig = canonicalizeHeaders(parseDkimSignature(signature), canon);
+      const digest = await globalThis.crypto.subtle.digest(
+        algorithm.replace('rsa-sha', 'SHA-'),
+        new TextEncoder().encode(canonicalizedHeaderData(signed, sig, canon))
+      );
+      evidence.push({
+        domain: tags.d,
+        selector: tags.s,
+        dkimSignature: tags.b,
+        signingAlgorithm: algorithm as SignatureEvidence['signingAlgorithm'],
+        headerHash: Array.from(new Uint8Array(digest), (b) =>
+          b.toString(16).padStart(2, '0')
+        ).join(''),
+        timestamp,
+      });
+    }
+  }
+  return evidence;
 }
 
 // Walk an mbox/.eml file, extract every DKIM-Signature, and return the

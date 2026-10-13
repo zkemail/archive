@@ -8,7 +8,7 @@ import {
   GcdCalculationPayload,
 } from './calculateGcdTask';
 import { logger } from './logger';
-import type { HeaderPair } from './utils';
+import type { HeaderPair, SignatureEvidence } from './utils';
 import {
   AddResult,
   canonicalizeHeaders,
@@ -35,7 +35,6 @@ export async function processAndStoreEmailSignature(
   addResult: AddResult,
   processResultBadSignatureError = false
 ): Promise<ProcessResult> {
-  const startTime = performance.now();
   /*
 	Basic run down of below Steps :-
 	1. we will parse header and Signature values
@@ -88,14 +87,41 @@ export async function processAndStoreEmailSignature(
   );
   const headerHash = hashInstance.digest('hex');
 
-  const domain = tags.d;
-  const selector = tags.s;
-  const dkimSignatureRaw = tags.b;
-  if (!dkimSignatureRaw) {
-    logger.debug('missing_b_tag', { domain, selector });
+  if (!tags.b) {
+    logger.debug('missing_b_tag', { domain: tags.d, selector: tags.s });
     return { signatureStatus: 'skipped', recoveryFailures: 0 };
   }
+  return storeSignatureEvidence(
+    {
+      domain: tags.d,
+      selector: tags.s,
+      headerHash,
+      dkimSignature: tags.b,
+      signingAlgorithm:
+        signingAlgorithm as SignatureEvidence['signingAlgorithm'],
+    },
+    timestamp,
+    addResult,
+    processResultBadSignatureError
+  );
+}
 
+// A submitted hash/signature is a recovery candidate, not proof of a valid
+// DKIM email. Recovered keys must verify the signature against this digest.
+export async function storeSignatureEvidence(
+  evidence: SignatureEvidence,
+  timestamp: Date | null,
+  addResult: AddResult,
+  processResultBadSignatureError = false
+): Promise<ProcessResult> {
+  const startTime = performance.now();
+  const {
+    domain,
+    selector,
+    headerHash,
+    signingAlgorithm,
+    dkimSignature: dkimSignatureRaw,
+  } = evidence;
   /*
 	Basic rundown of the steps below:
 	1. Check if the hash and signature exist. If they do, we skip the rest of the processing and return early.
@@ -172,7 +198,11 @@ export async function processAndStoreEmailSignature(
       });
 
       // The combined results will have up to 4 records.
-      const dsps = [...futureEmailSigs, ...pastEmailSigs];
+      const dsps = [
+        ...new Map(
+          [...futureEmailSigs, ...pastEmailSigs].map((row) => [row.id, row])
+        ).values(),
+      ];
       logger.debug('email_signatures_found', {
         count: dsps.length,
         domain,
